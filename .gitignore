@@ -1,0 +1,8 @@
+bazel-bin
+bazel-out
+bazel-practice
+bazel-testlogs
+.vscode
+.cache
+.idea
+compile_commands.json

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package pedro.pb;
+
+message Matrix {
+    int32 rows = 1;
+    int32 cols = 2;
+    repeated int32 data = 3;
+}
+
+enum MatrixOperationType {
+    ADD = 0;
+    MULTIPLY = 1;
+}
+
+message MatrixOperation {
+    MatrixOperationType type = 1;
+    Matrix left = 2;
+    Matrix right = 3;
+}
+
+message Vector {
+    repeated int32 data = 1;
+}
