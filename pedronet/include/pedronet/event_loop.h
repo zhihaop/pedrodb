@@ -2,10 +2,13 @@
 #define PEDRONET_EVENT_LOOP_H
 
 #include "core/duration.h"
+#include "core/noncopyable.h"
+#include "core/nonmoveable.h"
 #include "event.h"
 #include "selector.h"
 #include <atomic>
 #include <functional>
+#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -13,15 +16,14 @@
 namespace pedronet {
 
 using CallBack = std::function<void()>;
+using ChannelPtr = std::shared_ptr<Channel>;
 
-struct EventLoop : public Selector {
+struct EventLoop : core::noncopyable, core::nonmoveable {
   // For pedronet::Channel.
   virtual void Update(Channel *channel, SelectEvents events,
-                      const CallBack &cb) override = 0;
-  virtual void Register(const ChannelPtr &channel,
-                        const CallBack &cb) override = 0;
-  virtual void Deregister(const ChannelPtr &channel,
-                          const CallBack &cb) override = 0;
+                      const CallBack &cb) = 0;
+  virtual void Register(const ChannelPtr &channel, const CallBack &cb) = 0;
+  virtual void Deregister(const ChannelPtr &channel, const CallBack &cb) = 0;
 
   // For users.
   virtual bool CheckInsideLoop() const noexcept = 0;
@@ -35,8 +37,7 @@ struct EventLoop : public Selector {
   virtual uint64_t ScheduleEvery(CallBack cb, core::Duration delay,
                                  core::Duration interval) = 0;
   virtual void ScheduleCancel(uint64_t) = 0;
-
-  ~EventLoop() override = default;
+  virtual ~EventLoop() = default;
 };
 
 class EventLoopGroup : core::noncopyable, core::nonmoveable {

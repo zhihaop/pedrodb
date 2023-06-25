@@ -1,39 +1,32 @@
 #ifndef PERDONET_EPOLL_H
 #define PERDONET_EPOLL_H
 
-
 #include "core/file.h"
 
-#include "selector.h"
 #include "channel.h"
+#include "event.h"
+#include "selector.h"
 #include <vector>
 
 struct epoll_event;
 
 namespace pedronet {
 
-struct Selected {
-  core::Timestamp now;
-  std::vector<Channel *> channels;
-  std::vector<ReceiveEvents> events;
-  core::File::Error error;
-};
+class Epoller : public core::File, public Selector {
+  std::vector<struct epoll_event> buffer_;
 
-class Epoller : public core::File {
-  std::unique_ptr<struct epoll_event, void (*)(void *)> buffer_;
-  const size_t buffer_size_;
-
-public:
-  static const uint32_t kAdd;
-  static const uint32_t kDel;
-  static const uint32_t kMod;
+  void epollerUpdate(Channel *channel, uint32_t op, SelectEvents events);
 
 public:
   Epoller(size_t size);
-  ~Epoller() override = default;
+  ~Epoller() override;
+
+  void Add(Channel *channel, SelectEvents events) override;
+  void Remove(Channel *channel) override;
+  void Update(Channel *channel, SelectEvents events) override;
 
   void Update(Channel *channel, uint32_t op, SelectEvents events);
-  void Wait(core::Duration timeout, Selected *selected);
+  void Wait(core::Duration timeout, Selected *selected) override;
 };
 } // namespace pedronet
 

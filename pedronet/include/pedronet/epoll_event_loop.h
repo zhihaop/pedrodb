@@ -3,15 +3,13 @@
 
 #include "core/thread.h"
 
-#include "event.h"
-#include "event_channel.h"
-#include "event_channel.h"
-#include "timer_queue.h"
-#include "event_loop.h"
-#include "selector.h"
 #include "channel.h"
 #include "epoller.h"
-
+#include "event.h"
+#include "event_channel.h"
+#include "event_loop.h"
+#include "selector.h"
+#include "timer_queue.h"
 
 #include <unordered_set>
 #include <vector>
@@ -75,8 +73,8 @@ class EpollEventLoop : public EventLoop {
 
 public:
   EpollEventLoop() : poller_(kMaxEventPerPoll), timer_queue_(timer_ch_) {
-    poller_.Update(&event_ch_, Epoller::kAdd, SelectEvents::kReadEvent);
-    poller_.Update(&timer_ch_, Epoller::kAdd, SelectEvents::kReadEvent);
+    poller_.Add(&event_ch_, SelectEvents::kReadEvent);
+    poller_.Add(&timer_ch_, SelectEvents::kReadEvent);
 
     spdlog::info("create event loop");
   }
@@ -88,7 +86,7 @@ public:
       return;
     }
 
-    poller_.Update(channel, Epoller::kMod, events);
+    poller_.Update(channel, events);
     if (callback) {
       callback();
     }
@@ -104,7 +102,7 @@ public:
     }
     spdlog::info("deregister fd[{}]", channel->File().Descriptor());
     if (channels_.erase(channel)) {
-      poller_.Update(channel.get(), Epoller::kDel, SelectEvents::kNoneEvent);
+      poller_.Remove(channel.get());
     }
     if (callback) {
       callback();
@@ -119,7 +117,7 @@ public:
     }
     auto [_, success] = channels_.emplace(channel);
     if (success) {
-      poller_.Update(channel.get(), Epoller::kAdd,  SelectEvents::kNoneEvent);
+      poller_.Add(channel.get(), SelectEvents::kNoneEvent);
     }
     if (callback) {
       callback();
