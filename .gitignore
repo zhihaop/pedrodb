@@ -1,7 +1,4 @@
-bazel-bin
-bazel-out
-bazel-practice
-bazel-testlogs
+bazel-*
 .vscode
 .cache
 .idea
