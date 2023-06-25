@@ -20,7 +20,7 @@ public:
     event_callback_ = std::move(cb);
   }
 
-  void HandleEvents(ReceiveEvent events, core::Timestamp now) override;
+  void HandleEvents(ReceiveEvents events, core::Timestamp now) override;
 
   core::File &File() noexcept override { return *this; }
 

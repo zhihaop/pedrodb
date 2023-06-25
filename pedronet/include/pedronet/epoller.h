@@ -15,7 +15,7 @@ namespace pedronet {
 struct Selected {
   core::Timestamp now;
   std::vector<Channel *> channels;
-  std::vector<ReceiveEvent> events;
+  std::vector<ReceiveEvents> events;
   core::File::Error error;
 };
 
@@ -32,7 +32,7 @@ public:
   Epoller(size_t size);
   ~Epoller() override = default;
 
-  void Update(Channel *channel, uint32_t op, SelectorEvents events);
+  void Update(Channel *channel, uint32_t op, SelectEvents events);
   void Wait(core::Duration timeout, Selected *selected);
 };
 } // namespace pedronet

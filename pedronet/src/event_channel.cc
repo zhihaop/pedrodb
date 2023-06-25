@@ -15,7 +15,7 @@ static core::File CreateEventFile() {
 
 EventChannel::EventChannel() : core::File(CreateEventFile()), Channel() {}
 
-void EventChannel::HandleEvents(ReceiveEvent events, core::Timestamp now) {
+void EventChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
   if (Read(&val, sizeof(val)) != sizeof(val)) {
     spdlog::error("failed to read event fd, errno[{}]", errno);

@@ -17,7 +17,7 @@ inline static core::File CreateTimerFile() {
 
 TimerChannel::TimerChannel() : core::File(CreateTimerFile()), Channel() {}
 
-void TimerChannel::HandleEvents(ReceiveEvent events, core::Timestamp now) {
+void TimerChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
   if (Read(&val, sizeof(val)) != sizeof(val)) {
     spdlog::error("failed to read event fd, errno[{}]", errno);

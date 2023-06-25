@@ -6,6 +6,7 @@
 
 #include "buffer.h"
 #include "channel.h"
+#include "event.h"
 #include "event_loop.h"
 #include "inet_address.h"
 #include "selector.h"
@@ -97,7 +98,7 @@ public:
   }
 
   ssize_t TrySendingDirect(const std::string &data) {
-    if (events_.Contains(Selector::kWriteEvent)) {
+    if (events_.Contains(SelectEvents::kWriteEvent)) {
       return 0;
     }
 
@@ -127,11 +128,11 @@ public:
     ssize_t w1 = output_buffer_->Append(data.data() + w0, data.size() - w0);
     // TODO: high watermark
     if (w1 != 0) {
-      EnableEvent(Selector::kWriteEvent);
+      EnableEvent(SelectEvents::kWriteEvent);
     }
   }
 
-  void HandleRead(ReceiveEvent events, core::Timestamp now) override {
+  void HandleRead(ReceiveEvents events, core::Timestamp now) override {
     ssize_t n = input_buffer_->Append(&socket_, input_buffer_->WritableBytes());
     spdlog::trace("read {} bytes", n);
     if (n < 0) {
@@ -149,24 +150,24 @@ public:
     }
   }
 
-  void HandleClose(ReceiveEvent events, core::Timestamp now) override {
+  void HandleClose(ReceiveEvents events, core::Timestamp now) override {
     if (state_ == State::kDisconnecting) {
       spdlog::trace("HandleClose {}", String());
       state_ = State::kDisconnected;
-      SetEvents(Selector::kNoneEvent);
+      SetEvents(SelectEvents::kNoneEvent);
       if (close_cb_) {
         close_cb_(shared_from_this());
       }
     }
   }
 
-  void HandleError(ReceiveEvent events, core::Timestamp now) override {
+  void HandleError(ReceiveEvents events, core::Timestamp now) override {
     auto err = socket_.GetError();
     spdlog::error("TcpConnection error, reason[{}]", err.GetReason());
   }
 
-  void HandleWrite(ReceiveEvent events, core::Timestamp now) override {
-    if (!events_.Contains(Selector::kWriteEvent)) {
+  void HandleWrite(ReceiveEvents events, core::Timestamp now) override {
+    if (!events_.Contains(SelectEvents::kWriteEvent)) {
       spdlog::trace("TcpConnection fd[{}] is down, no more writing",
                     socket_.Descriptor());
       return;
@@ -180,7 +181,7 @@ public:
       return;
     }
     if (output_buffer_->ReadableBytes() == 0) {
-      DisableEvent(Selector::kWriteEvent);
+      DisableEvent(SelectEvents::kWriteEvent);
       if (write_complete_cb_) {
         loop_->Submit(std::bind(write_complete_cb_, shared_from_this()));
       }

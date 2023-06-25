@@ -2,6 +2,7 @@
 #define PEDRONET_EVENT_LOOP_H
 
 #include "core/duration.h"
+#include "event.h"
 #include "selector.h"
 #include <atomic>
 #include <functional>
@@ -15,7 +16,7 @@ using CallBack = std::function<void()>;
 
 struct EventLoop : public Selector {
   // For pedronet::Channel.
-  virtual void Update(Channel *channel, SelectorEvents events,
+  virtual void Update(Channel *channel, SelectEvents events,
                       const CallBack &cb) override = 0;
   virtual void Register(const ChannelPtr &channel,
                         const CallBack &cb) override = 0;

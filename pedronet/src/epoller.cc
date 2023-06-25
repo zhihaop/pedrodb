@@ -25,7 +25,7 @@ Epoller::Epoller(size_t size)
     : core::File(CreateEpollFile()), buffer_(CreateBuffer(size), free),
       buffer_size_(size) {}
 
-void Epoller::Update(Channel *channel, uint32_t op, SelectorEvents events) {
+void Epoller::Update(Channel *channel, uint32_t op, SelectEvents events) {
   struct epoll_event ev {};
   ev.events = events.Value();
   ev.data.ptr = channel;
@@ -58,7 +58,7 @@ void Epoller::Wait(core::Duration timeout, Selected *selected) {
   selected->events.resize(nevents);
   for (int i = 0; i < nevents; ++i) {
     selected->channels[i] = static_cast<Channel *>(buffer[i].data.ptr);
-    selected->events[i] = buffer[i].events;
+    selected->events[i] = ReceiveEvents{buffer[i].events};
   }
 }
 

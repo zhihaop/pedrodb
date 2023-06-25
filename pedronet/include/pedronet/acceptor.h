@@ -3,6 +3,7 @@
 
 #include "core/latch.h"
 #include "channel.h"
+#include "event.h"
 #include "socket.h"
 
 #include <algorithm>
@@ -55,7 +56,7 @@ public:
   void Listen(NewConnectionCallback cb) {
     state_ = State::kListening;
     new_connection_cb_ = std::move(cb);
-    this->EnableEvent(Selector::kReadEvent);
+    this->EnableEvent(SelectEvents::kReadEvent);
     socket_.Listen();
   }
 
@@ -64,7 +65,7 @@ public:
   void Close() {
     core::Latch latch(1);
     loop_->Submit([&] {
-      SetEvents(Selector::kNoneEvent);
+      SetEvents(SelectEvents::kNoneEvent);
       Detach({});
       socket_.Close();
       latch.CountDown();
@@ -88,7 +89,7 @@ public:
     }
   }
 
-  void HandleRead(ReceiveEvent events, core::Timestamp now) override {
+  void HandleRead(ReceiveEvents events, core::Timestamp now) override {
     loop_->AssertInsideLoop();
     HandleAccept(now);
     spdlog::info("handle read acceptor");

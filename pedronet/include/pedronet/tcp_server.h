@@ -4,6 +4,7 @@
 #include "acceptor.h"
 #include "buffer.h"
 #include "channel_handler.h"
+#include "event.h"
 #include "event_loop.h"
 #include "inet_address.h"
 #include "selector.h"
@@ -79,7 +80,7 @@ public:
 
         conn->Attach(&worker_group_->Next(), [=] {
           spdlog::info("create channel[{}]", conn->String());
-          conn->EnableEvent(Selector::kReadEvent);
+          conn->EnableEvent(SelectEvents::kReadEvent);
         });
       });
     });

@@ -16,7 +16,7 @@ public:
     event_callback_ = std::move(cb);
   }
 
-  void HandleEvents(ReceiveEvent event, core::Timestamp now) override;
+  void HandleEvents(ReceiveEvents event, core::Timestamp now) override;
 
   core::File &File() noexcept override { return *this; }
 

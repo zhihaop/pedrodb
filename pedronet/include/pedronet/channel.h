@@ -2,27 +2,19 @@
 #define PEDRONET_CHANNEL_H
 
 #include "core/file.h"
+#include "event.h"
 #include "event_loop.h"
 
-#include <memory>
 #include <fmt/format.h>
+#include <memory>
 #include <spdlog/spdlog.h>
 
 namespace pedronet {
-using ReceiveEvent = uint32_t;
-
 struct Channel : core::noncopyable, core::nonmoveable {
-  const static ReceiveEvent kHangUp;
-  const static ReceiveEvent kInvalid;
-  const static ReceiveEvent kError;
-  const static ReceiveEvent kReadable;
-  const static ReceiveEvent kPriorReadable;
-  const static ReceiveEvent kReadHangUp;
-  const static ReceiveEvent kWritable;
 
   // For pedronet::Selector.
   virtual core::File &File() noexcept = 0;
-  virtual void HandleEvents(ReceiveEvent events, core::Timestamp now) = 0;
+  virtual void HandleEvents(ReceiveEvents events, core::Timestamp now) = 0;
   virtual std::string String() {
     return fmt::format("Channel[fd={}]", File().Descriptor());
   }
@@ -31,13 +23,12 @@ struct Channel : core::noncopyable, core::nonmoveable {
 };
 
 using ChannelPtr = std::shared_ptr<Channel>;
-using ReceiveEvent = uint32_t;
 
 template <class ChannelImpl>
 class AbstractChannel : public Channel,
                         public std::enable_shared_from_this<ChannelImpl> {
 protected:
-  SelectorEvents events_{Selector::kNoneEvent};
+  SelectEvents events_{SelectEvents::kNoneEvent};
   EventLoop *loop_{};
 
 public:
@@ -61,59 +52,61 @@ public:
   }
 
   // For pedronet::Selector.
-  void HandleEvents(ReceiveEvent events, core::Timestamp now) override final {
-    spdlog::info("{} handel events[{}]", String(), events);
-    if ((events & kHangUp) && !(events & kReadable)) {
+  void HandleEvents(ReceiveEvents events, core::Timestamp now) override final {
+    spdlog::info("{} handel events[{}]", String(), events.Value());
+    if (events.Contains(ReceiveEvents::kHangUp) &&
+        !events.Contains(ReceiveEvents::kReadable)) {
       HandleClose(events, now);
     }
 
-    if (events & (kError | kInvalid)) {
+    if (events.OneOf({ReceiveEvents::kError, ReceiveEvents::kInvalid})) {
       HandleError(events, now);
     }
 
-    if (events & (kReadable | kPriorReadable | kReadHangUp)) {
+    if (events.OneOf({ReceiveEvents::kReadable, ReceiveEvents::kPriorReadable,
+                      ReceiveEvents::kReadHangUp})) {
       HandleRead(events, now);
     }
 
-    if (events & kWritable) {
+    if (events.Contains(ReceiveEvents::kWritable)) {
       HandleWrite(events, now);
     }
   }
 
   // For users.
-  virtual void HandleRead(ReceiveEvent events, core::Timestamp now) {
+  virtual void HandleRead(ReceiveEvents events, core::Timestamp now) {
     spdlog::trace("ignore read event on channel[{}]",
                   reinterpret_cast<uintptr_t>(this));
   }
 
-  virtual void HandleError(ReceiveEvent events, core::Timestamp now) {
+  virtual void HandleError(ReceiveEvents events, core::Timestamp now) {
     spdlog::warn("ignore error event on channel[{}]",
                  reinterpret_cast<uintptr_t>(this));
   }
 
-  virtual void HandleWrite(ReceiveEvent events, core::Timestamp now) {
+  virtual void HandleWrite(ReceiveEvents events, core::Timestamp now) {
     spdlog::trace("ignore write event on channel[{}]",
                   reinterpret_cast<uintptr_t>(this));
   }
 
-  virtual void HandleClose(ReceiveEvent events, core::Timestamp now) {
+  virtual void HandleClose(ReceiveEvents events, core::Timestamp now) {
     spdlog::trace("ignore close event on channel[{}]",
                   reinterpret_cast<uintptr_t>(this));
   }
 
-  void DisableEvent(SelectorEvents event) {
+  void DisableEvent(SelectEvents event) {
     events_.Remove(event);
     UpdateEvent({});
   }
 
-  void EnableEvent(SelectorEvents event) {
+  void EnableEvent(SelectEvents event) {
     events_.Add(event);
     UpdateEvent({});
   }
 
-  SelectorEvents Events() const noexcept { return events_; }
+  SelectEvents Events() const noexcept { return events_; }
 
-  void SetEvents(SelectorEvents events) {
+  void SetEvents(SelectEvents events) {
     events_ = events;
     UpdateEvent({});
   }

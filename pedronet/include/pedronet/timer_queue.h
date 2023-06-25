@@ -122,7 +122,7 @@ class TimerQueue {
 public:
   TimerQueue(TimerChannel &timer_ch) : timer_ch_(timer_ch) {
     timer_ch.SetEventCallBack(
-        [this](ReceiveEvent event, core::Timestamp now) {
+        [this](ReceiveEvents event, core::Timestamp now) {
           spdlog::trace("invoke timer ch");
           std::unique_lock<std::mutex> lock(mu_);
           next_expire_ = core::Timestamp::Max();
