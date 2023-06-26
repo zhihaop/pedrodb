@@ -1,36 +1,29 @@
 #ifndef PEDRONET_TCP_CONNECTION_H
 #define PEDRONET_TCP_CONNECTION_H
 
-#include "core/duration.h"
-#include "core/timestamp.h"
+#include "pedronet/buffer.h"
+#include "pedronet/channel/abstract_channel.h"
+#include "pedronet/core/debug.h"
+#include "pedronet/core/duration.h"
+#include "pedronet/core/timestamp.h"
+#include "pedronet/event.h"
+#include "pedronet/eventloop.h"
+#include "pedronet/inet_address.h"
+#include "pedronet/selector/selector.h"
+#include "pedronet/socket.h"
 
-#include "buffer.h"
-#include "channel.h"
-#include "event.h"
-#include "event_loop.h"
-#include "inet_address.h"
-#include "selector.h"
-#include "socket.h"
-
+#include "pedronet/core/debug.h"
 #include <any>
-#include <fmt/format.h>
 #include <functional>
 #include <memory>
-#include <spdlog/spdlog.h>
 #include <string_view>
+
+#include "pedronet/callbacks.h"
 
 namespace pedronet {
 class TcpConnection : public AbstractChannel<TcpConnection> {
 public:
   enum class State { kConnected, kDisconnected, kConnecting, kDisconnecting };
-  using Ptr = std::shared_ptr<TcpConnection>;
-
-  using MessageCallback =
-      std::function<void(const Ptr &, Buffer *, core::Timestamp)>;
-  using WriteCompleteCallback = std::function<void(const Ptr &)>;
-  using HighWatermarkCallback = std::function<void(const Ptr &, size_t)>;
-  using CloseCallback = std::function<void(const Ptr &)>;
-  using ErrorCallback = std::function<void(const Ptr &)>;
 
 protected:
   InetAddress local_;
@@ -48,17 +41,14 @@ protected:
   std::unique_ptr<Buffer> input_buffer_ = std::make_unique<ArrayBuffer>();
 
 public:
-  TcpConnection(const InetAddress &local, Acception acc)
-      : AbstractChannel(), local_(local), peer_(acc.peer),
-        socket_(std::move(acc.file)) {}
-
-  static TcpConnection::Ptr Create(const InetAddress &local, Acception acc) {
-    return std::make_shared<TcpConnection>(local, std::move(acc));
-  }
+  TcpConnection(Socket socket)
+      : AbstractChannel(), local_(socket.GetLocalAddress()),
+        peer_(socket.GetPeerAddress()), socket_(std::move(socket)) {}
 
   ~TcpConnection() override { spdlog::info("connection closed"); }
 
   core::File &File() noexcept override { return socket_; }
+  const core::File &File() const noexcept override { return socket_; }
 
   void SetContext(const std::any &ctx) { ctx_ = ctx; }
   std::any &GetContext() { return ctx_; }
@@ -75,8 +65,8 @@ public:
 
   void SetCloseCallback(CloseCallback cb) { close_cb_ = std::move(cb); }
 
-  const InetAddress &LocalAddress() const noexcept { return local_; }
-  const InetAddress &PeerAddress() const noexcept { return peer_; }
+  const InetAddress &GetLocalAddress() const noexcept { return local_; }
+  const InetAddress &GetPeerAddress() const noexcept { return peer_; }
 
   void Attach(EventLoop *loop, const CallBack &cb) override {
     AbstractChannel<TcpConnection>::Attach(loop, cb);
@@ -151,12 +141,20 @@ public:
   }
 
   void HandleClose(ReceiveEvents events, core::Timestamp now) override {
+    if (state_ == State::kDisconnected) {
+      return;
+    }
+
+    state_ = State::kDisconnecting;
     if (state_ == State::kDisconnecting) {
-      spdlog::trace("HandleClose {}", String());
-      state_ = State::kDisconnected;
-      SetEvents(SelectEvents::kNoneEvent);
-      if (close_cb_) {
-        close_cb_(shared_from_this());
+      if (input_buffer_->ReadableBytes() == 0 &&
+          output_buffer_->ReadableBytes() == 0) {
+        spdlog::trace("HandleClose {}", String());
+        state_ = State::kDisconnected;
+        SetEvents(SelectEvents::kNoneEvent);
+        if (close_cb_) {
+          close_cb_(shared_from_this());
+        }
       }
     }
   }
@@ -194,10 +192,12 @@ public:
 
   void Close() { this->Detach({}); }
 
-  std::string String() override {
-    return fmt::format("TcpConnection[local={}, peer={}, fd={}]",
-                       local_.String(), peer_.String(), socket_.Descriptor());
+  std::string String() const override {
+    return fmt::format("TcpConnection[local={}, peer={}, fd={}]", local_, peer_,
+                       socket_.Descriptor());
   }
 };
 } // namespace pedronet
+
+PEDRONET_FORMATABLE_CLASS(pedronet::TcpConnection);
 #endif // PEDRONET_TCP_CONNECTION_H

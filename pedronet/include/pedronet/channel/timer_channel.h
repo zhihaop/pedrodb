@@ -1,8 +1,9 @@
 #ifndef PEDRONET_TIMED_CHANNEL_H
 #define PEDRONET_TIMED_CHANNEL_H
 
-#include "channel.h"
-#include "selector.h"
+#include "pedronet/callbacks.h"
+#include "pedronet/channel/channel.h"
+#include "pedronet/selector/selector.h"
 
 namespace pedronet {
 
@@ -23,6 +24,7 @@ public:
   void HandleEvents(ReceiveEvents events, core::Timestamp now) override;
 
   core::File &File() noexcept override { return *this; }
+  const core::File &File() const noexcept override { return *this; }
 
   void WakeUpAt(core::Timestamp timestamp) {
     WakeUpAfter(timestamp - core::Timestamp::Now());

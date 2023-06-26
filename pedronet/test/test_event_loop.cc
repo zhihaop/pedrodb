@@ -1,9 +1,9 @@
-#include <pedronet/channel.h>
+#include <pedronet/channel/channel.h>
 #include <pedronet/epoll_event_loop.h>
 
 #include <iostream>
 #include <spdlog/common.h>
-#include <spdlog/spdlog.h>
+#include "pedronet/core/debug.h"
 using namespace std;
 
 int main() {

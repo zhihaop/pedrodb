@@ -1,5 +1,5 @@
-#include "pedronet/event_channel.h"
-#include <spdlog/spdlog.h>
+#include "pedronet/channel/event_channel.h"
+#include "pedronet/core/debug.h"
 #include <sys/eventfd.h>
 
 namespace pedronet {

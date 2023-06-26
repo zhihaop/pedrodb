@@ -1,25 +1,23 @@
 #ifndef PEDRONET_EPOLL_EVENT_LOOP_H
 #define PEDRONET_EPOLL_EVENT_LOOP_H
 
-#include "core/thread.h"
+#include "pedronet/core/thread.h"
 
-#include "channel.h"
-#include "epoller.h"
-#include "event.h"
-#include "event_channel.h"
-#include "event_loop.h"
-#include "selector.h"
-#include "timer_queue.h"
+#include "pedronet/channel/channel.h"
+#include "pedronet/channel/event_channel.h"
+#include "pedronet/selector/epoller.h"
+#include "pedronet/event.h"
+#include "pedronet/eventloop.h"
+#include "pedronet/timer_queue.h"
 
 #include <unordered_set>
 #include <vector>
 
-#include <spdlog/spdlog.h>
+#include "pedronet/core/debug.h"
 
 namespace pedronet {
 
 class EpollEventLoop : public EventLoop {
-  using time_point = std::chrono::steady_clock::time_point;
 
   inline const static int32_t kRunningLoop = 1 << 0;
   inline const static int32_t kRunningTask = 1 << 1;
@@ -92,8 +90,6 @@ public:
     }
   }
 
-  void Notify() { event_ch_.WakeUp(); }
-
   void Deregister(const ChannelPtr &channel,
                   const CallBack &callback) override {
     if (!CheckInsideLoop()) {
@@ -143,7 +139,7 @@ public:
     spdlog::info("submit task");
     std::unique_lock<std::mutex> lock(mu_);
     pending_tasks_.emplace_back(std::move(cb));
-    Notify();
+    event_ch_.WakeUp();
   }
 
   uint64_t ScheduleAfter(CallBack cb, core::Duration delay) override {
@@ -175,7 +171,7 @@ public:
     }
 
     spdlog::trace("EventLoop is shutting down.");
-    Notify();
+    event_ch_.WakeUp();
     // TODO: await shutdown ?
   }
 

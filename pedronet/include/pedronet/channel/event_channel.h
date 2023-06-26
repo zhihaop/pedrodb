@@ -1,7 +1,9 @@
 #ifndef PEDRONET_EVENT_CHANNEL_H
 #define PEDRONET_EVENT_CHANNEL_H
 
-#include "channel.h"
+#include "pedronet/callbacks.h"
+#include "pedronet/channel/channel.h"
+#include "pedronet/selector/selector.h"
 
 namespace pedronet {
 
@@ -19,6 +21,7 @@ public:
   void HandleEvents(ReceiveEvents event, core::Timestamp now) override;
 
   core::File &File() noexcept override { return *this; }
+  const core::File &File() const noexcept override { return *this; }
 
   void WakeUp() {
     uint64_t val = 1;

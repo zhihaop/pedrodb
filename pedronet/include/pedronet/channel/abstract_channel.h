@@ -1,29 +1,12 @@
-#ifndef PEDRONET_CHANNEL_H
-#define PEDRONET_CHANNEL_H
+#ifndef PEDRONET_ABSTRACT_CHANNEL_H
+#define PEDRONET_ABSTRACT_CHANNEL_H
 
-#include "core/file.h"
-#include "event.h"
-#include "event_loop.h"
+#include "pedronet/channel/channel.h"
+#include "pedronet/eventloop.h"
 
-#include <fmt/format.h>
-#include <memory>
-#include <spdlog/spdlog.h>
+#include "pedronet/core/debug.h"
 
 namespace pedronet {
-struct Channel : core::noncopyable, core::nonmoveable {
-
-  // For pedronet::Selector.
-  virtual core::File &File() noexcept = 0;
-  virtual void HandleEvents(ReceiveEvents events, core::Timestamp now) = 0;
-  virtual std::string String() {
-    return fmt::format("Channel[fd={}]", File().Descriptor());
-  }
-
-  virtual ~Channel() = default;
-};
-
-using ChannelPtr = std::shared_ptr<Channel>;
-
 template <class ChannelImpl>
 class AbstractChannel : public Channel,
                         public std::enable_shared_from_this<ChannelImpl> {
@@ -117,8 +100,8 @@ public:
   }
 
   core::File &File() noexcept override = 0;
+  const core::File &File() const noexcept override = 0;
 };
 
 } // namespace pedronet
-
-#endif // PEDRONET_CHANNEL_H
+#endif // PEDRONET_ABSTRACT_CHANNEL_H

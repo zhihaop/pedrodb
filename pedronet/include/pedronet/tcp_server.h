@@ -1,18 +1,17 @@
 #ifndef PEDRONET_TCP_SERVER_H
 #define PEDRONET_TCP_SERVER_H
 
-#include "acceptor.h"
-#include "buffer.h"
-#include "channel_handler.h"
-#include "event.h"
-#include "event_loop.h"
-#include "inet_address.h"
-#include "selector.h"
-#include "socket.h"
-#include "tcp_connection.h"
+#include "pedronet/acceptor.h"
+#include "pedronet/buffer.h"
+#include "pedronet/event.h"
+#include "pedronet/eventloop.h"
+#include "pedronet/inet_address.h"
+#include "pedronet/selector/selector.h"
+#include "pedronet/socket.h"
+#include "pedronet/tcp_connection.h"
 #include <exception>
 #include <memory>
-#include <spdlog/spdlog.h>
+#include "pedronet/core/debug.h"
 #include <unordered_map>
 #include <unordered_set>
 
@@ -62,11 +61,9 @@ public:
 
     acceptor_loop_->Submit([=] {
       spdlog::info("listening");
-      acceptor_->Listen([=](Acception acc) {
-        auto conn =
-            TcpConnection::Create(acceptor_->ListenAddress(), std::move(acc));
-        conn->SetMessageCallback([](const TcpConnection::Ptr &conn,
-                                    Buffer *buffer, core::Timestamp now) {  
+      acceptor_->Listen([this](auto conn) {
+        conn->SetMessageCallback([=](const TcpConnectionPtr &conn,
+                                     Buffer *buffer, core::Timestamp now) {
           std::string buf(buffer->ReadableBytes(), 0);
           buffer->Retrieve(buf.data(), buf.size());
           if (buf.find("exit") != std::string::npos) {

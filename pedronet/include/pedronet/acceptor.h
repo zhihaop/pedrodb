@@ -1,21 +1,20 @@
 #ifndef PEDRONET_ACCEPTOR_H
 #define PEDRONET_ACCEPTOR_H
 
-#include "core/latch.h"
-#include "channel.h"
-#include "event.h"
+#include "pedronet/channel/abstract_channel.h"
+#include "pedronet/core/debug.h"
+#include "pedronet/core/latch.h"
+#include "pedronet/event.h"
+#include "pedronet/socket.h"
 #include "socket.h"
 
+#include "pedronet/core/debug.h"
 #include <algorithm>
-#include <fmt/format.h>
-#include <spdlog/spdlog.h>
 
 namespace pedronet {
 
 class Acceptor : public AbstractChannel<Acceptor> {
 public:
-  using NewConnectionCallback = std::function<void(Acception)>;
-
   struct Option {
     bool reuse_addr = true;
     bool reuse_port = true;
@@ -36,7 +35,8 @@ protected:
 
 public:
   Acceptor(const InetAddress &address, const Option &option)
-      : AbstractChannel(), address_(address), socket_(Socket::Create(address)) {
+      : AbstractChannel(), address_(address),
+        socket_(Socket::Create(address.Family())) {
     spdlog::error("create acceptor");
 
     socket_.SetReuseAddr(option.reuse_addr);
@@ -48,6 +48,8 @@ public:
   ~Acceptor() override { Close(); }
 
   core::File &File() noexcept override { return socket_; }
+
+  const core::File &File() const noexcept override { return socket_; }
 
   const InetAddress &ListenAddress() const noexcept { return address_; }
 
@@ -76,16 +78,16 @@ public:
   void HandleAccept(core::Timestamp now) {
     while (!loop_->Closed()) {
       spdlog::info("invoke accept");
-      Acception acc = socket_.Accept();
-      if (!acc.file.Valid()) {
-        if (acc.err == EAGAIN || acc.err == EWOULDBLOCK) {
+      TcpConnectionPtr conn;
+      Socket::Error err = socket_.Accept(address_, &conn);
+      if (!err.Empty()) {
+        if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
           break;
         }
-        spdlog::error("failed to accept {}:{}", acc.peer.Host(),
-                      acc.peer.Port());
+        spdlog::error("failed to accept [{}]", err);
         continue;
       }
-      new_connection_cb_(std::move(acc));
+      new_connection_cb_(std::move(conn));
     }
   }
 
@@ -95,8 +97,8 @@ public:
     spdlog::info("handle read acceptor");
   }
 
-  std::string String() override {
-    return fmt::format("Acceptor[listen={}, state={}]", address_.String(), 0);
+  std::string String() const override {
+    return fmt::format("Acceptor[listen={}, state={}]", address_, 0);
   }
 };
 } // namespace pedronet

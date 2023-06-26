@@ -1,11 +1,11 @@
 #ifndef PERDONET_EPOLL_H
 #define PERDONET_EPOLL_H
 
-#include "core/file.h"
+#include "pedronet/core/file.h"
 
-#include "channel.h"
-#include "event.h"
-#include "selector.h"
+#include "pedronet/channel/channel.h"
+#include "pedronet/event.h"
+#include "pedronet/selector/selector.h"
 #include <vector>
 
 struct epoll_event;

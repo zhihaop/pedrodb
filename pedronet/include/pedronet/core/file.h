@@ -1,8 +1,9 @@
 #ifndef PEDRONET_CORE_FILE_H
 #define PEDRONET_CORE_FILE_H
 
-#include "noncopyable.h"
-#include <spdlog/spdlog.h>
+#include "debug.h"
+#include "pedronet/core/debug.h"
+#include "pedronet/core/noncopyable.h"
 
 namespace pedronet {
 namespace core {
@@ -28,6 +29,10 @@ public:
     int GetCode() const noexcept { return code_; }
     const char *GetReason() const noexcept;
     void Clear() { code_ = 0; }
+
+    std::string String() const {
+      return fmt::format("Error[code:{}, reason:{}]", code_, GetReason());
+    }
   };
 
 protected:
@@ -56,6 +61,9 @@ public:
 
   virtual File::Error GetError() const noexcept { return File::Error(errno); }
 };
+
 } // namespace core
 } // namespace pedronet
+
+PEDRONET_FORMATABLE_CLASS(pedronet::core::File::Error);
 #endif // PEDRONET_CORE_FILE_H

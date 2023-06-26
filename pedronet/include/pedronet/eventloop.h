@@ -1,11 +1,12 @@
-#ifndef PEDRONET_EVENT_LOOP_H
-#define PEDRONET_EVENT_LOOP_H
+#ifndef PEDRONET_EVENTLOOP_H
+#define PEDRONET_EVENTLOOP_H
 
-#include "core/duration.h"
-#include "core/noncopyable.h"
-#include "core/nonmoveable.h"
-#include "event.h"
-#include "selector.h"
+#include "pedronet/core/duration.h"
+#include "pedronet/core/executor.h"
+#include "pedronet/core/noncopyable.h"
+#include "pedronet/core/nonmoveable.h"
+#include "pedronet/event.h"
+#include "pedronet/selector/selector.h"
 #include <atomic>
 #include <functional>
 #include <future>
@@ -13,12 +14,12 @@
 #include <thread>
 #include <vector>
 
+#include "pedronet/callbacks.h"
+#include "pedronet/channel/channel.h"
+
 namespace pedronet {
 
-using CallBack = std::function<void()>;
-using ChannelPtr = std::shared_ptr<Channel>;
-
-struct EventLoop : core::noncopyable, core::nonmoveable {
+struct EventLoop : public core::Executor {
   // For pedronet::Channel.
   virtual void Update(Channel *channel, SelectEvents events,
                       const CallBack &cb) = 0;
@@ -32,11 +33,12 @@ struct EventLoop : core::noncopyable, core::nonmoveable {
   virtual void Close() = 0;
   virtual bool Closed() const noexcept = 0;
 
-  virtual void Submit(CallBack cb) = 0;
-  virtual uint64_t ScheduleAfter(CallBack cb, core::Duration delay) = 0;
+  virtual void Submit(CallBack cb) override = 0;
+  virtual uint64_t ScheduleAfter(CallBack cb,
+                                 core::Duration delay) override = 0;
   virtual uint64_t ScheduleEvery(CallBack cb, core::Duration delay,
-                                 core::Duration interval) = 0;
-  virtual void ScheduleCancel(uint64_t) = 0;
+                                 core::Duration interval) override = 0;
+  virtual void ScheduleCancel(uint64_t) override = 0;
   virtual ~EventLoop() = default;
 };
 
@@ -96,4 +98,4 @@ public:
 };
 } // namespace pedronet
 
-#endif // PEDRONET_EVENT_LOOP_H
+#endif // PEDRONET_EVENTLOOP_H

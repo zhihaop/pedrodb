@@ -1,8 +1,8 @@
 #ifndef PEDRONET_TIMER_QUEUE
 #define PEDRONET_TIMER_QUEUE
 
-#include "selector.h"
-#include "timer_channel.h"
+#include "pedronet/selector/selector.h"
+#include "pedronet/channel/timer_channel.h"
 
 #include <queue>
 

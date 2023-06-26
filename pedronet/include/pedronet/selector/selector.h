@@ -1,12 +1,12 @@
 #ifndef PEDRONET_SELECTOR_H
 #define PEDRONET_SELECTOR_H
 
-#include "core/duration.h"
-#include "core/file.h"
-#include "core/noncopyable.h"
-#include "core/nonmoveable.h"
-#include "core/timestamp.h"
-#include "event.h"
+#include "pedronet/core/duration.h"
+#include "pedronet/core/file.h"
+#include "pedronet/core/noncopyable.h"
+#include "pedronet/core/nonmoveable.h"
+#include "pedronet/core/timestamp.h"
+#include "pedronet/event.h"
 
 #include <functional>
 #include <memory>
@@ -21,8 +21,6 @@ struct Selected {
   std::vector<ReceiveEvents> events;
   core::File::Error error;
 };
-
-using SelectorCallback = std::function<void(ReceiveEvents events, core::Timestamp)>;
 
 struct Selector : core::noncopyable, core::nonmoveable {
   virtual void Add(Channel *channel, SelectEvents events) = 0;
