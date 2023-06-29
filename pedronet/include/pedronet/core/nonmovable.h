@@ -1,5 +1,5 @@
-#ifndef PEDRONET_CORE_NONMOVEABLE_H
-#define PEDRONET_CORE_NONMOVEABLE_H
+#ifndef PEDRONET_CORE_NONMOVABLE_H
+#define PEDRONET_CORE_NONMOVABLE_H
 
 namespace pedronet::core {
 
@@ -11,4 +11,4 @@ struct nonmovable {
 };
 
 } // namespace pedronet::core
-#endif // PEDRONET_CORE_NONMOVEABLE_H
+#endif // PEDRONET_CORE_NONMOVABLE_H

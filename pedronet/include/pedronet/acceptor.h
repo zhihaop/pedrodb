@@ -32,40 +32,33 @@ public:
     bool tcp_no_delay = true;
   };
 
-  enum class State {
-    kListening,
-    kClosed,
-  };
-
 protected:
   AcceptorCallback acceptor_callback_;
-  State state_{Acceptor::State::kClosed};
   InetAddress address_;
 
-  Socket socket_;
   SocketChannel channel_;
   EventLoop &eventloop_;
 
 public:
   Acceptor(EventLoop &eventloop, const InetAddress &address,
            const Option &option)
-      : socket_(Socket::Create(address.Family())), address_(address),
-        channel_(socket_), eventloop_(eventloop) {
-    spdlog::error("create acceptor");
+      : address_(address), channel_(Socket::Create(address.Family())),
+        eventloop_(eventloop) {
+    spdlog::trace("Acceptor::Acceptor()");
 
-    socket_.SetReuseAddr(option.reuse_addr);
-    socket_.SetReusePort(option.reuse_port);
-    socket_.SetKeepAlive(option.keep_alive);
-    socket_.SetTcpNoDelay(option.tcp_no_delay);
-    
-    channel_.OnEventUpdate(
-        [this](SelectEvents events) { eventloop_.Update(&channel_, events); });
+    auto &socket = channel_.File();
+    socket.SetReuseAddr(option.reuse_addr);
+    socket.SetReusePort(option.reuse_port);
+    socket.SetKeepAlive(option.keep_alive);
+    socket.SetTcpNoDelay(option.tcp_no_delay);
+
+    channel_.SetSelector(eventloop.GetSelector());
 
     channel_.OnRead([this](auto events, auto now) {
-      while (!eventloop_.Closed()) {
-        spdlog::info("{}::HandleRead()", *this);
+      while (true) {
+        spdlog::trace("{}::HandleRead()", *this);
         Socket socket;
-        Socket::Error err = socket_.Accept(address_, &socket);
+        Socket::Error err = channel_.File().Accept(address_, &socket);
         if (!err.Empty()) {
           if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
             break;
@@ -81,50 +74,39 @@ public:
   }
 
   ~Acceptor() { Close(); }
-  
-  void Start() {
-    eventloop_.Register(&channel_, [this] {
-      spdlog::info("{}::Start() finished", *this);
-    });
-  }
 
-  const InetAddress &ListenAddress() const noexcept { return address_; }
-
-  void Bind() { socket_.Bind(address_); }
+  void Bind() { channel_.File().Bind(address_); }
 
   void OnAccept(AcceptorCallback acceptor_callback) {
     acceptor_callback_ = std::move(acceptor_callback);
   }
 
   void Listen() {
-    eventloop_.Submit([this] {
-      state_ = State::kListening;
+    eventloop_.Register(&channel_, [this] {
       channel_.SetReadable(true);
-      socket_.Listen();
+      channel_.File().Listen();
     });
   }
 
-  State GetState() const noexcept { return state_; }
-
   void Close() {
-    spdlog::info("Acceptor::Close() enter");
+    spdlog::trace("Acceptor::Close() enter");
     core::Latch latch(1);
-    eventloop_.Submit([&] {
+    eventloop_.Submit([this, &latch] {
       channel_.SetReadable(false);
       channel_.SetWritable(false);
-      channel_.Close();
+      eventloop_.Deregister(&channel_);
       latch.CountDown();
     });
     latch.Await();
-    spdlog::info("Acceptor::Close() exit");
+    spdlog::trace("Acceptor::Close() exit");
   }
 
   std::string String() const {
-    return fmt::format("Acceptor[socket={}]", socket_);
+    return fmt::format("Acceptor[socket={}]", channel_.File());
   }
 };
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::Acceptor)
+PEDRONET_CLASS_FORMATTER(pedronet::Acceptor)
 
 #endif // PEDRONET_ACCEPTOR_H

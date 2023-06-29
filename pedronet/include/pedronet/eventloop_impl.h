@@ -1,5 +1,5 @@
-#ifndef PEDRONET_EPOLL_EVENT_LOOP_H
-#define PEDRONET_EPOLL_EVENT_LOOP_H
+#ifndef PEDRONET_EVENTLOOP_IMPL_H
+#define PEDRONET_EVENTLOOP_IMPL_H
 
 #include "pedronet/core/thread.h"
 
@@ -24,7 +24,7 @@ class EpollEventLoop : public EventLoop {
   inline const static core::Duration kSelectTimeout{std::chrono::seconds(10)};
   inline const static int32_t kMaxEventPerPoll = 10000;
 
-  Epoller poller_;
+  EpollSelector selector_;
   EventChannel event_ch_;
   TimerChannel timer_ch_;
   TimerQueue timer_queue_;
@@ -70,25 +70,14 @@ class EpollEventLoop : public EventLoop {
   }
 
 public:
-  EpollEventLoop() : poller_(kMaxEventPerPoll), timer_queue_(timer_ch_) {
-    poller_.Add(&event_ch_, SelectEvents::kReadEvent);
-    poller_.Add(&timer_ch_, SelectEvents::kReadEvent);
+  EpollEventLoop() : selector_(kMaxEventPerPoll), timer_queue_(timer_ch_) {
+    selector_.Add(&event_ch_, SelectEvents::kReadEvent);
+    selector_.Add(&timer_ch_, SelectEvents::kReadEvent);
 
-    spdlog::info("create event loop");
+    spdlog::trace("create event loop");
   }
 
-  void Update(Channel *channel, SelectEvents events) override {
-    if (!CheckInsideLoop()) {
-      Schedule([=] { Update(channel, events); });
-      return;
-    }
-    if (channels_.find(channel) != channels_.end()) {
-      spdlog::trace("EpollEventLoop::Update({}, {})", *channel, events);
-      poller_.Update(channel, events);
-    } else {
-      spdlog::warn("EpollEventLoop::Update({}, {})", *channel, events);
-    }
-  }
+  Selector *GetSelector() noexcept override { return &selector_; }
 
   void Deregister(Channel *channel) override {
     if (!CheckInsideLoop()) {
@@ -96,11 +85,11 @@ public:
       return;
     }
 
-    spdlog::info("EpollEventLoop::Deregister({})", *channel);
+    spdlog::trace("EpollEventLoop::Deregister({})", *channel);
     auto it = channels_.find(channel);
     if (it != channels_.end()) {
       auto callback = std::move(it->second);
-      poller_.Remove(channel);
+      selector_.Remove(channel);
       channels_.erase(it);
 
       if (callback) {
@@ -110,19 +99,20 @@ public:
   }
 
   void Register(Channel *channel, Callback callback) override {
-    spdlog::info("EpollEventLoop::Register({})", *channel);
+    spdlog::trace("EpollEventLoop::Register({})", *channel);
     if (!CheckInsideLoop()) {
       Schedule([this, channel, cb = std::move(callback)]() mutable {
         Register(channel, std::move(cb));
       });
       return;
     }
-    auto [it, success] = channels_.emplace(channel, std::move(callback));
+    auto [_, success] = channels_.emplace(channel, std::move(callback));
     if (success) {
-      poller_.Add(channel, SelectEvents::kNoneEvent);
-    }
-    if (it->second) {
-      it->second();
+      selector_.Add(channel, SelectEvents::kNoneEvent);
+      auto &cb = channels_[channel];
+      if (cb) {
+        cb();
+      }
     }
   }
 
@@ -142,7 +132,7 @@ public:
   }
 
   void Schedule(Callback cb) override {
-    spdlog::info("submit task");
+    spdlog::trace("submit task");
     std::unique_lock<std::mutex> lock(mu_);
 
     bool wake_up = pending_tasks_.empty();
@@ -161,7 +151,7 @@ public:
     return timer_queue_.ScheduleEvery(std::move(cb), delay, interval);
   }
 
-  void ScheduleCancel(uint64_t id) override { timer_queue_.Cancal(id); }
+  void ScheduleCancel(uint64_t id) override { timer_queue_.Cancel(id); }
 
   bool Closed() const noexcept override { return !(state() & kRunningLoop); }
 
@@ -196,7 +186,7 @@ public:
 
     spdlog::trace("EventLoop::Loop() running");
     while (state() & kRunningLoop) {
-      poller_.Wait(kSelectTimeout, &selected_ch_);
+      selector_.Wait(kSelectTimeout, &selected_ch_);
 
       size_t nevents = selected_ch_.channels.size();
       if (nevents == 0) {
@@ -223,4 +213,4 @@ public:
 };
 
 } // namespace pedronet
-#endif // PEDRONET_EPOLL_EVENT_LOOP_H
+#endif // PEDRONET_EVENTLOOP_IMPL_H

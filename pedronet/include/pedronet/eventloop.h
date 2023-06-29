@@ -22,7 +22,6 @@ namespace pedronet {
 
 struct EventLoop : public core::Executor {
   // For pedronet::Channel.
-  virtual void Update(Channel *channel, SelectEvents events) = 0;
   virtual void Register(Channel *channel, Callback callback) = 0;
   virtual void Deregister(Channel *channel) = 0;
 
@@ -32,6 +31,7 @@ struct EventLoop : public core::Executor {
   virtual void Loop() = 0;
   virtual void Close() = 0;
   virtual bool Closed() const noexcept = 0;
+  virtual Selector* GetSelector() noexcept = 0;
 
   template <typename Callback> void Submit(Callback &&callback) {
     if (CheckInsideLoop()) {

@@ -26,7 +26,7 @@ void Socket::Bind(const InetAddress &address) {
 }
 
 void Socket::Listen() {
-  spdlog::info("call listen fd{}", fd_);
+  spdlog::trace("call listen fd{}", fd_);
   if (::listen(fd_, SOMAXCONN) < 0) {
     spdlog::error("failed to listen, errno[{}]", errno);
     std::terminate();
@@ -107,7 +107,7 @@ Socket::Error Socket::Accept(const InetAddress &local, Socket *socket) {
     return Error{errno};
   }
   
-  spdlog::info("Socket::Accept() {} {} -> {}", file, local, file.GetPeerAddress());
+  spdlog::trace("Socket::Accept() {} {} -> {}", file, local, file.GetPeerAddress());
   *socket = std::move(file);
   return Error::Success();
 }

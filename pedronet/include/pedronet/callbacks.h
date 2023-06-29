@@ -22,8 +22,8 @@ using WriteCompleteCallback = std::function<void(const TcpConnectionPtr &)>;
 using HighWatermarkCallback =
     std::function<void(const TcpConnectionPtr &, size_t)>;
 using ErrorCallback = std::function<void(const TcpConnectionPtr &)>;
+using CloseCallback = std::function<void(const TcpConnectionPtr &)>;
 using ConnectionCallback = std::function<void(const TcpConnectionPtr &)>;
-using EventUpdateCallback = std::function<void(SelectEvents events)>;
 
 } // namespace pedronet
 

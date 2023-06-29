@@ -1,5 +1,5 @@
-#ifndef PEDRONET_TIMED_CHANNEL_H
-#define PEDRONET_TIMED_CHANNEL_H
+#ifndef PEDRONET_CHANNEL_TIMED_CHANNEL_H
+#define PEDRONET_CHANNEL_TIMED_CHANNEL_H
 
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/channel.h"
@@ -7,11 +7,12 @@
 
 namespace pedronet {
 
-class TimerChannel : public core::File, public Channel {
+class TimerChannel : public Channel {
   inline static const core::Duration kMinWakeUpDuration =
       core::Duration::Microseconds(100);
 
   SelectorCallback event_callback_;
+  core::File file_;
 
 public:
   TimerChannel();
@@ -23,8 +24,10 @@ public:
 
   void HandleEvents(ReceiveEvents events, core::Timestamp now) override;
 
-  core::File &File() noexcept override { return *this; }
-  const core::File &File() const noexcept override { return *this; }
+  core::File &File() noexcept override { return file_; }
+  const core::File &File() const noexcept override { return file_; }
+
+  std::string String() const override;
 
   void WakeUpAt(core::Timestamp timestamp) {
     WakeUpAfter(timestamp - core::Timestamp::Now());
@@ -34,4 +37,4 @@ public:
 };
 
 } // namespace pedronet
-#endif // PEDRONET_TIMED_CHANNEL_H
+#endif // PEDRONET_CHANNEL_TIMED_CHANNEL_H

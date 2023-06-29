@@ -84,5 +84,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::SelectEvents);
+PEDRONET_CLASS_FORMATTER(pedronet::SelectEvents);
 #endif // PEDRONET_EVENT_H

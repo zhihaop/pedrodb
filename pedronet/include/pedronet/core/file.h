@@ -68,6 +68,6 @@ public:
 
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::core::File::Error)
-PEDRONET_FORMATABLE_CLASS(pedronet::core::File)
+PEDRONET_CLASS_FORMATTER(pedronet::core::File::Error)
+PEDRONET_CLASS_FORMATTER(pedronet::core::File)
 #endif // PEDRONET_CORE_FILE_H

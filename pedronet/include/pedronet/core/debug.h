@@ -6,7 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <type_traits>
 
-#define PEDRONET_FORMATABLE_CLASS(T)                                           \
+#define PEDRONET_CLASS_FORMATTER(T)                                            \
   template <> struct fmt::formatter<T> {                                       \
     constexpr auto parse(format_parse_context &ctx)                            \
         -> format_parse_context::iterator {                                    \

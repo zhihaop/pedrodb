@@ -1,38 +1,45 @@
-#include "pedronet/core/debug.h"
-#include "pedronet/epoll_event_loop.h"
-#include "pedronet/tcp_client.h"
+#include "pedronet/eventloop_impl.h"
 #include "pedronet/tcp_server.h"
-#include <future>
-#include <spdlog/common.h>
-#include <thread>
 
 using namespace std::chrono_literals;
+using namespace pedronet;
 
 int main() {
-  pedronet::TcpServer tcp_server;
+  spdlog::set_level(spdlog::level::info);
 
-  auto boss_group =
-      pedronet::EventLoopGroup::Create<pedronet::EpollEventLoop>(1);
-  auto worker_group =
-      pedronet::EventLoopGroup::Create<pedronet::EpollEventLoop>(1);
+  TcpServer server;
+
+  size_t n_workers = std::thread::hardware_concurrency();
+  auto boss_group = EventLoopGroup::Create<EpollEventLoop>(1);
+  auto worker_group = EventLoopGroup::Create<EpollEventLoop>(n_workers);
+
   boss_group->Start();
   worker_group->Start();
 
-  spdlog::set_level(spdlog::level::trace);
+  server.SetGroup(boss_group, worker_group);
+  server.OnConnect([](auto conn) {
+    spdlog::info("client connect: {}", *conn);
+    conn->Send("hello client");
+  });
 
-  tcp_server.SetGroup(boss_group, worker_group);
-  tcp_server.Bind(pedronet::InetAddress::Create("0.0.0.0", 1082));
-  tcp_server.Start();
+  server.OnClose([](const TcpConnectionPtr &conn) {
+    spdlog::info("client disconnect: {}", *conn);
+  });
 
-  // auto task = std::async(std::launch::async, [worker_group] {
-  //   while (true) {
-  //     spdlog::info("new client");
-  //     pedronet::TcpClient client(pedronet::InetAddress::Create("127.0.0.1",
-  //     1082)); client.SetGroup(worker_group); client.Start();
-  //     std::this_thread::sleep_for(1s);
-  //     client.Close();
-  //   }
-  // });
+  server.OnMessage([](auto conn, auto buffer, auto now) {
+    std::string buf(buffer->ReadableBytes(), 0);
+    buffer->Retrieve(buf.data(), buf.size());
+
+    if (buf.find("exit") != std::string::npos) {
+      spdlog::info("Server receive exit");
+      conn->Close();
+      return;
+    }
+    conn->Send(buf);
+  });
+
+  server.Bind(InetAddress::Create("0.0.0.0", 1082));
+  server.Start();
 
   boss_group->Join();
   worker_group->Join();

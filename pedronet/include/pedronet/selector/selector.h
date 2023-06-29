@@ -1,5 +1,5 @@
-#ifndef PEDRONET_SELECTOR_H
-#define PEDRONET_SELECTOR_H
+#ifndef PEDRONET_SELECTOR_SELECTOR_H
+#define PEDRONET_SELECTOR_SELECTOR_H
 
 #include "pedronet/core/duration.h"
 #include "pedronet/core/file.h"
@@ -30,4 +30,4 @@ struct Selector : core::noncopyable, core::nonmovable {
   virtual ~Selector() = default;
 };
 } // namespace pedronet
-#endif // PEDRONET_SELECTOR_H
+#endif // PEDRONET_SELECTOR_SELECTOR_H

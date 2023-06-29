@@ -17,27 +17,19 @@ protected:
   SelectorCallback read_callback_;
   SelectorCallback error_callback_;
   SelectorCallback write_callback_;
-  EventUpdateCallback event_update_callback_;
-  Socket &socket_;
+
+  Selector *selector_{};
+  Socket socket_;
 
 public:
-  explicit SocketChannel(Socket &socket) : socket_(socket) {}
+  explicit SocketChannel(Socket socket) : socket_(std::move(socket)) {}
 
-  ~SocketChannel() override { Close(); }
+  ~SocketChannel() override = default;
 
-  void Close() {
-    spdlog::info("SocketChannel::Close() enter");
-    SetReadable(false);
-    SetWritable(false);
-    event_update_callback_ = {};
-  }
+  void SetSelector(Selector *selector) { selector_ = selector; }
 
   void OnRead(SelectorCallback read_callback) {
     read_callback_ = std::move(read_callback);
-  }
-
-  void OnEventUpdate(EventUpdateCallback event_update_callback) {
-    event_update_callback_ = std::move(event_update_callback);
   }
 
   void OnClose(SelectorCallback close_callback) {
@@ -53,7 +45,7 @@ public:
   }
 
   void HandleEvents(ReceiveEvents events, core::Timestamp now) final {
-    spdlog::info("{} handel events[{}]", String(), events.Value());
+    spdlog::trace("{} handel events[{}]", String(), events.Value());
     if (events.Contains(ReceiveEvents::kHangUp) &&
         !events.Contains(ReceiveEvents::kReadable)) {
       if (close_callback_) {
@@ -87,9 +79,7 @@ public:
     } else {
       events_.Remove(SelectEvents::kReadEvent);
     }
-    if (event_update_callback_) {
-      event_update_callback_(events_);
-    }
+    selector_->Update(this, events_);
   }
 
   bool Readable() const noexcept {
@@ -106,14 +96,34 @@ public:
     } else {
       events_.Remove(SelectEvents::kWriteEvent);
     }
-    if (event_update_callback_) {
-      event_update_callback_(events_);
-    }
+    selector_->Update(this, events_);
   }
 
   Socket &File() noexcept final { return socket_; }
   const Socket &File() const noexcept final { return socket_; }
+
+  std::string String() const override {
+    return fmt::format("SocketChannel[fd={}]", socket_.Descriptor());
+  }
+
+  InetAddress GetLocalAddress() const noexcept {
+    return socket_.GetLocalAddress();
+  }
+
+  InetAddress GetPeerAddress() const noexcept {
+    return socket_.GetPeerAddress();
+  }
+
+  ssize_t Write(const void *buf, size_t n) { return socket_.Write(buf, n); }
+
+  ssize_t Read(void *buf, size_t n) { return socket_.Read(buf, n); }
+
+  Socket::Error GetError() const { return socket_.GetError(); }
+
+  void CloseWrite() { return socket_.CloseWrite(); }
 };
 
 } // namespace pedronet
+
+PEDRONET_CLASS_FORMATTER(pedronet::SocketChannel)
 #endif // PEDRONET_CHANNEL_SOCKET_CHANNEL_H

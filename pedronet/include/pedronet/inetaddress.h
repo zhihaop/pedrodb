@@ -41,5 +41,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::InetAddress);
+PEDRONET_CLASS_FORMATTER(pedronet::InetAddress);
 #endif // PEDRONET_INETADDRESS_H

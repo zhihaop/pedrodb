@@ -1,20 +1,20 @@
 #ifndef PEDRONET_TIMER_QUEUE
 #define PEDRONET_TIMER_QUEUE
 
-#include "pedronet/selector/selector.h"
 #include "pedronet/channel/timer_channel.h"
+#include "pedronet/selector/selector.h"
 
 #include <queue>
 
 namespace pedronet {
+
 struct TimerStruct : core::noncopyable, core::nonmovable {
   uint64_t id;
-  std::function<void()> callback;
+  Callback callback;
   core::Duration interval;
 
-  template <class Callback>
-  TimerStruct(uint64_t id, Callback &&cb, core::Duration interval)
-      : id(id), callback(std::forward<Callback>(cb)), interval(interval) {}
+  TimerStruct(uint64_t id, Callback callback, const core::Duration &interval)
+      : id(id), callback(std::move(callback)), interval(interval) {}
 };
 
 struct TimerOrder {
@@ -32,7 +32,6 @@ struct TimerOrder {
 class TimerQueue {
 
   TimerChannel &timer_ch_;
-
   core::Timestamp next_expire_ = core::Timestamp::Max();
   std::priority_queue<TimerOrder> schedule_timer_;
   std::queue<std::weak_ptr<TimerStruct>> expired_timers_;
@@ -42,120 +41,28 @@ class TimerQueue {
   uint64_t sequences_{};
   std::unordered_map<uint64_t, std::shared_ptr<TimerStruct>> timers_;
 
-  void updateExpire(core::Timestamp now) {
-    if (schedule_timer_.empty() ||
-        next_expire_ <= schedule_timer_.top().expire) {
-      return;
-    }
-    timer_ch_.WakeUpAt(schedule_timer_.top().expire);
-  }
+  void updateExpire(core::Timestamp now);
 
-  template <typename Callback>
-  uint64_t createTimer(Callback &&cb, core::Duration delay,
-                       core::Duration interval) {
-    core::Timestamp now = core::Timestamp::Now();
-    uint64_t id = ++sequences_;
-    spdlog::trace("create timer {}", id);
+  uint64_t createTimer(Callback cb, const core::Duration &delay,
+                       const core::Duration &interval);
 
-    auto timer =
-        std::make_shared<TimerStruct>(id, std::forward<Callback>(cb), interval);
-    schedule_timer_.emplace(now + delay, timer);
-    timers_.emplace(id, std::move(timer));
+  void selectExpiredTimer(core::Timestamp now);
 
-    updateExpire(now);
-    return id;
-  }
+  void processExpireTimer();
 
-  void selectExpiredTimer(core::Timestamp now) {
-    spdlog::trace("select timers, size[{}]", schedule_timer_.size());
-    while (!schedule_timer_.empty() && schedule_timer_.top().expire <= now) {
-      auto timer = std::move(schedule_timer_.top().timer);
-      schedule_timer_.pop();
-      expired_timers_.emplace(std::move(timer));
-    }
-  }
-
-  void processExpireTimer() {
-    spdlog::trace("invoke expire timers[{}]", expired_timers_.size());
-
-    while (!expired_timers_.empty()) {
-      auto weak_timer = std::move(expired_timers_.front());
-      expired_timers_.pop();
-
-      if (weak_timer.expired()) {
-        continue;
-      }
-
-      auto timer = weak_timer.lock();
-      if (timer == nullptr) {
-        continue;
-      }
-
-      timer->callback();
-
-      pending_timers_.emplace(std::move(weak_timer));
-    }
-  }
-
-  void processPendingTimer(core::Timestamp now) {
-    while (!pending_timers_.empty()) {
-      auto weak_timer = std::move(pending_timers_.front());
-      pending_timers_.pop();
-      if (weak_timer.expired()) {
-        continue;
-      }
-
-      auto timer = weak_timer.lock();
-      if (timer == nullptr) {
-        continue;
-      }
-
-      if (timer->interval > core::Duration::Zero()) {
-        schedule_timer_.emplace(now + timer->interval, std::move(weak_timer));
-      } else {
-        timers_.erase(timer->id);
-      }
-    }
-    updateExpire(now);
-  }
+  void processPendingTimer(core::Timestamp now);
 
 public:
-  TimerQueue(TimerChannel &timer_ch) : timer_ch_(timer_ch) {
-    timer_ch.SetEventCallBack(
-        [this](ReceiveEvents event, core::Timestamp now) {
-          spdlog::trace("invoke timer ch");
-          std::unique_lock<std::mutex> lock(mu_);
-          next_expire_ = core::Timestamp::Max();
-
-          selectExpiredTimer(core::Timestamp::Now());
-          lock.unlock();
-          processExpireTimer();
-          lock.lock();
-          processPendingTimer(core::Timestamp::Now());
-          lock.unlock();
-        });
-  }
+  explicit TimerQueue(TimerChannel &timer_ch);
 
   ~TimerQueue() { timer_ch_.SetEventCallBack({}); }
 
-  template <typename Action>
-  uint64_t ScheduleAfter(Action &&callback, core::Duration delay) {
-    std::unique_lock<std::mutex> lock(mu_);
-    return createTimer(std::forward<Action>(callback), delay,
-                       core::Duration::Seconds(0));
-  }
+  uint64_t ScheduleAfter(Callback callback, const core::Duration &delay);
 
-  template <typename Callback>
-  uint64_t ScheduleEvery(Callback &&cb, core::Duration delay,
-                         core::Duration interval) {
-    std::unique_lock<std::mutex> lock(mu_);
-    return createTimer(std::forward<Callback>(cb), delay, interval);
-  }
+  uint64_t ScheduleEvery(Callback callback, const core::Duration &delay,
+                         const core::Duration &interval);
 
-  void Cancal(uint64_t timer_id) {
-    std::unique_lock<std::mutex> lock(mu_);
-    timers_.erase(timer_id);
-  }
+  void Cancel(uint64_t timer_id);
 };
 } // namespace pedronet
 #endif // PEDRONET_TIMER_QUEUE

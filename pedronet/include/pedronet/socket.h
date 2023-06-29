@@ -33,6 +33,6 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::Socket)
+PEDRONET_CLASS_FORMATTER(pedronet::Socket)
 
 #endif // PEDRONET_SOCKET_H

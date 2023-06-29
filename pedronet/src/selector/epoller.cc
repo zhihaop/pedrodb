@@ -13,11 +13,11 @@ inline static core::File CreateEpollFile() {
   return core::File{fd};
 }
 
-Epoller::Epoller(size_t size) : core::File(CreateEpollFile()), buffer_(size) {}
+EpollSelector::EpollSelector(size_t size) : core::File(CreateEpollFile()), buffer_(size) {}
 
-Epoller::~Epoller() {}
+EpollSelector::~EpollSelector() = default;
 
-void Epoller::epollerUpdate(Channel *channel, uint32_t op,
+void EpollSelector::internalUpdate(Channel *channel, int op,
                             SelectEvents events) {
   struct epoll_event ev {};
   ev.events = events.Value();
@@ -30,19 +30,19 @@ void Epoller::epollerUpdate(Channel *channel, uint32_t op,
   }
 }
 
-void Epoller::Add(Channel *channel, SelectEvents events) {
-  epollerUpdate(channel, EPOLL_CTL_ADD, events);
+void EpollSelector::Add(Channel *channel, SelectEvents events) {
+  internalUpdate(channel, EPOLL_CTL_ADD, events);
 }
 
-void Epoller::Update(Channel *channel, SelectEvents events) {
-  epollerUpdate(channel, EPOLL_CTL_MOD, events);
+void EpollSelector::Update(Channel *channel, SelectEvents events) {
+  internalUpdate(channel, EPOLL_CTL_MOD, events);
 }
 
-void Epoller::Remove(Channel *channel) {
-  epollerUpdate(channel, EPOLL_CTL_DEL, SelectEvents::kNoneEvent);
+void EpollSelector::Remove(Channel *channel) {
+  internalUpdate(channel, EPOLL_CTL_DEL, SelectEvents::kNoneEvent);
 }
 
-void Epoller::Wait(core::Duration timeout, Selected *selected) {
+void EpollSelector::Wait(core::Duration timeout, Selected *selected) {
   int nevents =
       ::epoll_wait(fd_, buffer_.data(), buffer_.size(), timeout.Milliseconds());
   selected->now = core::Timestamp::Now();
@@ -66,5 +66,4 @@ void Epoller::Wait(core::Duration timeout, Selected *selected) {
     selected->events[i] = ReceiveEvents{buffer_[i].events};
   }
 }
-
 } // namespace pedronet

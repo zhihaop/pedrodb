@@ -13,16 +13,20 @@ static core::File CreateEventFile() {
   return core::File{fd};
 }
 
-EventChannel::EventChannel() : core::File(CreateEventFile()), Channel() {}
+EventChannel::EventChannel() : Channel(), file_(CreateEventFile()) {}
 
 void EventChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
-  if (Read(&val, sizeof(val)) != sizeof(val)) {
+  if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
     spdlog::error("failed to read event fd, errno[{}]", errno);
     std::terminate();
   }
   if (event_callback_) {
     event_callback_(events, now);
   }
+}
+
+std::string EventChannel::String() const {
+  return fmt::format("EventChannel[fd={}]", file_.Descriptor());
 }
 } // namespace pedronet

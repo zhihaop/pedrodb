@@ -25,6 +25,16 @@ class TcpServer {
 
   std::shared_ptr<Acceptor> acceptor_;
 
+  ConnectionCallback connection_callback_;
+  MessageCallback message_callback_;
+  WriteCompleteCallback write_complete_callback_;
+  ErrorCallback error_callback_;
+  CloseCallback close_callback_;
+  HighWatermarkCallback high_watermark_callback_;
+
+  std::mutex mu_;
+  std::unordered_set<std::shared_ptr<TcpConnection>> actives_;
+
 public:
   TcpServer() = default;
   ~TcpServer() { Close(); }
@@ -35,54 +45,33 @@ public:
     worker_group_ = worker;
   }
 
-  void Bind(const InetAddress &address) {
-    spdlog::info("TcpServer::Bind({})", address);
+  void Bind(const InetAddress &address);
 
-    if (!boss_group_) {
-      spdlog::error("boss group is not set");
-      std::terminate();
-    }
+  void Start();
+  void Close();
 
-    acceptor_ = std::make_shared<Acceptor>(boss_group_->Next(), address,
-                                           Acceptor::Option{});
-    acceptor_->Start();
-    acceptor_->Bind();
+  void OnConnect(ConnectionCallback callback) {
+    connection_callback_ = std::move(callback);
   }
 
-  void Start() {
-    spdlog::info("TcpServer::Start() enter");
-
-    acceptor_->OnAccept([this](Socket socket) {
-      spdlog::info("TcpServer::OnAccept({})", socket);
-      auto connection = std::make_shared<TcpConnection>(worker_group_->Next(),
-                                                        std::move(socket));
-      
-      connection->OnConnection([] (const TcpConnectionPtr& conn) {
-        spdlog::info("{}::HandleConnection()", *conn);
-      });
-      connection->OnMessage([&](const TcpConnectionPtr &conn, Buffer *buffer,
-                                core::Timestamp now) {
-        std::string buf(buffer->ReadableBytes(), 0);
-        buffer->Retrieve(buf.data(), buf.size());
-        if (buf.find("exit") != std::string::npos) {
-          spdlog::info("try closing channel {}", conn->String());
-          conn->Close();
-          return;
-        }
-        spdlog::info("read: {}", buf.data());
-        conn->Send(std::move(buf));
-      });
-      
-      connection->Start();
-    });
-
-    acceptor_->Listen();
-    spdlog::info("TcpServer::Start() exit");
+  void OnClose(CloseCallback callback) {
+    close_callback_ = std::move(callback);
   }
 
-  void Close() {
-    spdlog::info("TcpServer::Close() enter");
-    acceptor_->Close();
+  void OnMessage(MessageCallback callback) {
+    message_callback_ = std::move(callback);
+  }
+
+  void OnError(ErrorCallback callback) {
+    error_callback_ = std::move(callback);
+  }
+
+  void OnWriteComplete(WriteCompleteCallback callback) {
+    write_complete_callback_ = std::move(callback);
+  }
+  
+  void OnHighWatermark(HighWatermarkCallback callback) {
+    high_watermark_callback_ = std::move(callback);
   }
 };
 

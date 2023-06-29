@@ -15,10 +15,11 @@ struct Buffer {
   virtual size_t WriteIndex() = 0;
 
   virtual char *Data() = 0;
-  virtual size_t Append(char *data, size_t n) = 0;
+  virtual size_t Append(const char *data, size_t n) = 0;
   virtual size_t Retrieve(char *data, size_t n) = 0;
   virtual void Retrieve(size_t) = 0;
   virtual void Append(size_t) = 0;
+  virtual void Reset() = 0;
 
   template <class Reader> ssize_t Append(Reader *reader, size_t size) {
     ssize_t r =
@@ -69,15 +70,20 @@ public:
 
   void Retrieve(size_t n) override {
     read_index_ = std::min(read_index_ + n, write_index_);
+    if (read_index_ == write_index_) {
+      Reset();
+    }
   }
 
-  size_t Append(char *data, size_t n) override {
+  void Reset() override { read_index_ = write_index_ = 0; }
+
+  size_t Append(const char *data, size_t n) override {
     n = std::min(n, WritableBytes());
     size_t next_index = write_index_ + n;
     for (size_t i = write_index_; i < next_index; ++i) {
       buf_[i] = *(data++);
     }
-    write_index_ = next_index;
+    Append(n);
     return n;
   }
 
@@ -87,7 +93,7 @@ public:
     for (size_t i = read_index_; i < next_index; ++i) {
       *(data++) = buf_[i];
     }
-    read_index_ = next_index;
+    Retrieve(n);
     return n;
   }
 
