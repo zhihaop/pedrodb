@@ -20,7 +20,7 @@ TimerChannel::TimerChannel() : Channel(), file_(CreateTimerFile()) {}
 void TimerChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
   if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
-    spdlog::error("failed to read event fd, errno[{}]", errno);
+    spdlog::error("failed to read timer fd: {}", file_.GetError());
     std::terminate();
   }
   if (event_callback_) {

@@ -87,6 +87,8 @@ public:
 
   void Close();
 
+  EventLoop &GetEventLoop() noexcept { return eventloop_; }
+
   std::string String() const;
 };
 } // namespace pedronet

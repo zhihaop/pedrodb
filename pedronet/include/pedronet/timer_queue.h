@@ -2,6 +2,7 @@
 #define PEDRONET_TIMER_QUEUE
 
 #include "pedronet/channel/timer_channel.h"
+#include "pedronet/core/executor.h"
 #include "pedronet/selector/selector.h"
 
 #include <queue>
@@ -31,7 +32,7 @@ struct TimerOrder {
 
 class TimerQueue {
 
-  TimerChannel &timer_ch_;
+  TimerChannel &channel_;
   core::Timestamp next_expire_ = core::Timestamp::Max();
   std::priority_queue<TimerOrder> schedule_timer_;
   std::queue<std::weak_ptr<TimerStruct>> expired_timers_;
@@ -40,6 +41,7 @@ class TimerQueue {
   std::mutex mu_;
   uint64_t sequences_{};
   std::unordered_map<uint64_t, std::shared_ptr<TimerStruct>> timers_;
+  core::Executor &executor_;
 
   void updateExpire(core::Timestamp now);
 
@@ -53,9 +55,9 @@ class TimerQueue {
   void processPendingTimer(core::Timestamp now);
 
 public:
-  explicit TimerQueue(TimerChannel &timer_ch);
+  TimerQueue(TimerChannel &channel, core::Executor &executor);
 
-  ~TimerQueue() { timer_ch_.SetEventCallBack({}); }
+  ~TimerQueue() { channel_.SetEventCallBack({}); }
 
   uint64_t ScheduleAfter(Callback callback, const core::Duration &delay);
 

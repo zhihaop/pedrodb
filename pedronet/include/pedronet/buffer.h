@@ -41,7 +41,7 @@ struct Buffer {
 };
 
 class ArrayBuffer : public Buffer {
-  static const size_t kInitialSize = 1024;
+  static const size_t kInitialSize = 4096;
 
   std::vector<char> buf_;
   size_t read_index_{};

@@ -18,7 +18,7 @@ EventChannel::EventChannel() : Channel(), file_(CreateEventFile()) {}
 void EventChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
   if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
-    spdlog::error("failed to read event fd, errno[{}]", errno);
+    spdlog::error("failed to read event fd: ", file_.GetError());
     std::terminate();
   }
   if (event_callback_) {

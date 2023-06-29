@@ -70,7 +70,7 @@ class EpollEventLoop : public EventLoop {
   }
 
 public:
-  EpollEventLoop() : selector_(kMaxEventPerPoll), timer_queue_(timer_ch_) {
+  EpollEventLoop() : selector_(kMaxEventPerPoll), timer_queue_(timer_ch_, *this) {
     selector_.Add(&event_ch_, SelectEvents::kReadEvent);
     selector_.Add(&timer_ch_, SelectEvents::kReadEvent);
 

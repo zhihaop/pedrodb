@@ -5,7 +5,7 @@ void TimerQueue::updateExpire(core::Timestamp) {
   if (schedule_timer_.empty() || next_expire_ <= schedule_timer_.top().expire) {
     return;
   }
-  timer_ch_.WakeUpAt(schedule_timer_.top().expire);
+  channel_.WakeUpAt(schedule_timer_.top().expire);
 }
 void TimerQueue::selectExpiredTimer(core::Timestamp now) {
   spdlog::trace("select timers, size[{}]", schedule_timer_.size());
@@ -58,8 +58,9 @@ void TimerQueue::processPendingTimer(core::Timestamp now) {
   updateExpire(now);
 }
 
-TimerQueue::TimerQueue(TimerChannel &timer_ch) : timer_ch_(timer_ch) {
-  timer_ch.SetEventCallBack([this](ReceiveEvents event, core::Timestamp now) {
+TimerQueue::TimerQueue(TimerChannel &channel, core::Executor &executor)
+    : channel_(channel), executor_(executor) {
+  channel.SetEventCallBack([this](ReceiveEvents event, core::Timestamp now) {
     spdlog::trace("invoke timer ch");
     std::unique_lock<std::mutex> lock(mu_);
     next_expire_ = core::Timestamp::Max();
@@ -83,7 +84,7 @@ uint64_t TimerQueue::createTimer(Callback cb, const core::Duration &delay,
   schedule_timer_.emplace(now + delay, timer);
   timers_.emplace(id, std::move(timer));
 
-  updateExpire(now);
+  executor_.Schedule([this, now] { updateExpire(now); });
   return id;
 }
 uint64_t TimerQueue::ScheduleEvery(Callback callback,
