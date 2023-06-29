@@ -7,7 +7,7 @@
 #include <queue>
 
 namespace pedronet {
-struct TimerStruct : core::noncopyable, core::nonmoveable {
+struct TimerStruct : core::noncopyable, core::nonmovable {
   uint64_t id;
   std::function<void()> callback;
   core::Duration interval;
@@ -110,7 +110,7 @@ class TimerQueue {
         continue;
       }
 
-      if (timer->interval > 0) {
+      if (timer->interval > core::Duration::Zero()) {
         schedule_timer_.emplace(now + timer->interval, std::move(weak_timer));
       } else {
         timers_.erase(timer->id);

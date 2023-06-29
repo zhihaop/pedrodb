@@ -1,14 +1,20 @@
 #ifndef PEDRONET_TCP_CONNECTION_H
 #define PEDRONET_TCP_CONNECTION_H
 
+#include "callbacks.h"
+#include "channel/socket_channel.h"
+#include "core/noncopyable.h"
+#include "core/nonmovable.h"
+#include "event.h"
+#include "eventloop.h"
 #include "pedronet/buffer.h"
-#include "pedronet/channel/abstract_channel.h"
+#include "pedronet/channel/socket_channel.h"
 #include "pedronet/core/debug.h"
 #include "pedronet/core/duration.h"
 #include "pedronet/core/timestamp.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
-#include "pedronet/inet_address.h"
+#include "pedronet/inetaddress.h"
 #include "pedronet/selector/selector.h"
 #include "pedronet/socket.h"
 
@@ -21,74 +27,102 @@
 #include "pedronet/callbacks.h"
 
 namespace pedronet {
-class TcpConnection : public AbstractChannel<TcpConnection> {
+class TcpConnection : core::noncopyable,
+                      core::nonmovable,
+                      public std::enable_shared_from_this<TcpConnection> {
 public:
   enum class State { kConnected, kDisconnected, kConnecting, kDisconnecting };
 
 protected:
-  InetAddress local_;
-  InetAddress peer_;
   State state_{TcpConnection::State::kConnecting};
-  Socket socket_;
 
   MessageCallback message_cb_{};
   WriteCompleteCallback write_complete_cb_{};
   HighWatermarkCallback high_watermark_cb_{};
-  CloseCallback close_cb_{};
+  ConnectionCallback connection_cb_{};
   std::any ctx_{};
 
   std::unique_ptr<Buffer> output_buffer_ = std::make_unique<ArrayBuffer>();
   std::unique_ptr<Buffer> input_buffer_ = std::make_unique<ArrayBuffer>();
 
+  Socket socket_;
+  InetAddress local_;
+  InetAddress peer_;
+  SocketChannel channel_;
+  EventLoop &eventloop_;
+
 public:
-  TcpConnection(Socket socket)
-      : AbstractChannel(), local_(socket.GetLocalAddress()),
-        peer_(socket.GetPeerAddress()), socket_(std::move(socket)) {}
+  TcpConnection(EventLoop &eventloop, Socket socket)
+      : socket_(std::move(socket)), local_(socket_.GetLocalAddress()),
+        peer_(socket_.GetPeerAddress()), channel_(socket_),
+        eventloop_(eventloop) {
 
-  ~TcpConnection() override { spdlog::info("connection closed"); }
+    channel_.OnRead(
+        [this](auto events, auto now) { return HandleRead(events, now); });
+    channel_.OnWrite(
+        [this](auto events, auto now) { return HandleWrite(events, now); });
+    channel_.OnClose(
+        [this](auto events, auto now) { return HandleClose(events, now); });
+    channel_.OnError(
+        [this](auto events, auto now) { return HandleError(events, now); });
 
-  core::File &File() noexcept override { return socket_; }
-  const core::File &File() const noexcept override { return socket_; }
+    channel_.OnEventUpdate(
+        [this](auto events) { eventloop_.Update(&channel_, events); });
+  }
+
+  ~TcpConnection() { spdlog::info("connection closed"); }
 
   void SetContext(const std::any &ctx) { ctx_ = ctx; }
   std::any &GetContext() { return ctx_; }
 
-  void SetMessageCallback(MessageCallback cb) { message_cb_ = std::move(cb); }
+  void Start() {
+    eventloop_.Register(&channel_, [conn = shared_from_this()] {
+      if (conn->state_ == State::kDisconnecting) {
+        conn->state_ = State::kDisconnected;
+      }
+      if (conn->state_ == State::kConnecting) {
+        conn->state_ = State::kConnected;
+        conn->channel_.SetReadable(true);
+      }
+      if (conn->connection_cb_) {
+        conn->connection_cb_(conn);
+      }
+    });
+  }
 
-  void SetWriteCompleteCallback(WriteCompleteCallback cb) {
+  void OnMessage(MessageCallback cb) { message_cb_ = std::move(cb); }
+
+  void OnWriteComplete(WriteCompleteCallback cb) {
     write_complete_cb_ = std::move(cb);
   }
 
-  void SetHighWatermarkCallback(HighWatermarkCallback cb) {
+  void OnHighWatermark(HighWatermarkCallback cb) {
     high_watermark_cb_ = std::move(cb);
   }
 
-  void SetCloseCallback(CloseCallback cb) { close_cb_ = std::move(cb); }
+  void OnConnection(ConnectionCallback cb) { connection_cb_ = std::move(cb); }
 
   const InetAddress &GetLocalAddress() const noexcept { return local_; }
   const InetAddress &GetPeerAddress() const noexcept { return peer_; }
-
-  void Attach(EventLoop *loop, const CallBack &cb) override {
-    AbstractChannel<TcpConnection>::Attach(loop, cb);
-    state_ = State::kConnected;
-  }
 
   void Send(std::string data) {
     if (state_ != State::kConnected) {
       spdlog::trace("ignore sending data[{}]", data);
       return;
     }
-    if (loop_->CheckInsideLoop()) {
+
+    if (eventloop_.CheckInsideLoop()) {
       HandleSend(std::move(data));
       return;
     }
-    loop_->Submit([conn = shared_from_this(), data = std::move(data)] {
-      conn->HandleSend(std::move(data));
-    });
+    eventloop_.Submit(
+        [conn = shared_from_this(), data = std::move(data)]() mutable {
+          conn->HandleSend(std::move(data));
+        });
   }
 
   ssize_t TrySendingDirect(const std::string &data) {
-    if (events_.Contains(SelectEvents::kWriteEvent)) {
+    if (channel_.Writable()) {
       return 0;
     }
 
@@ -118,11 +152,11 @@ public:
     ssize_t w1 = output_buffer_->Append(data.data() + w0, data.size() - w0);
     // TODO: high watermark
     if (w1 != 0) {
-      EnableEvent(SelectEvents::kWriteEvent);
+      channel_.SetWritable(true);
     }
   }
 
-  void HandleRead(ReceiveEvents events, core::Timestamp now) override {
+  void HandleRead(ReceiveEvents events, core::Timestamp now) {
     ssize_t n = input_buffer_->Append(&socket_, input_buffer_->WritableBytes());
     spdlog::trace("read {} bytes", n);
     if (n < 0) {
@@ -140,7 +174,7 @@ public:
     }
   }
 
-  void HandleClose(ReceiveEvents events, core::Timestamp now) override {
+  void HandleClose(ReceiveEvents events, core::Timestamp now) {
     if (state_ == State::kDisconnected) {
       return;
     }
@@ -151,21 +185,22 @@ public:
           output_buffer_->ReadableBytes() == 0) {
         spdlog::trace("HandleClose {}", String());
         state_ = State::kDisconnected;
-        SetEvents(SelectEvents::kNoneEvent);
-        if (close_cb_) {
-          close_cb_(shared_from_this());
+        channel_.SetWritable(false);
+        channel_.SetReadable(false);
+        if (connection_cb_) {
+          connection_cb_(shared_from_this());
         }
       }
     }
   }
 
-  void HandleError(ReceiveEvents events, core::Timestamp now) override {
+  void HandleError(ReceiveEvents events, core::Timestamp now) {
     auto err = socket_.GetError();
     spdlog::error("TcpConnection error, reason[{}]", err.GetReason());
   }
 
-  void HandleWrite(ReceiveEvents events, core::Timestamp now) override {
-    if (!events_.Contains(SelectEvents::kWriteEvent)) {
+  void HandleWrite(ReceiveEvents events, core::Timestamp now) {
+    if (!channel_.Writable()) {
       spdlog::trace("TcpConnection fd[{}] is down, no more writing",
                     socket_.Descriptor());
       return;
@@ -179,9 +214,11 @@ public:
       return;
     }
     if (output_buffer_->ReadableBytes() == 0) {
-      DisableEvent(SelectEvents::kWriteEvent);
+      channel_.SetWritable(false);
       if (write_complete_cb_) {
-        loop_->Submit(std::bind(write_complete_cb_, shared_from_this()));
+        eventloop_.Submit([connection = shared_from_this()] {
+          connection->write_complete_cb_(connection);
+        });
       }
 
       if (state_ == State::kDisconnecting) {
@@ -190,14 +227,17 @@ public:
     }
   }
 
-  void Close() { this->Detach({}); }
+  void Close() {
+    channel_.Close();
+    eventloop_.Deregister(&channel_);
+  }
 
-  std::string String() const override {
+  std::string String() const {
     return fmt::format("TcpConnection[local={}, peer={}, fd={}]", local_, peer_,
                        socket_.Descriptor());
   }
 };
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::TcpConnection);
+PEDRONET_FORMATABLE_CLASS(pedronet::TcpConnection)
 #endif // PEDRONET_TCP_CONNECTION_H

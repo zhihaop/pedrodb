@@ -8,7 +8,7 @@ Timestamp Timestamp::Now() {
   struct timeval tv {};
   gettimeofday(&tv, nullptr);
 
-  return {tv.tv_sec * kMicroseconds + tv.tv_usec};
+  return Timestamp{tv.tv_sec * kMicroseconds + tv.tv_usec};
 }
 } // namespace core
 } // namespace pedronet

@@ -4,8 +4,7 @@
 #include <optional>
 #include <unistd.h>
 
-namespace pedronet {
-namespace core {
+namespace pedronet::core {
 class Thread {
 public:
   static pid_t GetID() noexcept {
@@ -16,7 +15,6 @@ public:
     return *cache_pid;
   }
 };
-} // namespace core
 } // namespace pedronet
 
 #endif // PEDRONET_CORE_THREAD_H

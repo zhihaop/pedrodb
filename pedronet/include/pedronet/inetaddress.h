@@ -1,30 +1,22 @@
-#ifndef PEDRONET_INET_ADDRESS_H
-#define PEDRONET_INET_ADDRESS_H
+#ifndef PEDRONET_INETADDRESS_H
+#define PEDRONET_INETADDRESS_H
 
 #include "pedronet/core/debug.h"
 #include <memory>
 #include <string>
 
-struct sockaddr_in;
-struct sockaddr_in6;
 namespace pedronet {
 
 class Socket;
-class InetAddressImpl;
+union InetAddressImpl;
 
 class InetAddress {
   friend class Socket;
 
   std::unique_ptr<InetAddressImpl> impl_;
-
   std::string host_;
 
-  InetAddress(std::unique_ptr<InetAddressImpl> impl, std::string host);
-
-  explicit InetAddress(const struct sockaddr_in &addr);
-  explicit InetAddress(const struct sockaddr_in6 &addr);
-
-  std::string_view data() const;
+  explicit InetAddress(std::unique_ptr<InetAddressImpl> impl);
 
 public:
   InetAddress();
@@ -33,7 +25,7 @@ public:
   InetAddress(InetAddress &&other) noexcept;
   bool operator==(const InetAddress &other) const noexcept;
   InetAddress &operator=(const InetAddress &other);
-  InetAddress &operator=(InetAddress &&other);
+  InetAddress &operator=(InetAddress &&other) noexcept;
 
   static InetAddress Create(const std::string &host, uint16_t port);
 
@@ -45,11 +37,9 @@ public:
 
   const std::string &Host() const noexcept { return host_; }
 
-  std::string String() const noexcept {
-    return fmt::format("{}:{}", host_, Port());
-  }
+  std::string String() const noexcept;
 };
 } // namespace pedronet
 
 PEDRONET_FORMATABLE_CLASS(pedronet::InetAddress);
-#endif // PEDRONET_INET_ADDRESS_H
+#endif // PEDRONET_INETADDRESS_H

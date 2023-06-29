@@ -5,9 +5,9 @@
 
 #include "pedronet/channel/channel.h"
 #include "pedronet/channel/event_channel.h"
-#include "pedronet/selector/epoller.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
+#include "pedronet/selector/epoller.h"
 #include "pedronet/timer_queue.h"
 
 #include <unordered_set>
@@ -21,7 +21,7 @@ class EpollEventLoop : public EventLoop {
 
   inline const static int32_t kRunningLoop = 1 << 0;
   inline const static int32_t kRunningTask = 1 << 1;
-  inline const static core::Duration kSelectTimeout = std::chrono::seconds(10);
+  inline const static core::Duration kSelectTimeout{std::chrono::seconds(10)};
   inline const static int32_t kMaxEventPerPoll = 10000;
 
   Epoller poller_;
@@ -31,11 +31,11 @@ class EpollEventLoop : public EventLoop {
   Selected selected_ch_;
 
   std::mutex mu_;
-  std::vector<CallBack> pending_tasks_;
+  std::vector<Callback> pending_tasks_;
   std::optional<pid_t> owner_;
 
-  std::atomic_int32_t state_;
-  std::unordered_set<std::shared_ptr<Channel>> channels_;
+  std::atomic_int32_t state_{};
+  std::unordered_map<Channel *, Callback> channels_;
 
   int32_t state() const noexcept {
     return state_.load(std::memory_order_acquire);
@@ -77,46 +77,52 @@ public:
     spdlog::info("create event loop");
   }
 
-  void Update(Channel *channel, SelectEvents events,
-              const CallBack &callback) override {
+  void Update(Channel *channel, SelectEvents events) override {
     if (!CheckInsideLoop()) {
-      Submit([=] { Update(channel, events, callback); });
+      Schedule([=] { Update(channel, events); });
       return;
     }
-
-    poller_.Update(channel, events);
-    if (callback) {
-      callback();
+    if (channels_.find(channel) != channels_.end()) {
+      spdlog::trace("EpollEventLoop::Update({}, {})", *channel, events);
+      poller_.Update(channel, events);
+    } else {
+      spdlog::warn("EpollEventLoop::Update({}, {})", *channel, events);
     }
   }
 
-  void Deregister(const ChannelPtr &channel,
-                  const CallBack &callback) override {
+  void Deregister(Channel *channel) override {
     if (!CheckInsideLoop()) {
-      Submit([=] { Deregister(channel, callback); });
+      Schedule([=] { Deregister(channel); });
       return;
     }
-    spdlog::info("deregister fd[{}]", channel->File().Descriptor());
-    if (channels_.erase(channel)) {
-      poller_.Remove(channel.get());
-    }
-    if (callback) {
-      callback();
+
+    spdlog::info("EpollEventLoop::Deregister({})", *channel);
+    auto it = channels_.find(channel);
+    if (it != channels_.end()) {
+      auto callback = std::move(it->second);
+      poller_.Remove(channel);
+      channels_.erase(it);
+
+      if (callback) {
+        callback();
+      }
     }
   }
 
-  void Register(const ChannelPtr &channel, const CallBack &callback) override {
-    spdlog::error("call register");
+  void Register(Channel *channel, Callback callback) override {
+    spdlog::info("EpollEventLoop::Register({})", *channel);
     if (!CheckInsideLoop()) {
-      Submit([=] { Register(channel, callback); });
+      Schedule([this, channel, cb = std::move(callback)]() mutable {
+        Register(channel, std::move(cb));
+      });
       return;
     }
-    auto [_, success] = channels_.emplace(channel);
+    auto [it, success] = channels_.emplace(channel, std::move(callback));
     if (success) {
-      poller_.Add(channel.get(), SelectEvents::kNoneEvent);
+      poller_.Add(channel, SelectEvents::kNoneEvent);
     }
-    if (callback) {
-      callback();
+    if (it->second) {
+      it->second();
     }
   }
 
@@ -135,18 +141,22 @@ public:
     }
   }
 
-  void Submit(CallBack cb) override {
+  void Schedule(Callback cb) override {
     spdlog::info("submit task");
     std::unique_lock<std::mutex> lock(mu_);
+
+    bool wake_up = pending_tasks_.empty();
     pending_tasks_.emplace_back(std::move(cb));
-    event_ch_.WakeUp();
+    if (wake_up) {
+      event_ch_.WakeUp();
+    }
   }
 
-  uint64_t ScheduleAfter(CallBack cb, core::Duration delay) override {
+  uint64_t ScheduleAfter(Callback cb, core::Duration delay) override {
     return timer_queue_.ScheduleAfter(std::move(cb), delay);
   }
 
-  uint64_t ScheduleEvery(CallBack cb, core::Duration delay,
+  uint64_t ScheduleEvery(Callback cb, core::Duration delay,
                          core::Duration interval) override {
     return timer_queue_.ScheduleEvery(std::move(cb), delay, interval);
   }

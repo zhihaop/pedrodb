@@ -4,7 +4,7 @@
 #include "pedronet/core/duration.h"
 #include "pedronet/core/file.h"
 #include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmoveable.h"
+#include "pedronet/core/nonmovable.h"
 #include "pedronet/core/timestamp.h"
 #include "pedronet/event.h"
 
@@ -22,7 +22,7 @@ struct Selected {
   core::File::Error error;
 };
 
-struct Selector : core::noncopyable, core::nonmoveable {
+struct Selector : core::noncopyable, core::nonmovable {
   virtual void Add(Channel *channel, SelectEvents events) = 0;
   virtual void Remove(Channel *channel) = 0;
   virtual void Update(Channel *channel, SelectEvents events) = 0;

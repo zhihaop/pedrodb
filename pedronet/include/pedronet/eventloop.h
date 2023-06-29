@@ -4,9 +4,10 @@
 #include "pedronet/core/duration.h"
 #include "pedronet/core/executor.h"
 #include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmoveable.h"
+#include "pedronet/core/nonmovable.h"
 #include "pedronet/event.h"
 #include "pedronet/selector/selector.h"
+#include <any>
 #include <atomic>
 #include <functional>
 #include <future>
@@ -21,10 +22,9 @@ namespace pedronet {
 
 struct EventLoop : public core::Executor {
   // For pedronet::Channel.
-  virtual void Update(Channel *channel, SelectEvents events,
-                      const CallBack &cb) = 0;
-  virtual void Register(const ChannelPtr &channel, const CallBack &cb) = 0;
-  virtual void Deregister(const ChannelPtr &channel, const CallBack &cb) = 0;
+  virtual void Update(Channel *channel, SelectEvents events) = 0;
+  virtual void Register(Channel *channel, Callback callback) = 0;
+  virtual void Deregister(Channel *channel) = 0;
 
   // For users.
   virtual bool CheckInsideLoop() const noexcept = 0;
@@ -33,16 +33,23 @@ struct EventLoop : public core::Executor {
   virtual void Close() = 0;
   virtual bool Closed() const noexcept = 0;
 
-  virtual void Submit(CallBack cb) override = 0;
-  virtual uint64_t ScheduleAfter(CallBack cb,
-                                 core::Duration delay) override = 0;
-  virtual uint64_t ScheduleEvery(CallBack cb, core::Duration delay,
-                                 core::Duration interval) override = 0;
-  virtual void ScheduleCancel(uint64_t) override = 0;
+  template <typename Callback> void Submit(Callback &&callback) {
+    if (CheckInsideLoop()) {
+      callback();
+      return;
+    }
+    Schedule(std::forward<Callback>(callback));
+  }
+
+  void Schedule(Callback cb) override = 0;
+  uint64_t ScheduleAfter(Callback cb, core::Duration delay) override = 0;
+  uint64_t ScheduleEvery(Callback cb, core::Duration delay,
+                         core::Duration interval) override = 0;
+  void ScheduleCancel(uint64_t) override = 0;
   virtual ~EventLoop() = default;
 };
 
-class EventLoopGroup : core::noncopyable, core::nonmoveable {
+class EventLoopGroup : core::noncopyable, core::nonmovable {
   const std::vector<std::unique_ptr<EventLoop>> loops_;
   std::vector<std::thread> threads_;
   std::atomic_size_t next_{};
@@ -91,8 +98,8 @@ public:
   }
 
   void Close() {
-    for (size_t i = 0; i < loops_.size(); ++i) {
-      loops_[i]->Close();
+    for (const auto & loop : loops_) {
+      loop->Close();
     }
   }
 };

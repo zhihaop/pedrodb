@@ -20,7 +20,6 @@ cc_library(
     ],
     copts = [
         "-std=c++17",
-        "-O2",
     ],
 )
 
@@ -30,7 +29,6 @@ cc_binary(
     deps = [":pedronet"],
     copts = [
         "-std=c++17",
-        "-O2",
     ],
 )
 
@@ -40,6 +38,5 @@ cc_binary(
     deps = [":pedronet"],
     copts = [
         "-std=c++17",
-        "-O2",
     ],
 )

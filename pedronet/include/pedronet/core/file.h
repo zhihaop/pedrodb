@@ -5,8 +5,7 @@
 #include "pedronet/core/debug.h"
 #include "pedronet/core/noncopyable.h"
 
-namespace pedronet {
-namespace core {
+namespace pedronet::core {
 
 class File : noncopyable {
 public:
@@ -17,6 +16,9 @@ public:
 
   public:
     explicit Error(int code) : code_(code) {}
+
+    static File::Error Success() { return {}; }
+
     Error() = default;
     ~Error() = default;
     Error(const Error &) = default;
@@ -36,14 +38,14 @@ public:
   };
 
 protected:
-  int fd_{-1};
+  int fd_{kInvalid};
 
 public:
   File() = default;
 
   explicit File(int fd) : fd_(fd) {}
 
-  File(File &&other) : fd_(other.fd_) { other.fd_ = kInvalid; }
+  File(File &&other) noexcept : fd_(other.fd_) { other.fd_ = kInvalid; }
 
   File &operator=(File &&other) noexcept;
 
@@ -60,10 +62,12 @@ public:
   virtual ~File() { Close(); }
 
   virtual File::Error GetError() const noexcept { return File::Error(errno); }
+
+  virtual std::string String() const;
 };
 
-} // namespace core
 } // namespace pedronet
 
-PEDRONET_FORMATABLE_CLASS(pedronet::core::File::Error);
+PEDRONET_FORMATABLE_CLASS(pedronet::core::File::Error)
+PEDRONET_FORMATABLE_CLASS(pedronet::core::File)
 #endif // PEDRONET_CORE_FILE_H

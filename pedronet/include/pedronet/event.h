@@ -1,8 +1,9 @@
 #ifndef PEDRONET_EVENT_H
 #define PEDRONET_EVENT_H
 
-#include <cstdint>
+#include "pedronet/core/debug.h"
 #include <initializer_list>
+#include <string>
 
 namespace pedronet {
 
@@ -32,6 +33,13 @@ public:
     events_ &= ~other.events_;
     return *this;
   }
+
+  std::string String() const noexcept {
+    char buf[3]{};
+    buf[0] = Contains(kReadEvent) ? 'r' : '-';
+    buf[1] = Contains(kWriteEvent) ? 'w' : '-';
+    return buf;
+  }
 };
 
 class ReceiveEvents {
@@ -56,8 +64,8 @@ public:
     return events_ & other.events_;
   }
 
-  bool OneOf(const std::initializer_list<ReceiveEvents>& events) {
-    for (auto e: events) {
+  bool OneOf(const std::initializer_list<ReceiveEvents> &events) {
+    for (auto e : events) {
       if (Contains(e)) {
         return true;
       }
@@ -75,4 +83,6 @@ public:
   }
 };
 } // namespace pedronet
+
+PEDRONET_FORMATABLE_CLASS(pedronet::SelectEvents);
 #endif // PEDRONET_EVENT_H

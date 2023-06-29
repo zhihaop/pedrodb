@@ -18,7 +18,7 @@ class Epoller : public core::File, public Selector {
   void epollerUpdate(Channel *channel, uint32_t op, SelectEvents events);
 
 public:
-  Epoller(size_t size);
+  explicit Epoller(size_t size);
   ~Epoller() override;
 
   void Add(Channel *channel, SelectEvents events) override;

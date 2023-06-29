@@ -1,8 +1,6 @@
 #include "pedronet/core/file.h"
-#include <cerrno>
 
-namespace pedronet {
-namespace core {
+namespace pedronet::core {
 
 const char *File::Error::GetReason() const noexcept {
   thread_local char buf[1024];
@@ -23,19 +21,20 @@ File &File::operator=(File &&other) noexcept {
   }
 
   Close();
-  std::swap(fd_, other.fd_);
   fd_ = other.fd_;
+  other.fd_ = kInvalid;
 
   return *this;
 }
 
 void File::Close() {
-  if (fd_ >= 0) {
-    spdlog::info("close fd[{}]", fd_);
-    ::close(fd_);
-    fd_ = kInvalid;
+  if (fd_ <= 0) {
+    return;
   }
+  spdlog::info("{}::Close()", *this);
+  ::close(fd_);
+  fd_ = kInvalid;
 }
+std::string File::String() const { return fmt::format("File[fd={}]", fd_); }
 
-} // namespace core
-} // namespace pedronet
+} // namespace pedronet::core

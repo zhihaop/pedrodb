@@ -1,11 +1,7 @@
 #include "pedronet/socket.h"
-#include "pedronet/tcp_connection.h"
-#include <cerrno>
-
 #include "pedronet/core/debug.h"
-#include <netinet/in.h>
+#include "pedronet/inetaddress_impl.h"
 #include <netinet/tcp.h>
-#include <sys/socket.h>
 
 namespace pedronet {
 
@@ -14,20 +10,17 @@ Socket Socket::Create(int family) {
   int protocol = IPPROTO_TCP;
   int fd = ::socket(family, type, protocol);
   if (fd < 0) {
-    spdlog::error("failed to call ::socket({}, {}, {}), reason[{}]", family, type,
-                  protocol, Socket::Error{errno});
+    spdlog::error("failed to call ::socket({}, {}, {}), reason[{}]", family,
+                  type, protocol, Socket::Error{errno});
     std::terminate();
   }
   return Socket{fd};
 }
 
 void Socket::Bind(const InetAddress &address) {
-  auto addr = address.data();
-  int ret = ::bind(fd_, reinterpret_cast<const struct sockaddr *>(addr.data()),
-                   addr.size());
-  if (ret < 0) {
-    spdlog::error("failed to bind address {}:{}", address.Host(),
-                  address.Port());
+  auto &impl = address.impl_;
+  if (::bind(fd_, impl->data(), impl->size())) {
+    spdlog::error("Socket::Bind({}) failed: {}", address, GetError());
     std::terminate();
   }
 }
@@ -41,37 +34,33 @@ void Socket::Listen() {
 }
 
 Socket::Error Socket::Connect(const InetAddress &address) {
-  auto addr = address.data();
-  if (::connect(fd_, reinterpret_cast<const struct sockaddr *>(addr.data()),
-                addr.size())) {
-    return Error{errno};
+  auto &impl = address.impl_;
+  if (::connect(fd_, impl->data(), impl->size())) {
+    return GetError();
   }
-  return Error{};
+  return Error::Success();
 }
 
 InetAddress Socket::GetLocalAddress() const {
-  struct sockaddr_in6 addr {};
-  socklen_t len = static_cast<socklen_t>(sizeof(sockaddr_in6));
-
-  if (::getsockname(fd_, reinterpret_cast<struct sockaddr *>(&addr), &len) <
-      0) {
-    spdlog::error("failed to get local address, {}", GetError());
+  auto impl = std::make_unique<InetAddressImpl>();
+  socklen_t len = impl->size();
+  if (::getsockname(fd_, impl->data(), &len) < 0) {
+    spdlog::error("{}::GetLocalAddress() failed: {}", *this, GetError());
+    std::terminate();
   }
 
-  return InetAddress{addr};
+  return InetAddress{std::move(impl)};
 }
 
 InetAddress Socket::GetPeerAddress() const {
-  struct sockaddr_in6 addr {};
-  socklen_t len = static_cast<socklen_t>(sizeof(sockaddr_in6));
-
-  if (::getpeername(fd_, reinterpret_cast<struct sockaddr *>(&addr), &len) <
-      0) {
-    spdlog::error("failed to get local address, reason[{}]",
-                  GetError().GetReason());
+  auto impl = std::make_unique<InetAddressImpl>();
+  socklen_t len = impl->size();
+  if (::getpeername(fd_, impl->data(), &len) < 0) {
+    spdlog::error("{}::GetPeerAddress() failed: {}", *this, GetError());
+    std::terminate();
   }
 
-  return InetAddress{addr};
+  return InetAddress{std::move(impl)};
 }
 
 void Socket::SetReuseAddr(bool on) {
@@ -101,35 +90,26 @@ void Socket::CloseWrite() {
 }
 
 Socket::Error Socket::GetError() const noexcept {
-  int optval{};
-  socklen_t optlen = static_cast<socklen_t>(sizeof(optlen));
-  if (::getsockopt(fd_, SOL_SOCKET, SO_ERROR, &optval, &optlen) < 0) {
+  int val{};
+  auto len = static_cast<socklen_t>(sizeof(int));
+  if (::getsockopt(fd_, SOL_SOCKET, SO_ERROR, &val, &len) < 0) {
     return File::Error{errno};
   }
-  return File::Error{optval};
+  return File::Error{val};
 }
 
-Socket::Error Socket::Accept(const InetAddress &local, TcpConnectionPtr *conn) {
-  union {
-    struct sockaddr_in6 v6;
-    struct sockaddr_in v4;
-  } addr;
-
-  auto addr_size = static_cast<socklen_t>(sizeof(addr));
-  int fd = ::accept4(fd_, reinterpret_cast<struct sockaddr *>(&addr),
-                     &addr_size, SOCK_NONBLOCK | SOCK_CLOEXEC);
-
-  InetAddress address;
-  if (addr.v4.sin_family == AF_INET) {
-    address = InetAddress{addr.v4};
-  } else if (addr.v6.sin6_family == AF_INET6) {
-    address = InetAddress{addr.v6};
-  }
-
-  if (fd <= 0) {
+Socket::Error Socket::Accept(const InetAddress &local, Socket *socket) {
+  auto impl = std::make_unique<InetAddressImpl>();
+  auto len = impl->size();
+  
+  Socket file{::accept4(fd_, impl->data(), &len, SOCK_NONBLOCK | SOCK_CLOEXEC)};
+  if (!file.Valid()) {
     return Error{errno};
   }
-  *conn = std::make_shared<TcpConnection>(Socket{fd});
-  return Error{};
+  
+  spdlog::info("Socket::Accept() {} {} -> {}", file, local, file.GetPeerAddress());
+  *socket = std::move(file);
+  return Error::Success();
 }
+std::string Socket::String() const { return fmt::format("Socket[fd={}]", fd_); }
 } // namespace pedronet

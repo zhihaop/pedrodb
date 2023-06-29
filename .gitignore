@@ -1,5 +1,6 @@
-bazel-*
-.vscode
-.cache
-.idea
-compile_commands.json
+**/bazel-*
+**/compile_commands.json
+**/.cache
+**/.vscode
+**/cmake-build-*
+**/.idea

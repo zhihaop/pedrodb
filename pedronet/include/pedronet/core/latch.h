@@ -6,8 +6,7 @@
 #include <condition_variable>
 #include <mutex>
 
-namespace pedronet {
-namespace core {
+namespace pedronet::core {
 
 class Latch {
   std::atomic_size_t count_;
@@ -50,7 +49,6 @@ public:
     }
   }
 };
-} // namespace core
-} // namespace pedronet
+} // namespace pedronet::core
 
 #endif // PEDRONET_CORE_LATCH_H

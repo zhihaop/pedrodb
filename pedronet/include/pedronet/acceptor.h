@@ -1,7 +1,13 @@
 #ifndef PEDRONET_ACCEPTOR_H
 #define PEDRONET_ACCEPTOR_H
 
-#include "pedronet/channel/abstract_channel.h"
+#include "callbacks.h"
+#include "channel/socket_channel.h"
+#include "core/noncopyable.h"
+#include "core/nonmovable.h"
+#include "event.h"
+#include "eventloop.h"
+#include "pedronet/channel/socket_channel.h"
 #include "pedronet/core/debug.h"
 #include "pedronet/core/latch.h"
 #include "pedronet/event.h"
@@ -10,10 +16,14 @@
 
 #include "pedronet/core/debug.h"
 #include <algorithm>
+#include <functional>
+#include <spdlog/spdlog.h>
 
 namespace pedronet {
 
-class Acceptor : public AbstractChannel<Acceptor> {
+using AcceptorCallback = std::function<void(Socket)>;
+
+class Acceptor : core::noncopyable, core::nonmovable {
 public:
   struct Option {
     bool reuse_addr = true;
@@ -28,79 +38,93 @@ public:
   };
 
 protected:
-  NewConnectionCallback new_connection_cb_{};
+  AcceptorCallback acceptor_callback_;
   State state_{Acceptor::State::kClosed};
   InetAddress address_;
+
   Socket socket_;
+  SocketChannel channel_;
+  EventLoop &eventloop_;
 
 public:
-  Acceptor(const InetAddress &address, const Option &option)
-      : AbstractChannel(), address_(address),
-        socket_(Socket::Create(address.Family())) {
+  Acceptor(EventLoop &eventloop, const InetAddress &address,
+           const Option &option)
+      : socket_(Socket::Create(address.Family())), address_(address),
+        channel_(socket_), eventloop_(eventloop) {
     spdlog::error("create acceptor");
 
     socket_.SetReuseAddr(option.reuse_addr);
     socket_.SetReusePort(option.reuse_port);
     socket_.SetKeepAlive(option.keep_alive);
     socket_.SetTcpNoDelay(option.tcp_no_delay);
+    
+    channel_.OnEventUpdate(
+        [this](SelectEvents events) { eventloop_.Update(&channel_, events); });
+
+    channel_.OnRead([this](auto events, auto now) {
+      while (!eventloop_.Closed()) {
+        spdlog::info("{}::HandleRead()", *this);
+        Socket socket;
+        Socket::Error err = socket_.Accept(address_, &socket);
+        if (!err.Empty()) {
+          if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
+            break;
+          }
+          spdlog::error("failed to accept [{}]", err);
+          continue;
+        }
+        if (acceptor_callback_) {
+          acceptor_callback_(std::move(socket));
+        }
+      }
+    });
   }
 
-  ~Acceptor() override { Close(); }
-
-  core::File &File() noexcept override { return socket_; }
-
-  const core::File &File() const noexcept override { return socket_; }
+  ~Acceptor() { Close(); }
+  
+  void Start() {
+    eventloop_.Register(&channel_, [this] {
+      spdlog::info("{}::Start() finished", *this);
+    });
+  }
 
   const InetAddress &ListenAddress() const noexcept { return address_; }
 
   void Bind() { socket_.Bind(address_); }
 
-  void Listen(NewConnectionCallback cb) {
-    state_ = State::kListening;
-    new_connection_cb_ = std::move(cb);
-    this->EnableEvent(SelectEvents::kReadEvent);
-    socket_.Listen();
+  void OnAccept(AcceptorCallback acceptor_callback) {
+    acceptor_callback_ = std::move(acceptor_callback);
+  }
+
+  void Listen() {
+    eventloop_.Submit([this] {
+      state_ = State::kListening;
+      channel_.SetReadable(true);
+      socket_.Listen();
+    });
   }
 
   State GetState() const noexcept { return state_; }
 
   void Close() {
+    spdlog::info("Acceptor::Close() enter");
     core::Latch latch(1);
-    loop_->Submit([&] {
-      SetEvents(SelectEvents::kNoneEvent);
-      Detach({});
-      socket_.Close();
+    eventloop_.Submit([&] {
+      channel_.SetReadable(false);
+      channel_.SetWritable(false);
+      channel_.Close();
       latch.CountDown();
     });
     latch.Await();
+    spdlog::info("Acceptor::Close() exit");
   }
 
-  void HandleAccept(core::Timestamp now) {
-    while (!loop_->Closed()) {
-      spdlog::info("invoke accept");
-      TcpConnectionPtr conn;
-      Socket::Error err = socket_.Accept(address_, &conn);
-      if (!err.Empty()) {
-        if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
-          break;
-        }
-        spdlog::error("failed to accept [{}]", err);
-        continue;
-      }
-      new_connection_cb_(std::move(conn));
-    }
-  }
-
-  void HandleRead(ReceiveEvents events, core::Timestamp now) override {
-    loop_->AssertInsideLoop();
-    HandleAccept(now);
-    spdlog::info("handle read acceptor");
-  }
-
-  std::string String() const override {
-    return fmt::format("Acceptor[listen={}, state={}]", address_, 0);
+  std::string String() const {
+    return fmt::format("Acceptor[socket={}]", socket_);
   }
 };
 } // namespace pedronet
+
+PEDRONET_FORMATABLE_CLASS(pedronet::Acceptor)
 
 #endif // PEDRONET_ACCEPTOR_H

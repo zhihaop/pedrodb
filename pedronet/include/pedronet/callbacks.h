@@ -10,9 +10,10 @@ namespace pedronet {
 class Buffer;
 class TcpConnection;
 class ReceiveEvents;
+class SelectEvents;
 
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
-using CallBack = std::function<void()>;
+using Callback = std::function<void()>;
 using MessageCallback =
     std::function<void(const TcpConnectionPtr &, Buffer *, core::Timestamp)>;
 using SelectorCallback =
@@ -20,10 +21,10 @@ using SelectorCallback =
 using WriteCompleteCallback = std::function<void(const TcpConnectionPtr &)>;
 using HighWatermarkCallback =
     std::function<void(const TcpConnectionPtr &, size_t)>;
-using CloseCallback = std::function<void(const TcpConnectionPtr &)>;
 using ErrorCallback = std::function<void(const TcpConnectionPtr &)>;
+using ConnectionCallback = std::function<void(const TcpConnectionPtr &)>;
+using EventUpdateCallback = std::function<void(SelectEvents events)>;
 
-using NewConnectionCallback = std::function<void(TcpConnectionPtr)>;
 } // namespace pedronet
 
 #endif // PEDRONET_CALLBACK_H
