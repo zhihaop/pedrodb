@@ -27,6 +27,8 @@ void TcpConnection::Start() {
   });
 }
 void TcpConnection::Send(const std::string &data) {
+  eventloop_.AssertInsideLoop();
+  
   if (state_ != State::kConnected) {
     spdlog::trace("ignore sending data[{}]", data);
     return;
@@ -54,6 +56,7 @@ void TcpConnection::Send(const std::string &data) {
   }
 }
 ssize_t TcpConnection::TrySendingDirect(const std::string &data) {
+  eventloop_.AssertInsideLoop();
   if (channel_.Writable()) {
     return 0;
   }
@@ -63,11 +66,7 @@ ssize_t TcpConnection::TrySendingDirect(const std::string &data) {
   return channel_.Write(data.data(), data.size());
 }
 void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
-  if (input_->WritableBytes() == 0) {
-    message_callback_(shared_from_this(), input_.get(), now);
-    return;
-  }
-
+  input_->EnsureWriteable(1024);
   ssize_t n = input_->Append(&channel_, input_->WritableBytes());
   spdlog::trace("read {} bytes", n);
   if (n < 0) {
