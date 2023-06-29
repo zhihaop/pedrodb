@@ -26,16 +26,14 @@ int main() {
     spdlog::info("client disconnect: {}", *conn);
   });
 
-  server.OnMessage([](auto conn, auto buffer, auto now) {
-    std::string buf(buffer->ReadableBytes(), 0);
-    buffer->Retrieve(buf.data(), buf.size());
-
+  server.OnMessage([](const auto &conn, auto buffer, auto now) {
+    std::string_view buf(buffer->ReadIndex(), buffer->ReadableBytes());
     if (buf.find("exit") != std::string::npos) {
       spdlog::info("Server receive exit");
       conn->Close();
       return;
     }
-    conn->Send(buf);
+    conn->Send(buffer);
   });
 
   server.Bind(InetAddress::Create("0.0.0.0", 1082));

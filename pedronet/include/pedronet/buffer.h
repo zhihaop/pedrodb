@@ -1,18 +1,21 @@
 #ifndef PEDRONET_BUFFER_H
 #define PEDRONET_BUFFER_H
 #include "pedronet/core/noncopyable.h"
+#include "pedronet/socket.h"
 #include <algorithm>
 #include <vector>
+
+#include <sys/uio.h>
 
 namespace pedronet {
 struct Buffer {
   virtual size_t ReadableBytes() = 0;
   virtual size_t WritableBytes() = 0;
-  virtual size_t EnsureWriteable(size_t) = 0;
+  virtual void EnsureWriteable(size_t) = 0;
 
   virtual size_t Capacity() = 0;
-  virtual size_t ReadIndex() = 0;
-  virtual size_t WriteIndex() = 0;
+  virtual const char *ReadIndex() = 0;
+  virtual char *WriteIndex() = 0;
 
   virtual char *Data() = 0;
   virtual size_t Append(const char *data, size_t n) = 0;
@@ -20,28 +23,12 @@ struct Buffer {
   virtual void Retrieve(size_t) = 0;
   virtual void Append(size_t) = 0;
   virtual void Reset() = 0;
-
-  template <class Reader> ssize_t Append(Reader *reader, size_t size) {
-    ssize_t r =
-        reader->Read(Data() + WriteIndex(), std::min(size, WritableBytes()));
-    if (r > 0) {
-      Append(r);
-    }
-    return r;
-  }
-
-  template <class Writer> ssize_t Retrieve(Writer *writer, size_t size) {
-    ssize_t w =
-        writer->Write(Data() + ReadIndex(), std::min(size, ReadableBytes()));
-    if (w > 0) {
-      Retrieve(w);
-    }
-    return w;
-  }
+  virtual ssize_t Append(Socket *source) = 0;
+  virtual ssize_t Retrieve(Socket *target) = 0;
 };
 
 class ArrayBuffer : public Buffer {
-  static const size_t kInitialSize = 1 << 20;
+  static const size_t kInitialSize = 1024;
 
   std::vector<char> buf_;
   size_t read_index_{};
@@ -58,9 +45,9 @@ public:
 
   size_t ReadableBytes() override { return write_index_ - read_index_; }
 
-  size_t ReadIndex() override { return read_index_; }
+  const char *ReadIndex() override { return buf_.data() + read_index_; }
 
-  size_t WriteIndex() override { return write_index_; }
+  char *WriteIndex() override { return buf_.data() + write_index_; }
 
   void Append(size_t n) override {
     write_index_ = std::min(write_index_ + n, buf_.size());
@@ -97,14 +84,56 @@ public:
     return n;
   }
 
-  size_t EnsureWriteable(size_t n) override {
-    if (n <= WritableBytes()) {
-      return n;
+  void EnsureWriteable(size_t n) override {
+    size_t w = WritableBytes();
+    if (n <= w) {
+      return;
     }
 
-    size_t delta = n - WritableBytes();
+    if (read_index_ + w > n) {
+      size_t r = ReadableBytes();
+      std::copy(buf_.begin() + read_index_, buf_.begin() + write_index_,
+                buf_.begin());
+      read_index_ = 0;
+      write_index_ = read_index_ + r;
+      return;
+    }
+    size_t delta = n - w;
     buf_.resize(buf_.size() + delta);
-    return n;
+  }
+
+  ssize_t Append(Socket *source) override {
+    char buf[65535];
+    std::array<struct iovec, 2> io{};
+    size_t writable = WritableBytes();
+    io[0].iov_base = WriteIndex();
+    io[0].iov_len = writable;
+    io[1].iov_base = buf;
+    io[1].iov_len = sizeof(buf);
+
+    const int cnt = (writable < sizeof(buf)) ? 2 : 1;
+    ssize_t r = ::readv(source->Descriptor(), io.data(), cnt);
+    if (r <= 0) {
+      return r;
+    }
+
+    if (r <= writable) {
+      Append(r);
+      return r;
+    }
+
+    EnsureWriteable(r);
+    Append(writable);
+    Append(buf, r - writable);
+    return r;
+  }
+
+  ssize_t Retrieve(Socket *target) override {
+    ssize_t w = ::write(target->Descriptor(), ReadIndex(), ReadableBytes());
+    if (w > 0) {
+      Retrieve(w);
+    }
+    return w;
   }
 };
 } // namespace pedronet

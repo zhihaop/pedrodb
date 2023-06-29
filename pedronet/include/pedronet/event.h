@@ -33,6 +33,9 @@ public:
     events_ &= ~other.events_;
     return *this;
   }
+  bool operator != (const SelectEvents& other) const noexcept {
+    return events_ != other.events_;
+  }
 
   std::string String() const noexcept {
     char buf[3]{};

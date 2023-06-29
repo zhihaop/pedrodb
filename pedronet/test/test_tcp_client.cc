@@ -17,7 +17,7 @@ int main() {
     }
   });
 
-  TcpClient client(InetAddress::Create("127.0.0.1", 1082));
+  TcpClient client(InetAddress::Create("127.0.0.1", 2007));
 
   size_t n_workers = std::thread::hardware_concurrency();
   auto worker_group = EventLoopGroup::Create<EpollEventLoop>(n_workers);
@@ -25,22 +25,20 @@ int main() {
 
   client.SetGroup(worker_group);
 
-  auto buf = std::string(1 << 20, 'a');
+  auto buf = std::string(1 << 10, 'a');
 
   client.OnConnect([buf](auto conn) { conn->Send(buf); });
 
   client.OnMessage([&bytes, &packages](auto conn, auto buffer, auto now) {
-    std::string buf(buffer->ReadableBytes(), 0);
-    buffer->Retrieve(buf.data(), buf.size());
-    bytes.fetch_add(buf.size());
+    bytes.fetch_add(buffer->ReadableBytes());
     packages.fetch_add(1);
-    conn->Send(buf);
+    conn->Send(buffer);
     //    conn->GetEventLoop().ScheduleAfter(
     //        [conn, buf = std::move(buf)] { conn->Send(buf); },
     //        core::Duration::Seconds(1));
   });
 
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < 1; ++i) {
     client.Start();
   }
   worker_group->Join();

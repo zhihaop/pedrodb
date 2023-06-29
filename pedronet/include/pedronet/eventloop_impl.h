@@ -18,9 +18,6 @@
 namespace pedronet {
 
 class EpollEventLoop : public EventLoop {
-
-  inline const static int32_t kRunningLoop = 1 << 0;
-  inline const static int32_t kRunningTask = 1 << 1;
   inline const static core::Duration kSelectTimeout{std::chrono::seconds(10)};
   inline const static int32_t kMaxEventPerPoll = 10000;
 
@@ -34,7 +31,7 @@ class EpollEventLoop : public EventLoop {
   std::vector<Callback> pending_tasks_;
   std::optional<pid_t> owner_;
 
-  std::atomic_int32_t state_{};
+  std::atomic_int32_t state_{1};
   std::unordered_map<Channel *, Callback> channels_;
 
   int32_t state() const noexcept {
@@ -45,16 +42,6 @@ class EpollEventLoop : public EventLoop {
     return state_.compare_exchange_strong(expected, state);
   }
 
-  void set_running_tasks(bool value) {
-    for (;;) {
-      int32_t s = state();
-      int32_t n = value ? (s | kRunningTask) : (s & ~kRunningTask);
-      if (compare_and_set_state(s, n)) {
-        break;
-      }
-    }
-  }
-
   void executePendingTask() {
     std::vector<std::function<void()>> tasks;
 
@@ -62,15 +49,14 @@ class EpollEventLoop : public EventLoop {
     std::swap(tasks, pending_tasks_);
     lock.unlock();
 
-    set_running_tasks(true);
     for (auto &task : tasks) {
       task();
     }
-    set_running_tasks(false);
   }
 
 public:
-  EpollEventLoop() : selector_(kMaxEventPerPoll), timer_queue_(timer_ch_, *this) {
+  EpollEventLoop()
+      : selector_(kMaxEventPerPoll), timer_queue_(timer_ch_, *this) {
     selector_.Add(&event_ch_, SelectEvents::kReadEvent);
     selector_.Add(&timer_ch_, SelectEvents::kReadEvent);
 
@@ -153,22 +139,10 @@ public:
 
   void ScheduleCancel(uint64_t id) override { timer_queue_.Cancel(id); }
 
-  bool Closed() const noexcept override { return !(state() & kRunningLoop); }
+  bool Closed() const noexcept override { return state() == 0; }
 
   void Close() override {
-    // Set kRunningLoop state = false.
-    for (;;) {
-      int32_t s = state();
-      if (s & kRunningLoop) {
-        int32_t n = s & ~kRunningLoop;
-        if (compare_and_set_state(s, n)) {
-          break;
-        }
-      } else {
-        spdlog::warn("EventLoop has been shutdown.");
-        return;
-      }
-    }
+    state_ = 0;
 
     spdlog::trace("EventLoop is shutting down.");
     event_ch_.WakeUp();
@@ -176,16 +150,10 @@ public:
   }
 
   void Loop() override {
-    int32_t s = state();
-    if ((s & kRunningLoop) || !compare_and_set_state(s, s | kRunningLoop)) {
-      spdlog::error("EventLoop::Loop() run twice.");
-      return;
-    }
-
     owner_ = core::Thread::GetID();
 
     spdlog::trace("EventLoop::Loop() running");
-    while (state() & kRunningLoop) {
+    while (state()) {
       selector_.Wait(kSelectTimeout, &selected_ch_);
 
       size_t nevents = selected_ch_.channels.size();

@@ -31,7 +31,7 @@ void File::Close() {
   if (fd_ <= 0) {
     return;
   }
-  spdlog::trace("{}::Close()", *this);
+  spdlog::info("{}::Close()", *this);
   ::close(fd_);
   fd_ = kInvalid;
 }

@@ -5,6 +5,7 @@ void TcpConnection::Start() {
   eventloop_.Register(&channel_, [conn = shared_from_this()] {
     switch (conn->state_) {
     case State::kConnecting: {
+      spdlog::info("connecting {}", *conn);
       conn->state_ = State::kConnected;
       conn->channel_.SetReadable(true);
       if (conn->connection_callback_) {
@@ -28,7 +29,7 @@ void TcpConnection::Start() {
 }
 void TcpConnection::Send(const std::string &data) {
   eventloop_.AssertInsideLoop();
-  
+
   if (state_ != State::kConnected) {
     spdlog::trace("ignore sending data[{}]", data);
     return;
@@ -39,7 +40,7 @@ void TcpConnection::Send(const std::string &data) {
     return;
   }
 
-  ssize_t w0 = TrySendingDirect(data);
+  ssize_t w0 = TrySendingDirect(data.data(), data.size());
   if (w0 < 0) {
     auto err = channel_.GetError();
     if (err.GetCode() != EWOULDBLOCK) {
@@ -55,7 +56,7 @@ void TcpConnection::Send(const std::string &data) {
     channel_.SetWritable(true);
   }
 }
-ssize_t TcpConnection::TrySendingDirect(const std::string &data) {
+ssize_t TcpConnection::TrySendingDirect(const char* data, size_t n) {
   eventloop_.AssertInsideLoop();
   if (channel_.Writable()) {
     return 0;
@@ -63,11 +64,10 @@ ssize_t TcpConnection::TrySendingDirect(const std::string &data) {
   if (output_->ReadableBytes() != 0) {
     return 0;
   }
-  return channel_.Write(data.data(), data.size());
+  return channel_.Write(data, n);
 }
 void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
-  input_->EnsureWriteable(1024);
-  ssize_t n = input_->Append(&channel_, input_->WritableBytes());
+  ssize_t n = input_->Append(&channel_.File());
   spdlog::trace("read {} bytes", n);
   if (n < 0) {
     HandleError(events, now);
@@ -96,7 +96,7 @@ void TcpConnection::WriteBuffer(ReceiveEvents events, core::Timestamp now) {
     return;
   }
 
-  ssize_t n = output_->Retrieve(&channel_, output_->ReadableBytes());
+  ssize_t n = output_->Retrieve(&channel_.File());
   if (n < 0) {
     auto err = channel_.GetError();
     spdlog::error("failed to write socket, reason[{}]", err.GetReason());
@@ -121,7 +121,7 @@ void TcpConnection::Close() {
   }
 
   if (state_ == State::kDisconnecting) {
-    if (input_->ReadableBytes() == 0 && output_->ReadableBytes() == 0) {
+    if (output_->ReadableBytes() == 0) {
       spdlog::trace("::Close()", *this);
       channel_.SetWritable(false);
       channel_.SetReadable(false);

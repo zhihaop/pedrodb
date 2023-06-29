@@ -54,6 +54,46 @@ public:
 
   void Start();
 
+  ssize_t TrySendingDirect(Buffer *buffer) {
+    eventloop_.AssertInsideLoop();
+    if (channel_.Writable()) {
+      return 0;
+    }
+    if (output_->ReadableBytes() != 0) {
+      return 0;
+    }
+    return buffer->Retrieve(&channel_.File());
+  }
+
+  void Send(Buffer *buffer) {
+    eventloop_.AssertInsideLoop();
+
+    if (state_ != State::kConnected) {
+      return;
+    }
+
+    if (state_ == State::kDisconnected) {
+      spdlog::warn("give up sending");
+      return;
+    }
+
+    ssize_t w0 = TrySendingDirect(buffer);
+    if (w0 < 0) {
+      auto err = channel_.GetError();
+      if (err.GetCode() != EWOULDBLOCK) {
+        spdlog::error("{}::HandleSend throws {}", err.GetReason());
+        return;
+      }
+    }
+    output_->EnsureWriteable(buffer->ReadableBytes());
+    size_t w1 = output_->Append(buffer->ReadIndex(), buffer->ReadableBytes());
+    buffer->Retrieve(w1);
+    // TODO: high watermark
+    if (w1 != 0) {
+      channel_.SetWritable(true);
+    }
+  }
+
   void OnMessage(MessageCallback cb) { message_callback_ = std::move(cb); }
 
   void OnError(ErrorCallback cb) { error_callback_ = std::move(cb); }
@@ -77,7 +117,7 @@ public:
 
   void Send(const std::string &data);
 
-  ssize_t TrySendingDirect(const std::string &data);
+  ssize_t TrySendingDirect(const char *data, size_t n);
 
   void HandleRead(ReceiveEvents events, core::Timestamp now);
 

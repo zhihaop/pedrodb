@@ -90,12 +90,7 @@ void Socket::CloseWrite() {
 }
 
 Socket::Error Socket::GetError() const noexcept {
-  int val{};
-  auto len = static_cast<socklen_t>(sizeof(int));
-  if (::getsockopt(fd_, SOL_SOCKET, SO_ERROR, &val, &len) < 0) {
-    return File::Error{errno};
-  }
-  return File::Error{val};
+  return Socket::Error{errno};
 }
 
 Socket::Error Socket::Accept(const InetAddress &local, Socket *socket) {

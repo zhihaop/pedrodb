@@ -74,12 +74,15 @@ public:
   }
 
   void SetReadable(bool on) {
+    auto ev = events_;
     if (on) {
       events_.Add(SelectEvents::kReadEvent);
     } else {
       events_.Remove(SelectEvents::kReadEvent);
     }
-    selector_->Update(this, events_);
+    if (ev != events_) {
+      selector_->Update(this, events_);
+    }
   }
 
   bool Readable() const noexcept {
@@ -91,12 +94,15 @@ public:
   }
 
   void SetWritable(bool on) {
+    auto ev = events_;
     if (on) {
       events_.Add(SelectEvents::kWriteEvent);
     } else {
       events_.Remove(SelectEvents::kWriteEvent);
     }
-    selector_->Update(this, events_);
+    if (ev != events_) {
+      selector_->Update(this, events_);
+    }
   }
 
   Socket &File() noexcept final { return socket_; }
