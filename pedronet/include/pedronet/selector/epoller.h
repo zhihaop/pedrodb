@@ -18,14 +18,15 @@ class EpollSelector : public core::File, public Selector {
   void internalUpdate(Channel *channel, int op, SelectEvents events);
 
 public:
-  explicit EpollSelector(size_t size);
+  EpollSelector();
   ~EpollSelector() override;
+  void SetBufferSize(size_t size);
 
   void Add(Channel *channel, SelectEvents events) override;
   void Remove(Channel *channel) override;
   void Update(Channel *channel, SelectEvents events) override;
 
-  void Wait(core::Duration timeout, Selected *selected) override;
+  Selector::Error Wait(core::Duration timeout, SelectChannels *selected) override;
 };
 } // namespace pedronet
 

@@ -15,18 +15,20 @@ namespace pedronet {
 
 struct Channel;
 
-struct Selected {
+struct SelectChannels {
   core::Timestamp now;
   std::vector<Channel *> channels;
   std::vector<ReceiveEvents> events;
-  core::File::Error error;
 };
 
 struct Selector : core::noncopyable, core::nonmovable {
+  using Error = core::File::Error;
+  
   virtual void Add(Channel *channel, SelectEvents events) = 0;
   virtual void Remove(Channel *channel) = 0;
   virtual void Update(Channel *channel, SelectEvents events) = 0;
-  virtual void Wait(core::Duration timeout, Selected *selected) = 0;
+  virtual core::File::Error Wait(core::Duration timeout,
+                                 SelectChannels *selected) = 0;
   virtual ~Selector() = default;
 };
 } // namespace pedronet

@@ -13,12 +13,12 @@ inline static core::File CreateEpollFile() {
   return core::File{fd};
 }
 
-EpollSelector::EpollSelector(size_t size) : core::File(CreateEpollFile()), buffer_(size) {}
+EpollSelector::EpollSelector() : core::File(CreateEpollFile()), buffer_(8192) {}
 
 EpollSelector::~EpollSelector() = default;
 
 void EpollSelector::internalUpdate(Channel *channel, int op,
-                            SelectEvents events) {
+                                   SelectEvents events) {
   struct epoll_event ev {};
   ev.events = events.Value();
   ev.data.ptr = channel;
@@ -42,21 +42,20 @@ void EpollSelector::Remove(Channel *channel) {
   internalUpdate(channel, EPOLL_CTL_DEL, SelectEvents::kNoneEvent);
 }
 
-void EpollSelector::Wait(core::Duration timeout, Selected *selected) {
+Selector::Error EpollSelector::Wait(core::Duration timeout,
+                                    SelectChannels *selected) {
   int nevents =
       ::epoll_wait(fd_, buffer_.data(), buffer_.size(), timeout.Milliseconds());
   selected->now = core::Timestamp::Now();
   selected->channels.clear();
   selected->events.clear();
-  selected->error.Clear();
 
   if (nevents == 0) {
-    return;
+    return Error::Success();
   }
 
   if (nevents < 0) {
-    selected->error = core::File::Error{errno};
-    return;
+    return Error{errno};
   }
 
   selected->channels.resize(nevents);
@@ -65,5 +64,7 @@ void EpollSelector::Wait(core::Duration timeout, Selected *selected) {
     selected->channels[i] = static_cast<Channel *>(buffer_[i].data.ptr);
     selected->events[i] = ReceiveEvents{buffer_[i].events};
   }
+  return Error::Success();
 }
+void EpollSelector::SetBufferSize(size_t size) { buffer_.resize(size); }
 } // namespace pedronet

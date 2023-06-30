@@ -1,17 +1,17 @@
 #ifndef PEDRONET_TCP_SERVER_H
 #define PEDRONET_TCP_SERVER_H
 
-#include "callbacks.h"
 #include "pedronet/acceptor.h"
 #include "pedronet/buffer.h"
 #include "pedronet/core/debug.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
+#include "pedronet/eventloopgroup.h"
 #include "pedronet/inetaddress.h"
 #include "pedronet/selector/selector.h"
 #include "pedronet/socket.h"
 #include "pedronet/tcp_connection.h"
-#include <exception>
+
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <unordered_map>
@@ -19,7 +19,7 @@
 
 namespace pedronet {
 
-class TcpServer {
+class TcpServer : core::noncopyable, core::nonmovable {
   std::shared_ptr<EventLoopGroup> boss_group_;
   std::shared_ptr<EventLoopGroup> worker_group_;
 
@@ -69,7 +69,7 @@ public:
   void OnWriteComplete(WriteCompleteCallback callback) {
     write_complete_callback_ = std::move(callback);
   }
-  
+
   void OnHighWatermark(HighWatermarkCallback callback) {
     high_watermark_callback_ = std::move(callback);
   }

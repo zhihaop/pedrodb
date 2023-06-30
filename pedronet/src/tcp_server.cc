@@ -1,5 +1,7 @@
 #include "pedronet/tcp_server.h"
-void pedronet::TcpServer::Start() {
+
+namespace pedronet {
+void TcpServer::Start() {
   spdlog::trace("TcpServer::Start() enter");
 
   acceptor_->OnAccept([this](Socket socket) {
@@ -41,7 +43,7 @@ void pedronet::TcpServer::Start() {
   acceptor_->Listen();
   spdlog::trace("TcpServer::Start() exit");
 }
-void pedronet::TcpServer::Close() {
+void TcpServer::Close() {
   spdlog::trace("TcpServer::Close() enter");
   acceptor_->Close();
 
@@ -51,7 +53,7 @@ void pedronet::TcpServer::Close() {
   }
   actives_.clear();
 }
-void pedronet::TcpServer::Bind(const pedronet::InetAddress &address) {
+void TcpServer::Bind(const pedronet::InetAddress &address) {
   spdlog::trace("TcpServer::Bind({})", address);
 
   if (!boss_group_) {
@@ -63,3 +65,4 @@ void pedronet::TcpServer::Bind(const pedronet::InetAddress &address) {
                                          Acceptor::Option{});
   acceptor_->Bind();
 }
+} // namespace pedronet

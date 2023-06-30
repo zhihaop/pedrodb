@@ -16,10 +16,12 @@ struct Duration : public Comparable<Duration> {
 
   Duration() = default;
   Duration(const Duration &other) : usecs(other.usecs) {}
+  
   template <typename Rep, typename Period>
-  explicit Duration(std::chrono::duration<Rep, Period> other)
+  Duration(std::chrono::duration<Rep, Period> other)
       : usecs(std::chrono::duration_cast<std::chrono::microseconds>(other)
                   .count()) {}
+  
   explicit Duration(int64_t usecs) : usecs(usecs) {}
 
   static int Compare(const Duration &p, const Duration &q) noexcept {
@@ -28,9 +30,13 @@ struct Duration : public Comparable<Duration> {
 
   static Duration Zero() { return {}; }
 
-  static Duration Seconds(int32_t secs) { return Duration{secs * kMicroseconds}; }
+  static Duration Seconds(int32_t secs) {
+    return Duration{secs * kMicroseconds};
+  }
 
-  static Duration Milliseconds(int64_t ms) { return Duration{ms * kMilliseconds}; }
+  static Duration Milliseconds(int64_t ms) {
+    return Duration{ms * kMilliseconds};
+  }
 
   static Duration Microseconds(int64_t us) { return Duration{us}; }
 

@@ -87,14 +87,14 @@ uint64_t TimerQueue::createTimer(Callback cb, const core::Duration &delay,
   executor_.Schedule([this, now] { updateExpire(now); });
   return id;
 }
-uint64_t TimerQueue::ScheduleEvery(Callback callback,
-                                   const core::Duration &delay,
-                                   const core::Duration &interval) {
+uint64_t TimerQueue::ScheduleEvery(const core::Duration &delay,
+                                   const core::Duration &interval,
+                                   Callback callback) {
   std::unique_lock<std::mutex> lock(mu_);
   return createTimer(std::move(callback), delay, interval);
 }
-uint64_t TimerQueue::ScheduleAfter(Callback callback,
-                                   const core::Duration &delay) {
+uint64_t TimerQueue::ScheduleAfter(const core::Duration &delay,
+                                   Callback callback) {
   std::unique_lock<std::mutex> lock(mu_);
   return createTimer(std::move(callback), delay, core::Duration::Seconds(0));
 }

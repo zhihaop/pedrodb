@@ -27,7 +27,7 @@ public:
     }
   }
 
-  bool Await(core::Duration d) {
+  bool Await(const core::Duration& d) {
     std::unique_lock<std::mutex> lock(mu_);
     auto st = std::chrono::steady_clock::now();
     auto et = st + std::chrono::microseconds(d.Microseconds());

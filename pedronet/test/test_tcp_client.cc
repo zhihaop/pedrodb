@@ -1,27 +1,30 @@
-#include "pedronet/eventloop_impl.h"
-#include "pedronet/tcp_client.h"
+#include <pedronet/eventloopgroup.h>
+#include <pedronet/selector/epoller.h>
+#include <pedronet/tcp_client.h>
 
 using namespace std::chrono_literals;
-using namespace pedronet;
+using pedronet::EpollSelector;
+using pedronet::EventLoopGroup;
+using pedronet::InetAddress;
+using pedronet::TcpClient;
+using pedronet::core::Duration;
 
 int main() {
   spdlog::set_level(spdlog::level::info);
 
+  size_t n_workers = std::thread::hardware_concurrency();
+  auto worker_group = EventLoopGroup::Create<EpollSelector>(n_workers);
+  worker_group->Start();
   std::atomic_size_t bytes = 0;
   std::atomic_size_t packages = 0;
-  auto watcher = std::async(std::launch::async, [&bytes, &packages] {
-    while (true) {
-      spdlog::info("client bytes receive: {} MB, {} packages",
-                   bytes.exchange(0) / 1000000.0, packages.exchange(0));
-      std::this_thread::sleep_for(1s);
-    }
+
+  worker_group->ScheduleEvery(0s, 1s, [&bytes, &packages]() {
+    double speed = 1.0 * bytes.exchange(0) / (1 << 20);
+    size_t tps = packages.exchange(0);
+    spdlog::info("client receive: {} MiB/s, {} packages/s", speed, tps);
   });
 
-  TcpClient client(InetAddress::Create("127.0.0.1", 2007));
-
-  size_t n_workers = std::thread::hardware_concurrency();
-  auto worker_group = EventLoopGroup::Create<EpollEventLoop>(n_workers);
-  worker_group->Start();
+  TcpClient client(InetAddress::Create("127.0.0.1", 1082));
 
   client.SetGroup(worker_group);
 
@@ -33,12 +36,9 @@ int main() {
     bytes.fetch_add(buffer->ReadableBytes());
     packages.fetch_add(1);
     conn->Send(buffer);
-    //    conn->GetEventLoop().ScheduleAfter(
-    //        [conn, buf = std::move(buf)] { conn->Send(buf); },
-    //        core::Duration::Seconds(1));
   });
 
-  for (int i = 0; i < 1; ++i) {
+  for (int i = 0; i < 128; ++i) {
     client.Start();
   }
   worker_group->Join();

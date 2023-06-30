@@ -1,7 +1,7 @@
 #include "pedronet/tcp_client.h"
 
-void pedronet::TcpClient::connecting(pedronet::EventLoop &loop,
-                                     pedronet::Socket socket) {
+namespace pedronet {
+void TcpClient::connecting(pedronet::EventLoop &loop, pedronet::Socket socket) {
   spdlog::trace("TcpClient::connection({})", socket);
   auto connection = std::make_shared<TcpConnection>(loop, std::move(socket));
 
@@ -36,7 +36,7 @@ void pedronet::TcpClient::connecting(pedronet::EventLoop &loop,
   connection->Start();
 }
 
-void pedronet::TcpClient::connect(pedronet::EventLoop &loop) {
+void TcpClient::connect(pedronet::EventLoop &loop) {
   Socket socket = Socket::Create(address_.Family());
   if (!socket.Valid()) {
     spdlog::error("socket fd is invalid");
@@ -75,21 +75,20 @@ void pedronet::TcpClient::connect(pedronet::EventLoop &loop) {
     break;
   }
 }
-void pedronet::TcpClient::retry(pedronet::EventLoop &loop,
-                                pedronet::Socket socket,
-                                pedronet::core::File::Error reason) {
+void TcpClient::retry(pedronet::EventLoop &loop, pedronet::Socket socket,
+                      pedronet::core::File::Error reason) {
   socket.Close();
   spdlog::trace("TcpClient::retry(): {}", reason);
-  loop.ScheduleAfter([&] { connect(loop); }, core::Duration::Seconds(1));
+  loop.ScheduleAfter(core::Duration::Seconds(1), [&] { connect(loop); });
 }
 
-void pedronet::TcpClient::Start() {
+void TcpClient::Start() {
   spdlog::trace("TcpClient::Start()");
   auto &loop = worker_group_->Next();
-  loop.Submit([this, &loop] { connect(loop); });
+  loop.Run([this, &loop] { connect(loop); });
 }
 
-void pedronet::TcpClient::Close() {
+void TcpClient::Close() {
   std::unique_lock<std::mutex> lock(mu_);
   for (auto &conn : actives_) {
     if (conn == nullptr) {
@@ -99,3 +98,4 @@ void pedronet::TcpClient::Close() {
   }
   actives_.clear();
 }
+} // namespace pedronet

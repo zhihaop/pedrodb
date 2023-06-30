@@ -7,7 +7,7 @@
 
 namespace pedronet {
 
-class TimerChannel : public Channel {
+class TimerChannel final : public Channel {
   inline static const core::Duration kMinWakeUpDuration =
       core::Duration::Microseconds(100);
 

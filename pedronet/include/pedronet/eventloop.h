@@ -12,97 +12,174 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/channel.h"
+#include "pedronet/channel/event_channel.h"
+#include "pedronet/channel/timer_channel.h"
+#include "pedronet/core/thread.h"
+#include "timer_queue.h"
 
 namespace pedronet {
 
-struct EventLoop : public core::Executor {
-  // For pedronet::Channel.
-  virtual void Register(Channel *channel, Callback callback) = 0;
-  virtual void Deregister(Channel *channel) = 0;
+class EventLoop : public core::Executor {
+  inline const static core::Duration kSelectTimeout{std::chrono::seconds(10)};
 
-  // For users.
-  virtual bool CheckInsideLoop() const noexcept = 0;
-  virtual void AssertInsideLoop() const = 0;
-  virtual void Loop() = 0;
-  virtual void Close() = 0;
-  virtual bool Closed() const noexcept = 0;
-  virtual Selector* GetSelector() noexcept = 0;
+  std::unique_ptr<Selector> selector_;
+  EventChannel event_channel_;
+  TimerChannel timer_channel_;
+  TimerQueue timer_queue_;
 
-  template <typename Callback> void Submit(Callback &&callback) {
-    if (CheckInsideLoop()) {
-      callback();
-      return;
-    }
-    Schedule(std::forward<Callback>(callback));
-  }
+  std::mutex mu_;
+  std::vector<Callback> pending_tasks_;
+  std::vector<Callback> running_tasks_;
+  std::optional<pid_t> owner_;
 
-  void Schedule(Callback cb) override = 0;
-  uint64_t ScheduleAfter(Callback cb, core::Duration delay) override = 0;
-  uint64_t ScheduleEvery(Callback cb, core::Duration delay,
-                         core::Duration interval) override = 0;
-  void ScheduleCancel(uint64_t) override = 0;
-  virtual ~EventLoop() = default;
-};
+  std::atomic_int32_t state_{1};
+  std::unordered_map<Channel *, Callback> channels_;
 
-class EventLoopGroup : core::noncopyable, core::nonmovable {
-  const std::vector<std::unique_ptr<EventLoop>> loops_;
-  std::vector<std::thread> threads_;
-  std::atomic_size_t next_{};
-
-  size_t next() {
-    for (;;) {
-      size_t c = next_.load(std::memory_order_acquire);
-      size_t n = (c + 1) % loops_.size();
-      if (!next_.compare_exchange_strong(c, n)) {
-        continue;
-      }
-      return c;
-    }
+  int32_t state() const noexcept {
+    return state_.load(std::memory_order_acquire);
   }
 
 public:
-  explicit EventLoopGroup(std::vector<std::unique_ptr<EventLoop>> &&loops_)
-      : loops_(std::move(loops_)) {}
+  explicit EventLoop(std::unique_ptr<Selector> selector)
+      : selector_(std::move(selector)), timer_queue_(timer_channel_, *this) {
+    selector_->Add(&event_channel_, SelectEvents::kReadEvent);
+    selector_->Add(&timer_channel_, SelectEvents::kReadEvent);
 
-  template <typename EventLoopImpl> static auto Create(size_t threads) {
-    std::vector<std::unique_ptr<EventLoop>> loops(threads);
-    for (size_t i = 0; i < threads; ++i) {
-      loops[i] = std::make_unique<EventLoopImpl>();
-    }
-    return std::make_shared<EventLoopGroup>(std::move(loops));
+    spdlog::trace("create event loop");
   }
 
-  ~EventLoopGroup() { Join(); }
+  Selector *GetSelector() noexcept { return selector_.get(); }
 
-  EventLoop &Next() { return *loops_[next()]; }
+  void Deregister(Channel *channel) {
+    if (!CheckInsideLoop()) {
+      Schedule([=] { Deregister(channel); });
+      return;
+    }
 
-  void Join() {
-    for (auto &t : threads_) {
-      if (t.joinable()) {
-        t.join();
+    spdlog::trace("EventLoopImpl::Deregister({})", *channel);
+    auto it = channels_.find(channel);
+    if (it == channels_.end()) {
+      return;
+    }
+
+    auto callback = std::move(it->second);
+    selector_->Remove(channel);
+    channels_.erase(it);
+
+    if (callback) {
+      callback();
+    }
+  }
+
+  void Register(Channel *channel, Callback callback) {
+    spdlog::trace("EventLoopImpl::Register({})", *channel);
+    if (!CheckInsideLoop()) {
+      Schedule([this, channel, cb = std::move(callback)]() mutable {
+        Register(channel, std::move(cb));
+      });
+      return;
+    }
+    auto it = channels_.find(channel);
+    if (it == channels_.end()) {
+      selector_->Add(channel, SelectEvents::kNoneEvent);
+      if (callback) {
+        callback();
       }
+      channels_.emplace_hint(it, channel, std::move(callback));
     }
-    threads_.clear();
   }
 
-  void Start() {
-    threads_.reserve(loops_.size());
-    for (size_t i = 0; i < loops_.size(); ++i) {
-      threads_.emplace_back([&loop = loops_[i]] { loop->Loop(); });
+  bool CheckInsideLoop() const noexcept {
+    return owner_ == core::Thread::GetID();
+  }
+
+  void AssertInsideLoop() const {
+    if (!CheckInsideLoop()) {
+      spdlog::error("check in event loop failed, own={}, thd={}",
+                    owner_.value_or(-1), core::Thread::GetID());
+      std::terminate();
     }
   }
+
+  void Schedule(Callback cb) override {
+    spdlog::trace("submit task");
+    std::unique_lock<std::mutex> lock(mu_);
+
+    bool wake_up = pending_tasks_.empty();
+    pending_tasks_.emplace_back(std::move(cb));
+    if (wake_up) {
+      event_channel_.WakeUp();
+    }
+  }
+
+  uint64_t ScheduleAfter(core::Duration delay, Callback cb) override {
+    return timer_queue_.ScheduleAfter(delay, std::move(cb));
+  }
+
+  uint64_t ScheduleEvery(core::Duration delay, core::Duration interval,
+                         Callback cb) override {
+    return timer_queue_.ScheduleEvery(delay, interval, std::move(cb));
+  }
+
+  void ScheduleCancel(uint64_t id) override { timer_queue_.Cancel(id); }
+
+  template <typename Runnable> void Run(Runnable &&runnable) {
+    if (CheckInsideLoop()) {
+      runnable();
+      return;
+    }
+    Schedule(std::forward<Runnable>(runnable));
+  }
+
+  bool Closed() const noexcept { return state() == 0; }
 
   void Close() {
-    for (const auto & loop : loops_) {
-      loop->Close();
+    state_ = 0;
+
+    spdlog::trace("EventLoop is shutting down.");
+    event_channel_.WakeUp();
+    // TODO: await shutdown ?
+  }
+
+  void Loop() {
+    spdlog::trace("EventLoop::Loop() running");
+    owner_ = core::Thread::GetID();
+    
+    SelectChannels selected;
+    while (state()) {
+      auto err = selector_->Wait(kSelectTimeout, &selected);
+      if (!err.Empty()) {
+        spdlog::error("failed to call selector_.Wait(): {}", err);
+        continue;
+      }
+
+      size_t n_events = selected.channels.size();
+      for (size_t i = 0; i < n_events; ++i) {
+        Channel *ch = selected.channels[i];
+        ReceiveEvents event = selected.events[i];
+        ch->HandleEvents(event, selected.now);
+      }
+
+      std::unique_lock<std::mutex> lock(mu_);
+      std::swap(running_tasks_, pending_tasks_);
+      lock.unlock();
+      
+      for (auto &task : running_tasks_) {
+        task();
+      }
+
+      running_tasks_.clear();
     }
+    owner_.reset();
   }
 };
+
 } // namespace pedronet
 
 #endif // PEDRONET_EVENTLOOP_H

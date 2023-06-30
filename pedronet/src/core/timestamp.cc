@@ -1,8 +1,7 @@
 #include "pedronet/core/timestamp.h"
 #include <sys/time.h>
 
-namespace pedronet {
-namespace core {
+namespace pedronet::core {
 
 Timestamp Timestamp::Now() {
   struct timeval tv {};
@@ -10,5 +9,4 @@ Timestamp Timestamp::Now() {
 
   return Timestamp{tv.tv_sec * kMicroseconds + tv.tv_usec};
 }
-} // namespace core
 } // namespace pedronet

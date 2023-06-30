@@ -1,8 +1,14 @@
-#include "pedronet/eventloop_impl.h"
-#include "pedronet/tcp_server.h"
+
+#include <pedronet/eventloopgroup.h>
+#include <pedronet/selector/epoller.h>
+#include <pedronet/tcp_server.h>
 
 using namespace std::chrono_literals;
-using namespace pedronet;
+using pedronet::EpollSelector;
+using pedronet::EventLoopGroup;
+using pedronet::InetAddress;
+using pedronet::TcpConnectionPtr;
+using pedronet::TcpServer;
 
 int main() {
   spdlog::set_level(spdlog::level::info);
@@ -10,8 +16,8 @@ int main() {
   TcpServer server;
 
   size_t n_workers = std::thread::hardware_concurrency();
-  auto boss_group = EventLoopGroup::Create<EpollEventLoop>(1);
-  auto worker_group = EventLoopGroup::Create<EpollEventLoop>(n_workers);
+  auto boss_group = EventLoopGroup::Create<EpollSelector>(1);
+  auto worker_group = EventLoopGroup::Create<EpollSelector>(n_workers);
 
   boss_group->Start();
   worker_group->Start();
@@ -22,7 +28,7 @@ int main() {
     conn->Send("hello client");
   });
 
-  server.OnClose([](const TcpConnectionPtr &conn) {
+  server.OnClose([](const auto &conn) {
     spdlog::info("client disconnect: {}", *conn);
   });
 

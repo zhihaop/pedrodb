@@ -59,10 +59,10 @@ public:
 
   ~TimerQueue() { channel_.SetEventCallBack({}); }
 
-  uint64_t ScheduleAfter(Callback callback, const core::Duration &delay);
+  uint64_t ScheduleAfter(const core::Duration& delay, Callback callback);
 
-  uint64_t ScheduleEvery(Callback callback, const core::Duration &delay,
-                         const core::Duration &interval);
+  uint64_t ScheduleEvery(const core::Duration& delay, const core::Duration& interval,
+                         Callback callback);
 
   void Cancel(uint64_t timer_id);
 };

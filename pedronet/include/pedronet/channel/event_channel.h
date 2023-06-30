@@ -7,7 +7,7 @@
 
 namespace pedronet {
 
-class EventChannel : public Channel {
+class EventChannel final : public Channel {
   SelectorCallback event_callback_;
   core::File file_;
 

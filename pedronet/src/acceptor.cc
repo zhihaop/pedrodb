@@ -40,7 +40,7 @@ std::string Acceptor::String() const {
 void Acceptor::Close() {
   spdlog::trace("Acceptor::Close() enter");
   core::Latch latch(1);
-  eventloop_.Submit([this, &latch] {
+  eventloop_.Run([this, &latch] {
     channel_.SetReadable(false);
     channel_.SetWritable(false);
     eventloop_.Deregister(&channel_);

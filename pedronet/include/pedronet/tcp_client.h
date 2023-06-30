@@ -8,6 +8,7 @@
 #include "pedronet/core/nonmovable.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
+#include "pedronet/eventloopgroup.h"
 #include "pedronet/inetaddress.h"
 #include "pedronet/socket.h"
 #include "pedronet/tcp_connection.h"

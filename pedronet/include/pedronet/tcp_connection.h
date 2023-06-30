@@ -34,8 +34,8 @@ protected:
   ConnectionCallback connection_callback_{};
   std::any ctx_{};
 
-  std::unique_ptr<Buffer> output_ = std::make_unique<ArrayBuffer>();
-  std::unique_ptr<Buffer> input_ = std::make_unique<ArrayBuffer>();
+  ArrayBuffer output_;
+  ArrayBuffer input_;
 
   SocketChannel channel_;
   InetAddress local_;
@@ -59,7 +59,7 @@ public:
     if (channel_.Writable()) {
       return 0;
     }
-    if (output_->ReadableBytes() != 0) {
+    if (output_.ReadableBytes() != 0) {
       return 0;
     }
     return buffer->Retrieve(&channel_.File());
@@ -85,8 +85,8 @@ public:
         return;
       }
     }
-    output_->EnsureWriteable(buffer->ReadableBytes());
-    size_t w1 = output_->Append(buffer->ReadIndex(), buffer->ReadableBytes());
+    output_.EnsureWriteable(buffer->ReadableBytes());
+    size_t w1 = output_.Append(buffer->ReadIndex(), buffer->ReadableBytes());
     buffer->Retrieve(w1);
     // TODO: high watermark
     if (w1 != 0) {

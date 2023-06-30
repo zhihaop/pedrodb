@@ -49,8 +49,8 @@ void TcpConnection::Send(const std::string &data) {
     }
   }
 
-  output_->EnsureWriteable(data.size() - w0);
-  size_t w1 = output_->Append(data.data() + w0, data.size() - w0);
+  output_.EnsureWriteable(data.size() - w0);
+  size_t w1 = output_.Append(data.data() + w0, data.size() - w0);
   // TODO: high watermark
   if (w1 != 0) {
     channel_.SetWritable(true);
@@ -61,13 +61,13 @@ ssize_t TcpConnection::TrySendingDirect(const char* data, size_t n) {
   if (channel_.Writable()) {
     return 0;
   }
-  if (output_->ReadableBytes() != 0) {
+  if (output_.ReadableBytes() != 0) {
     return 0;
   }
   return channel_.Write(data, n);
 }
 void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
-  ssize_t n = input_->Append(&channel_.File());
+  ssize_t n = input_.Append(&channel_.File());
   spdlog::trace("read {} bytes", n);
   if (n < 0) {
     HandleError(events, now);
@@ -80,7 +80,7 @@ void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
   }
 
   if (message_callback_) {
-    message_callback_(shared_from_this(), input_.get(), now);
+    message_callback_(shared_from_this(), &input_, now);
   }
 }
 void TcpConnection::HandleError(ReceiveEvents events, core::Timestamp now) {
@@ -96,16 +96,16 @@ void TcpConnection::WriteBuffer(ReceiveEvents events, core::Timestamp now) {
     return;
   }
 
-  ssize_t n = output_->Retrieve(&channel_.File());
+  ssize_t n = output_.Retrieve(&channel_.File());
   if (n < 0) {
     auto err = channel_.GetError();
     spdlog::error("failed to write socket, reason[{}]", err.GetReason());
     return;
   }
-  if (output_->ReadableBytes() == 0) {
+  if (output_.ReadableBytes() == 0) {
     channel_.SetWritable(false);
     if (write_complete_callback_) {
-      eventloop_.Submit([connection = shared_from_this()] {
+      eventloop_.Run([connection = shared_from_this()] {
         connection->write_complete_callback_(connection);
       });
     }
@@ -121,7 +121,7 @@ void TcpConnection::Close() {
   }
 
   if (state_ == State::kDisconnecting) {
-    if (output_->ReadableBytes() == 0) {
+    if (output_.ReadableBytes() == 0) {
       spdlog::trace("::Close()", *this);
       channel_.SetWritable(false);
       channel_.SetReadable(false);
