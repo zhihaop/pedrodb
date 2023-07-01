@@ -58,7 +58,7 @@ public:
   void Shutdown();
   void ForceClose();
   void ForceShutdown();
-  
+
   void OnConnect(ConnectionCallback callback) {
     connection_callback_ = std::move(callback);
   }
@@ -82,6 +82,9 @@ public:
   void OnHighWatermark(HighWatermarkCallback callback) {
     high_watermark_callback_ = std::move(callback);
   }
+  
+  State GetState() const noexcept { return state_; }
+  auto GetConnection() noexcept { return connection_; }
 };
 } // namespace pedronet
 
