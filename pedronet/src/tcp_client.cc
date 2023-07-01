@@ -121,5 +121,24 @@ void TcpClient::ForceClose() {
     connection_->ForceClose();
   }
 }
+void TcpClient::Shutdown() {
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
+  }
 
+  if (connection_) {
+    connection_->Shutdown();
+  }
+}
+void TcpClient::ForceShutdown() {
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
+  }
+
+  if (connection_) {
+    connection_->ForceShutdown();
+  }
+}
 } // namespace pedronet

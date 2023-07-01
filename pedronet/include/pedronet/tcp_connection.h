@@ -49,6 +49,7 @@ protected:
   void handleError(Socket::Error);
   void handleWrite();
   void handleSend(Buffer *buffer);
+  void handleClose();
 
 public:
   TcpConnection(EventLoop &eventloop, Socket socket);
@@ -101,7 +102,8 @@ public:
   const InetAddress &GetPeerAddress() const noexcept { return peer_; }
 
   void Close();
-
+  void Shutdown();
+  void ForceShutdown();
   void ForceClose();
 
   EventLoop &GetEventLoop() noexcept { return eventloop_; }

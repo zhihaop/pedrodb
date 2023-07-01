@@ -139,5 +139,11 @@ Socket::~Socket() {
     PEDRONET_TRACE("{}::~Socket()", *this);
   }
 }
+void Socket::Shutdown() {
+  if (::shutdown(fd_, SHUT_RDWR) < 0) {
+    PEDRONET_ERROR("failed to close write end");
+    std::terminate();
+  }
+}
 
 } // namespace pedronet

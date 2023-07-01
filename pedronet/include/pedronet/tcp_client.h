@@ -55,8 +55,10 @@ public:
 
   void Start();
   void Close();
+  void Shutdown();
   void ForceClose();
-
+  void ForceShutdown();
+  
   void OnConnect(ConnectionCallback callback) {
     connection_callback_ = std::move(callback);
   }

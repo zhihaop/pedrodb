@@ -3,6 +3,7 @@
 
 #include "pedronet/buffer/buffer.h"
 #include "pedronet/socket.h"
+#include <cstring>
 
 namespace pedronet {
 class BufferView : public Buffer {
@@ -22,10 +23,8 @@ public:
   size_t Append(const char *data, size_t n) override { return 0; }
   size_t Retrieve(char *data, size_t n) override {
     size_t w = std::min(n, ReadableBytes());
-    size_t target = read_index_ + w;
-    while (read_index_ != target) {
-      *(data++) = data_[read_index_++];
-    }
+    memcpy(data, data_ + read_index_, w);
+    Retrieve(w);
     return w;
   }
   void Retrieve(size_t size) override {

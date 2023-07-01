@@ -1,9 +1,10 @@
 #ifndef PEDRONET_CORE_FILE_H
 #define PEDRONET_CORE_FILE_H
 
-#include "debug.h"
 #include "pedronet/core/debug.h"
 #include "pedronet/core/noncopyable.h"
+
+#include <string_view>
 
 namespace pedronet::core {
 
@@ -52,6 +53,10 @@ public:
   virtual ssize_t Read(void *buf, size_t size) noexcept;
 
   virtual ssize_t Write(const void *buf, size_t size) noexcept;
+
+  virtual ssize_t Readv(const std::string_view *buf, size_t n) noexcept;
+
+  virtual ssize_t Writev(std::string_view *buf, size_t n) noexcept;
 
   bool Valid() const noexcept { return fd_ != kInvalid; }
 

@@ -1,7 +1,5 @@
 #include "pedronet/channel/timer_channel.h"
-
 #include "pedronet/core/debug.h"
-#include <bits/types/struct_itimerspec.h>
 #include <sys/timerfd.h>
 
 namespace pedronet {

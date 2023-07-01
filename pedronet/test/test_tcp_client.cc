@@ -43,6 +43,11 @@ int main() {
     client.Start();
   }
   reporter.Start(Duration::Seconds(1));
+
+  worker_group->ScheduleAfter(10s, [&] {
+    std::for_each(clients.begin(), clients.end(),
+                  [](TcpClient &client) { client.Shutdown(); });
+  });
   worker_group->Join();
   return 0;
 }

@@ -29,6 +29,8 @@ public:
   InetAddress GetPeerAddress() const;
 
   void CloseWrite();
+  
+  void Shutdown();
 
   Error GetError() const noexcept override;
 

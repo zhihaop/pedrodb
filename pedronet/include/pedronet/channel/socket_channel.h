@@ -44,46 +44,9 @@ public:
     error_callback_ = std::move(error_callback);
   }
 
-  void HandleEvents(ReceiveEvents events, core::Timestamp now) final {
-    PEDRONET_TRACE("{} handel events[{}]", *this, events.Value());
-    if (events.Contains(ReceiveEvents::kHangUp) &&
-        !events.Contains(ReceiveEvents::kReadable)) {
-      if (close_callback_) {
-        close_callback_(events, now);
-      }
-    }
+  void HandleEvents(ReceiveEvents events, core::Timestamp now) final;
 
-    if (events.OneOf({ReceiveEvents::kError, ReceiveEvents::kInvalid})) {
-      if (error_callback_) {
-        error_callback_(events, now);
-      }
-    }
-
-    if (events.OneOf({ReceiveEvents::kReadable, ReceiveEvents::kPriorReadable,
-                      ReceiveEvents::kReadHangUp})) {
-      if (read_callback_) {
-        read_callback_(events, now);
-      }
-    }
-
-    if (events.Contains(ReceiveEvents::kWritable)) {
-      if (write_callback_) {
-        write_callback_(events, now);
-      }
-    }
-  }
-
-  void SetReadable(bool on) {
-    auto ev = events_;
-    if (on) {
-      events_.Add(SelectEvents::kReadEvent);
-    } else {
-      events_.Remove(SelectEvents::kReadEvent);
-    }
-    if (ev != events_) {
-      selector_->Update(this, events_);
-    }
-  }
+  void SetReadable(bool on);
 
   bool Readable() const noexcept {
     return events_.Contains(SelectEvents::kReadEvent);
@@ -93,17 +56,7 @@ public:
     return events_.Contains(SelectEvents::kWriteEvent);
   }
 
-  void SetWritable(bool on) {
-    auto ev = events_;
-    if (on) {
-      events_.Add(SelectEvents::kWriteEvent);
-    } else {
-      events_.Remove(SelectEvents::kWriteEvent);
-    }
-    if (ev != events_) {
-      selector_->Update(this, events_);
-    }
-  }
+  void SetWritable(bool on);
 
   Socket &File() noexcept final { return socket_; }
   const Socket &File() const noexcept final { return socket_; }
@@ -127,6 +80,8 @@ public:
   Socket::Error GetError() const { return socket_.GetError(); }
 
   void CloseWrite() { return socket_.CloseWrite(); }
+
+  void Shutdown() { return socket_.Shutdown(); }
 };
 
 } // namespace pedronet
