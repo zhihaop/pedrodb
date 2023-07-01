@@ -53,7 +53,7 @@ InetAddress Socket::GetLocalAddress() const {
   socklen_t len = impl->size();
   if (::getsockname(fd_, impl->data(), &len) < 0) {
     PEDRONET_ERROR("{}::GetLocalAddress() failed: {}", *this, GetError());
-    std::terminate();
+    return InetAddress{};
   }
 
   return InetAddress{std::move(impl)};
@@ -64,7 +64,7 @@ InetAddress Socket::GetPeerAddress() const {
   socklen_t len = impl->size();
   if (::getpeername(fd_, impl->data(), &len) < 0) {
     PEDRONET_ERROR("{}::GetPeerAddress() failed: {}", *this, GetError());
-    std::terminate();
+    return InetAddress{};
   }
 
   return InetAddress{std::move(impl)};
