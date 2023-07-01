@@ -37,11 +37,7 @@ void EventLoopGroup::ScheduleCancel(uint64_t id) {
   size_t timer_id = id / loops_.size();
   loops_[loop_id].ScheduleCancel(timer_id);
 }
-void EventLoopGroup::Start() {
-  for (size_t i = 0; i < loops_.size(); ++i) {
-    threads_.emplace_back([&loop = loops_[i]] { loop.Loop(); });
-  }
-}
+
 void EventLoopGroup::Close() {
   for (auto &loop : loops_) {
     loop.Close();

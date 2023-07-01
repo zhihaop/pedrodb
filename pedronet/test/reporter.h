@@ -21,10 +21,12 @@ class Reporter {
   std::function<void(size_t, size_t, size_t, size_t)> callback_;
 
   uint64_t id_{};
-  pedronet::core::Executor &executor_;
+  pedronet::core::Executor *executor_{};
 
 public:
-  explicit Reporter(pedronet::core::Executor &executor) : executor_(executor) {}
+  explicit Reporter() = default;
+  ~Reporter() { Close(); }
+
   void Trace(size_t bytes) {
     bytes_.fetch_add(bytes);
     counts_.fetch_add(1);
@@ -36,8 +38,10 @@ public:
     callback_ = std::move(cb);
   }
 
-  void Start(const pedronet::core::Duration &interval) {
-    id_ = executor_.ScheduleEvery(
+  void Start(pedronet::EventLoopGroup &group,
+             const pedronet::core::Duration &interval) {
+    executor_ = &group.Next();
+    id_ = executor_->ScheduleEvery(
         pedronet::core::Duration::Zero(), interval, [this] {
           size_t bytes = bytes_.exchange(0);
           size_t count = counts_.exchange(0);
@@ -49,7 +53,11 @@ public:
         });
   }
 
-  void Close() { executor_.ScheduleCancel(id_); }
+  void Close() {
+    if (executor_ != nullptr) {
+      executor_->ScheduleCancel(id_);
+    }
+  }
 };
 
 #endif // PEDRONET_REPEATER_H

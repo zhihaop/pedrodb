@@ -3,6 +3,7 @@
 
 #include "pedronet/core/static_vector.h"
 #include "pedronet/eventloop.h"
+#include "pedronet/selector/epoller.h"
 namespace pedronet {
 
 class EventLoopGroup;
@@ -20,13 +21,17 @@ public:
   explicit EventLoopGroup(size_t threads)
       : loops_(threads), threads_(threads), size_(threads), next_(0) {}
 
-  template <typename Selector> static EventLoopGroupPtr Create(size_t threads) {
+  template <typename Selector = EpollSelector>
+  static EventLoopGroupPtr Create(size_t threads) {
     auto group = std::make_shared<EventLoopGroup>(threads);
 
-    auto &loops = group->loops_;
     for (size_t i = 0; i < threads; ++i) {
       auto selector = std::make_unique<Selector>();
-      loops.emplace_back(std::move(selector));
+      group->loops_.emplace_back(std::move(selector));
+    }
+    for (size_t i = 0; i < threads; ++i) {
+      auto &loop = group->loops_[i];
+      group->threads_.emplace_back([&loop] { loop.Loop(); });
     }
     return group;
   }
@@ -45,8 +50,6 @@ public:
                          Callback cb) override;
 
   void ScheduleCancel(uint64_t id) override;
-
-  void Start();
 
   void Close();
 };

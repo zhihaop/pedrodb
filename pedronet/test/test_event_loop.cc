@@ -12,7 +12,6 @@ using pedronet::core::Duration;
 int main() {
   spdlog::set_level(spdlog::level::trace);
   auto group = EventLoopGroup::Create<EpollSelector>(12);
-  group->Start();
 
   group->Schedule([] { std::cout << "hello world" << std::endl; });
 

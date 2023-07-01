@@ -13,24 +13,26 @@ using pedronet::core::Duration;
 using pedronet::core::StaticVector;
 namespace logger = pedronet::logger;
 
+void ClientReport(size_t bps, size_t ops, size_t, size_t) {
+  double speed = 1.0 * static_cast<double>(bps) / (1 << 20);
+  PEDRONET_INFO("client receive: {} MiB/s, {} packages/s", speed, ops);
+}
+
 int main() {
   logger::SetLevel(logger::Level::kInfo);
 
   size_t n_workers = std::thread::hardware_concurrency();
-  auto worker_group = EventLoopGroup::Create<EpollSelector>(n_workers);
-  worker_group->Start();
+  auto worker_group = EventLoopGroup::Create(n_workers);
 
-  Reporter reporter(worker_group->Next());
-  reporter.SetCallback([](size_t b, size_t c, size_t, size_t) {
-    double speed = 1.0 * static_cast<double>(b) / (1 << 20);
-    PEDRONET_INFO("client receive: {} MiB/s, {} packages/s", speed, c);
-  });
+  Reporter reporter;
+  reporter.SetCallback(ClientReport);
+  reporter.Start(*worker_group, Duration::Seconds(1));
+
 
   auto buf = std::string(1 << 20, 'a');
 
   size_t n_clients = 32;
   StaticVector<TcpClient> clients(n_clients);
-
   InetAddress address = InetAddress::Create("127.0.0.1", 1082);
   for (size_t i = 0; i < n_clients; ++i) {
     TcpClient &client = clients.emplace_back(address);
@@ -42,8 +44,7 @@ int main() {
     });
     client.Start();
   }
-  reporter.Start(Duration::Seconds(1));
-  
+
   worker_group->Join();
   return 0;
 }
