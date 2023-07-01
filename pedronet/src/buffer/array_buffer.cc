@@ -40,5 +40,14 @@ ssize_t ArrayBuffer::Append(Socket *source) {
   Append(writable);
   Append(buf, r - writable);
   return r;
-} // namespace pedronet
+}
+size_t ArrayBuffer::Find(std::string_view sv) {
+  std::string_view view{buf_.data() + read_index_, ReadableBytes()};
+  size_t n = view.find(sv);
+  if (n == std::string_view::npos) {
+    return n;
+  }
+  return n + read_index_;
+}
+// namespace pedronet
 } // namespace pedronet

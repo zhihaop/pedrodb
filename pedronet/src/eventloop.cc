@@ -61,7 +61,7 @@ void EventLoop::AssertUnderLoop() const {
 }
 void EventLoop::Register(Channel *channel, Callback register_callback,
                          Callback deregister_callback) {
-  PEDRONET_TRACE("EventLoopImpl::Register({})", *channel);
+  PEDRONET_INFO("EventLoopImpl::Register({})", *channel);
   if (!CheckUnderLoop()) {
     Schedule([this, channel, r = std::move(register_callback),
               d = std::move(deregister_callback)]() mutable {

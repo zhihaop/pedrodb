@@ -6,7 +6,7 @@
 #include <cstring>
 
 namespace pedronet {
-class BufferView : public Buffer {
+class BufferView final : public Buffer {
   const char *data_{};
   size_t size_{};
   size_t read_index_{};
@@ -52,7 +52,20 @@ public:
 
   size_t ReadIndex() override { return read_index_; }
   size_t WriteIndex() override { return size_; }
-  const char &Get(size_t index) const override { return data_[index]; }
+  size_t Peek(char *data, size_t n) override {
+    n = std::min(n, ReadableBytes());
+    memcpy(data, data_ + read_index_, n);
+    return n;
+  }
+
+  size_t Find(std::string_view sv) override {
+    std::string_view view{data_ + read_index_, size_};
+    size_t n = view.find(sv);
+    if (n == std::string_view::npos) {
+      return n;
+    }
+    return n + read_index_;
+  }
 };
 } // namespace pedronet
 #endif // PEDRONET_BUFFER_BUFFER_VIEW_H

@@ -26,7 +26,12 @@ int main() {
   server.SetGroup(boss_group, worker_group);
   server.OnConnect([](auto &&conn) { PEDRONET_INFO("connect: {}", *conn); });
   server.OnClose([](auto &&conn) { PEDRONET_INFO("disconnect: {}", *conn); });
-  server.OnMessage([=](auto &&conn, auto &buf, auto) { conn->Send(&buf); });
+  server.OnMessage([=](auto &&conn, auto &buf, auto) {
+    if (buf.Find("exit") != -1) {
+      conn->Shutdown();
+    }
+    conn->Send(&buf);
+  });
   server.Bind(InetAddress::Create("0.0.0.0", 1082));
   server.Start();
 

@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace pedronet {
-class ArrayBuffer : public Buffer {
+class ArrayBuffer final : public Buffer {
   static const size_t kInitialSize = 1024;
 
   std::vector<char> buf_;
@@ -76,7 +76,14 @@ public:
 
   size_t ReadIndex() override { return read_index_; }
   size_t WriteIndex() override { return write_index_; }
-  const char &Get(size_t index) const override { return buf_[index]; }
+
+  size_t Peek(char *data, size_t n) override {
+    n = std::min(n, ReadableBytes());
+    memcpy(data, buf_.data() + read_index_, n);
+    return n;
+  }
+
+  size_t Find(std::string_view sv) override;
 };
 } // namespace pedronet
 

@@ -14,11 +14,6 @@ void TcpClient::handleConnection(Socket socket) {
 
   connection_->OnClose([this](auto &&conn) {
     PEDRONET_TRACE("client disconnect: {}", *conn);
-    State s = State::kDisconnecting;
-    if (!state_.compare_exchange_strong(s, State::kDisconnected)) {
-      PEDRONET_ERROR("connection has been close, {}", *conn);
-      return;
-    }
     connection_.reset();
 
     if (close_callback_) {

@@ -26,9 +26,9 @@ int main() {
     PEDRONET_INFO("client receive: {} MiB/s, {} packages/s", speed, c);
   });
 
-  auto buf = std::string(1 << 10, 'a');
+  auto buf = std::string(1 << 20, 'a');
 
-  size_t n_clients = 128;
+  size_t n_clients = 32;
   StaticVector<TcpClient> clients(n_clients);
 
   InetAddress address = InetAddress::Create("127.0.0.1", 1082);
@@ -43,11 +43,7 @@ int main() {
     client.Start();
   }
   reporter.Start(Duration::Seconds(1));
-
-  worker_group->ScheduleAfter(10s, [&] {
-    std::for_each(clients.begin(), clients.end(),
-                  [](TcpClient &client) { client.Shutdown(); });
-  });
+  
   worker_group->Join();
   return 0;
 }
