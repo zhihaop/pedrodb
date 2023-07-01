@@ -11,14 +11,14 @@ class Buffer;
 class TcpConnection;
 class ReceiveEvents;
 class SelectEvents;
+class Channel;
 
 using Callback = std::function<void()>;
 using SelectorCallback =
     std::function<void(ReceiveEvents events, core::Timestamp)>;
-
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 using MessageCallback =
-    std::function<void(const TcpConnectionPtr &, Buffer&, core::Timestamp)>;
+    std::function<void(const TcpConnectionPtr &, Buffer &, core::Timestamp)>;
 using WriteCompleteCallback = std::function<void(const TcpConnectionPtr &)>;
 using HighWatermarkCallback =
     std::function<void(const TcpConnectionPtr &, size_t)>;

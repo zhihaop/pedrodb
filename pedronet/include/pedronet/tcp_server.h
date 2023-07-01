@@ -2,7 +2,7 @@
 #define PEDRONET_TCP_SERVER_H
 
 #include "pedronet/acceptor.h"
-#include "pedronet/buffer.h"
+#include "pedronet/buffer/buffer.h"
 #include "pedronet/core/debug.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"

@@ -4,7 +4,9 @@ namespace pedronet {
 
 void EventLoop::Loop() {
   PEDRONET_TRACE("EventLoop::Loop() running");
-  owner_ = core::Thread::GetID();
+
+  auto &current = core::Thread::Current();
+  current.BindEventLoop(this);
 
   SelectChannels selected;
   while (state()) {
@@ -31,7 +33,8 @@ void EventLoop::Loop() {
 
     running_tasks_.clear();
   }
-  owner_.reset();
+
+  current.UnbindEventLoop(this);
 }
 void EventLoop::Close() {
   state_ = 0;
@@ -50,32 +53,33 @@ void EventLoop::Schedule(Callback cb) {
     event_channel_.WakeUp();
   }
 }
-void EventLoop::AssertInsideLoop() const {
-  if (!CheckInsideLoop()) {
-    PEDRONET_ERROR("check in event loop failed, own={}, thd={}",
-                   owner_.value_or(-1), core::Thread::GetID());
+void EventLoop::AssertUnderLoop() const {
+  if (!CheckUnderLoop()) {
+    PEDRONET_ERROR("check in event loop failed");
     std::terminate();
   }
 }
-void EventLoop::Register(Channel *channel, Callback callback) {
+void EventLoop::Register(Channel *channel, Callback register_callback,
+                         Callback deregister_callback) {
   PEDRONET_TRACE("EventLoopImpl::Register({})", *channel);
-  if (!CheckInsideLoop()) {
-    Schedule([this, channel, cb = std::move(callback)]() mutable {
-      Register(channel, std::move(cb));
+  if (!CheckUnderLoop()) {
+    Schedule([this, channel, r = std::move(register_callback),
+              d = std::move(deregister_callback)]() mutable {
+      Register(channel, std::move(r), std::move(d));
     });
     return;
   }
   auto it = channels_.find(channel);
   if (it == channels_.end()) {
     selector_->Add(channel, SelectEvents::kNoneEvent);
-    if (callback) {
-      callback();
+    channels_.emplace_hint(it, channel, std::move(deregister_callback));
+    if (register_callback) {
+      register_callback();
     }
-    channels_.emplace_hint(it, channel, std::move(callback));
   }
 }
 void EventLoop::Deregister(Channel *channel) {
-  if (!CheckInsideLoop()) {
+  if (!CheckUnderLoop()) {
     Schedule([=] { Deregister(channel); });
     return;
   }
@@ -101,4 +105,4 @@ EventLoop::EventLoop(std::unique_ptr<Selector> selector)
 
   PEDRONET_TRACE("create event loop");
 }
-}
+} // namespace pedronet

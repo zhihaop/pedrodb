@@ -43,9 +43,7 @@ class TcpClient : core::noncopyable, core::nonmovable {
 
 private:
   void handleConnection(pedronet::Socket conn);
-
   void retry(Socket socket, Socket::Error reason);
-
   void raiseConnection();
 
 public:

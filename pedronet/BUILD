@@ -40,3 +40,12 @@ cc_binary(
         "-std=c++17",
     ],
 )
+
+cc_binary(
+    name = "test_tcp_client",
+    srcs = ["test/test_tcp_client.cc"],
+    deps = [":pedronet"],
+    copts = [
+        "-std=c++17",
+    ],
+)

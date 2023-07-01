@@ -2,30 +2,32 @@
 
 namespace pedronet {
 void TcpConnection::Start() {
-  eventloop_.Register(&channel_, [conn = shared_from_this()] {
-    switch (conn->state_) {
-    case State::kConnecting: {
-      PEDRONET_INFO("handleConnection {}", *conn);
-      conn->state_ = State::kConnected;
-      conn->channel_.SetReadable(true);
-      if (conn->connection_callback_) {
-        conn->connection_callback_(conn);
-      }
-      break;
-    }
-    case State::kDisconnecting: {
-      conn->state_ = State::kDisconnected;
-      if (conn->close_callback_) {
-        conn->close_callback_(conn);
-      }
-      break;
-    }
-    default: {
-      PEDRONET_WARN("TcpConnection::RegisterCallback(): should not happened");
-      break;
-    }
-    }
-  });
+  auto conn = shared_from_this();
+  eventloop_.Register(
+      &channel_,
+      [this, conn] {
+        State s = State::kConnecting;
+        if (!state_.compare_exchange_strong(s, State::kConnected)) {
+          PEDRONET_ERROR("{} has been register to channel", *this);
+          return;
+        }
+
+        PEDRONET_INFO("handleConnection {}", *this);
+        channel_.SetReadable(true);
+        if (connection_callback_) {
+          connection_callback_(conn);
+        }
+      },
+      [this, conn] {
+        State s = State::kDisconnecting;
+        if (!state_.compare_exchange_strong(s, State::kDisconnected)) {
+          PEDRONET_ERROR("{} has been closed", *this);
+          return;
+        }
+        if (close_callback_) {
+          close_callback_(conn);
+        }
+      });
 }
 
 void TcpConnection::handleRead(core::Timestamp now) {
@@ -50,7 +52,7 @@ void TcpConnection::handleError(Socket::Error err) {
     ForceClose();
     return;
   }
-  
+
   if (error_callback_) {
     error_callback_(shared_from_this(), err);
     return;
@@ -83,18 +85,19 @@ void TcpConnection::handleWrite() {
   }
 }
 void TcpConnection::Close() {
-  if (state_ == State::kConnected) {
-    state_ = State::kDisconnecting;
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
   }
 
-  if (state_ == State::kDisconnecting) {
+  eventloop_.Run([this] {
     if (output_.ReadableBytes() == 0) {
-      PEDRONET_TRACE("::Close()", *this);
+      PEDRONET_TRACE("{}::Close()", *this);
       channel_.SetWritable(false);
       channel_.SetReadable(false);
       eventloop_.Deregister(&channel_);
     }
-  }
+  });
 }
 std::string TcpConnection::String() const {
   return fmt::format("TcpConnection[local={}, peer={}, channel={}]", local_,
@@ -117,53 +120,60 @@ TcpConnection::~TcpConnection() {
   Close();
   PEDRONET_TRACE("{}::~TcpConnection()", *this);
 }
-void TcpConnection::Send(Buffer &buffer) {
-  eventloop_.AssertInsideLoop();
 
-  if (state_ != State::kConnected) {
+void TcpConnection::handleSend(Buffer *buffer) {
+  eventloop_.AssertUnderLoop();
+
+  State s = state_;
+  if (s != State::kConnected) {
+    PEDRONET_WARN("{}::Send(): give up sending buffer", *this);
     return;
   }
 
-  if (state_ == State::kDisconnected) {
-    PEDRONET_WARN("give up sending");
-    return;
-  }
-
-  ssize_t w0 = trySendingDirect(buffer);
-  if (w0 < 0) {
+  if (trySendingDirect(buffer) < 0) {
     auto err = channel_.GetError();
     if (err.GetCode() != EWOULDBLOCK) {
       handleError(err);
       return;
     }
   }
-  output_.EnsureWriteable(buffer.ReadableBytes());
-  size_t w1 = output_.Append(&buffer);
-  // TODO: high watermark
-  if (w1 != 0) {
+
+  size_t w = output_.WritableBytes();
+  size_t r = buffer->ReadableBytes();
+  if (w < r) {
+    output_.EnsureWriteable(r);
+    if (high_watermark_callback_) {
+      high_watermark_callback_(shared_from_this(), r - w);
+    }
+  }
+
+  if (output_.Append(buffer) > 0) {
     channel_.SetWritable(true);
   }
 }
-ssize_t TcpConnection::trySendingDirect(Buffer &buffer) {
-  eventloop_.AssertInsideLoop();
+
+ssize_t TcpConnection::trySendingDirect(Buffer *buffer) {
+  eventloop_.AssertUnderLoop();
   if (channel_.Writable()) {
     return 0;
   }
   if (output_.ReadableBytes() != 0) {
     return 0;
   }
-  return buffer.Retrieve(&channel_.File());
+  return buffer->Retrieve(&channel_.File());
 }
 void TcpConnection::ForceClose() {
-  if (state_ == State::kConnected) {
-    state_ = State::kDisconnecting;
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
   }
 
-  if (state_ == State::kDisconnecting) {
-    PEDRONET_TRACE("::ForceClose()", *this);
+  eventloop_.Run([this] {
+    PEDRONET_TRACE("{}::Close()", *this);
     channel_.SetWritable(false);
     channel_.SetReadable(false);
     eventloop_.Deregister(&channel_);
-  }
+  });
 }
+
 } // namespace pedronet

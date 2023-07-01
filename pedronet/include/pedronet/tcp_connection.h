@@ -1,7 +1,9 @@
 #ifndef PEDRONET_TCP_CONNECTION_H
 #define PEDRONET_TCP_CONNECTION_H
 
-#include "pedronet/buffer.h"
+#include "pedronet/buffer/array_buffer.h"
+#include "pedronet/buffer/buffer.h"
+#include "pedronet/buffer/buffer_view.h"
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/socket_channel.h"
 #include "pedronet/core/debug.h"
@@ -24,7 +26,7 @@ public:
   enum class State { kConnected, kDisconnected, kConnecting, kDisconnecting };
 
 protected:
-  State state_{TcpConnection::State::kConnecting};
+  std::atomic<State> state_{TcpConnection::State::kConnecting};
 
   MessageCallback message_callback_{};
   WriteCompleteCallback write_complete_callback_{};
@@ -42,10 +44,11 @@ protected:
   InetAddress peer_;
   EventLoop &eventloop_;
 
-  ssize_t trySendingDirect(Buffer &buffer);
+  ssize_t trySendingDirect(Buffer *buffer);
   void handleRead(core::Timestamp now);
   void handleError(Socket::Error);
   void handleWrite();
+  void handleSend(Buffer *buffer);
 
 public:
   TcpConnection(EventLoop &eventloop, Socket socket);
@@ -59,9 +62,22 @@ public:
 
   void Start();
 
-  void Send(Buffer &buffer);
+  void Send(Buffer *buffer) {
+    eventloop_.Run([=] { handleSend(buffer); });
+  }
 
-  void Send(Buffer &&buffer) { Send(buffer); }
+  void Send(const char *buf, size_t n) {
+    BufferView view{buf, n};
+    handleSend(&view);
+  }
+
+  void Send(std::string_view sv) {
+    eventloop_.Run([=] { Send(sv.data(), sv.size()); });
+  }
+
+  void Send(std::string s) {
+    eventloop_.Run([this, s = std::move(s)] { Send(s.data(), s.size()); });
+  }
 
   void OnMessage(MessageCallback cb) { message_callback_ = std::move(cb); }
 

@@ -50,9 +50,10 @@ void Acceptor::Close() {
   PEDRONET_TRACE("Acceptor::Close() exit");
 }
 void Acceptor::Listen() {
-  eventloop_.Register(&channel_, [this] {
+  Callback callback = [this] {
     channel_.SetReadable(true);
     channel_.File().Listen();
-  });
+  };
+  eventloop_.Register(&channel_, std::move(callback), {});
 }
 } // namespace pedronet

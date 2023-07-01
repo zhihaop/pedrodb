@@ -121,4 +121,5 @@ void TcpClient::ForceClose() {
     connection_->ForceClose();
   }
 }
+
 } // namespace pedronet
