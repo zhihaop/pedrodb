@@ -5,6 +5,24 @@
 
 #ifdef USE_SPDLOG
 #include <spdlog/spdlog.h>
+
+namespace pedronet::logger {
+spdlog::logger &GetLogger();
+}
+#define PEDRONET_TRACE(fmt, args...)                                           \
+  pedronet::logger::GetLogger().trace(fmt, ##args)
+#define PEDRONET_INFO(fmt, args...)                                            \
+  pedronet::logger::GetLogger().info(fmt, ##args)
+#define PEDRONET_WARN(fmt, args...)                                            \
+  pedronet::logger::GetLogger().warn(fmt, ##args)
+#define PEDRONET_ERROR(fmt, args...)                                           \
+  pedronet::logger::GetLogger().error(fmt, ##args)
+
+#else
+#define PEDRONET_TRACE(fmt, args...)
+#define PEDRONET_INFO(fmt, args...)
+#define PEDRONET_WARN(fmt, args...)
+#define PEDRONET_ERROR(fmt, args...)
 #endif
 
 namespace pedronet::logger {
@@ -35,23 +53,10 @@ inline static void SetLevel(Level level) {
       }
       std::terminate();
     };
-    spdlog::set_level(loglevel(level));
+    GetLogger().set_level(loglevel(level));
   }
 #endif
 }
 } // namespace pedronet::logger
-
-#ifdef USE_SPDLOG
-
-#define PEDRONET_TRACE(fmt, args...) spdlog::trace(fmt, ##args)
-#define PEDRONET_INFO(fmt, args...) spdlog::info(fmt, ##args)
-#define PEDRONET_WARN(fmt, args...) spdlog::warn(fmt, ##args)
-#define PEDRONET_ERROR(fmt, args...) spdlog::error(fmt, ##args)
-#else
-#define PEDRONET_TRACE(fmt, args...)
-#define PEDRONET_INFO(fmt, args...)
-#define PEDRONET_WARN(fmt, args...)
-#define PEDRONET_ERROR(fmt, args...)
-#endif
 
 #endif // PEDRONET_LOGGER_LOGGER_H
