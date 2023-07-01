@@ -21,9 +21,7 @@ File &File::operator=(File &&other) noexcept {
   }
 
   Close();
-  fd_ = other.fd_;
-  other.fd_ = kInvalid;
-
+  std::swap(fd_, other.fd_);
   return *this;
 }
 
@@ -31,7 +29,7 @@ void File::Close() {
   if (fd_ <= 0) {
     return;
   }
-  spdlog::info("{}::Close()", *this);
+  PEDRONET_INFO("{}::Close()", *this);
   ::close(fd_);
   fd_ = kInvalid;
 }

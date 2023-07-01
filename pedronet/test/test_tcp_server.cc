@@ -4,6 +4,7 @@
 #include <pedronet/tcp_server.h>
 
 using namespace std::chrono_literals;
+using pedronet::BufferView;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
@@ -23,24 +24,12 @@ int main() {
   worker_group->Start();
 
   server.SetGroup(boss_group, worker_group);
-  server.OnConnect([](auto conn) {
-    spdlog::info("client connect: {}", *conn);
-    conn->Send("hello client");
-  });
-
-  server.OnClose([](const auto &conn) {
-    spdlog::info("client disconnect: {}", *conn);
-  });
-
-  server.OnMessage([](const auto &conn, auto buffer, auto now) {
-    std::string_view buf(buffer->ReadIndex(), buffer->ReadableBytes());
-    if (buf.find("exit") != std::string::npos) {
-      spdlog::info("Server receive exit");
-      conn->Close();
-      return;
-    }
-    conn->Send(buffer);
-  });
+  server.OnConnect(
+      [](auto &&conn) { PEDRONET_INFO("client connect: {}", *conn); });
+  server.OnClose(
+      [](auto &&conn) { PEDRONET_INFO("client disconnect: {}", *conn); });
+  server.OnMessage(
+      [=](auto &&conn, auto &buffer, auto now) { conn->Send(buffer); });
 
   server.Bind(InetAddress::Create("0.0.0.0", 1082));
   server.Start();

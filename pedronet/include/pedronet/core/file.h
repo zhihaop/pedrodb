@@ -49,9 +49,9 @@ public:
 
   File &operator=(File &&other) noexcept;
 
-  ssize_t Read(void *buf, size_t size) noexcept;
+  virtual ssize_t Read(void *buf, size_t size) noexcept;
 
-  ssize_t Write(const void *buf, size_t size) noexcept;
+  virtual ssize_t Write(const void *buf, size_t size) noexcept;
 
   bool Valid() const noexcept { return fd_ != kInvalid; }
 
@@ -66,8 +66,8 @@ public:
   virtual std::string String() const;
 };
 
-} // namespace pedronet
+} // namespace pedronet::core
 
-PEDRONET_CLASS_FORMATTER(pedronet::core::File::Error)
-PEDRONET_CLASS_FORMATTER(pedronet::core::File)
+PEDRONET_CLASS_FORMATTER(pedronet::core::File::Error);
+PEDRONET_CLASS_FORMATTER(pedronet::core::File);
 #endif // PEDRONET_CORE_FILE_H

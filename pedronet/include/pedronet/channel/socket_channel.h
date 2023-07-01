@@ -45,7 +45,7 @@ public:
   }
 
   void HandleEvents(ReceiveEvents events, core::Timestamp now) final {
-    spdlog::trace("{} handel events[{}]", String(), events.Value());
+    PEDRONET_TRACE("{} handel events[{}]", *this, events.Value());
     if (events.Contains(ReceiveEvents::kHangUp) &&
         !events.Contains(ReceiveEvents::kReadable)) {
       if (close_callback_) {
@@ -131,5 +131,5 @@ public:
 
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::SocketChannel)
+PEDRONET_CLASS_FORMATTER(pedronet::SocketChannel);
 #endif // PEDRONET_CHANNEL_SOCKET_CHANNEL_H

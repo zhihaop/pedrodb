@@ -1,9 +1,11 @@
 #ifndef PEDRONET_CORE_DURATION_H
 #define PEDRONET_CORE_DURATION_H
 
-#include "comparable.h"
+#include "pedronet/core/comparable.h"
+#include "pedronet/core/debug.h"
 
 #include <chrono>
+#include <string>
 
 namespace pedronet::core {
 
@@ -16,12 +18,12 @@ struct Duration : public Comparable<Duration> {
 
   Duration() = default;
   Duration(const Duration &other) : usecs(other.usecs) {}
-  
+
   template <typename Rep, typename Period>
   Duration(std::chrono::duration<Rep, Period> other)
       : usecs(std::chrono::duration_cast<std::chrono::microseconds>(other)
                   .count()) {}
-  
+
   explicit Duration(int64_t usecs) : usecs(usecs) {}
 
   static int Compare(const Duration &p, const Duration &q) noexcept {
@@ -49,6 +51,16 @@ struct Duration : public Comparable<Duration> {
     return *this;
   }
 
+  std::string String() const {
+    if (usecs < 1000) {
+      return fmt::format("{}us", usecs);
+    } else if (usecs < 1000000) {
+      return fmt::format("{}ms", static_cast<double>(usecs) / 1000.0);
+    } else {
+      return fmt::format("{}s", static_cast<double>(usecs) / 1000000.0);
+    }
+  }
+
   template <typename Rep, typename Period>
   Duration &operator=(std::chrono::duration<Rep, Period> other) noexcept {
     usecs =
@@ -57,5 +69,7 @@ struct Duration : public Comparable<Duration> {
   }
 };
 } // namespace pedronet::core
+
+PEDRONET_CLASS_FORMATTER(pedronet::core::Duration);
 
 #endif // PEDRONET_CORE_DURATION_H

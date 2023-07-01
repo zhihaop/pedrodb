@@ -5,7 +5,7 @@ void TcpConnection::Start() {
   eventloop_.Register(&channel_, [conn = shared_from_this()] {
     switch (conn->state_) {
     case State::kConnecting: {
-      spdlog::info("connecting {}", *conn);
+      PEDRONET_INFO("handleConnection {}", *conn);
       conn->state_ = State::kConnected;
       conn->channel_.SetReadable(true);
       if (conn->connection_callback_) {
@@ -21,56 +21,18 @@ void TcpConnection::Start() {
       break;
     }
     default: {
-      spdlog::warn("TcpConnection::RegisterCallback(): should not happened");
+      PEDRONET_WARN("TcpConnection::RegisterCallback(): should not happened");
       break;
     }
     }
   });
 }
-void TcpConnection::Send(const std::string &data) {
-  eventloop_.AssertInsideLoop();
 
-  if (state_ != State::kConnected) {
-    spdlog::trace("ignore sending data[{}]", data);
-    return;
-  }
-
-  if (state_ == State::kDisconnected) {
-    spdlog::warn("give up sending");
-    return;
-  }
-
-  ssize_t w0 = TrySendingDirect(data.data(), data.size());
-  if (w0 < 0) {
-    auto err = channel_.GetError();
-    if (err.GetCode() != EWOULDBLOCK) {
-      spdlog::error("{}::HandleSend throws {}", err.GetReason());
-      return;
-    }
-  }
-
-  output_.EnsureWriteable(data.size() - w0);
-  size_t w1 = output_.Append(data.data() + w0, data.size() - w0);
-  // TODO: high watermark
-  if (w1 != 0) {
-    channel_.SetWritable(true);
-  }
-}
-ssize_t TcpConnection::TrySendingDirect(const char* data, size_t n) {
-  eventloop_.AssertInsideLoop();
-  if (channel_.Writable()) {
-    return 0;
-  }
-  if (output_.ReadableBytes() != 0) {
-    return 0;
-  }
-  return channel_.Write(data, n);
-}
-void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
+void TcpConnection::handleRead(core::Timestamp now) {
   ssize_t n = input_.Append(&channel_.File());
-  spdlog::trace("read {} bytes", n);
+  PEDRONET_TRACE("read {} bytes", n);
   if (n < 0) {
-    HandleError(events, now);
+    handleError(channel_.GetError());
     return;
   }
 
@@ -80,28 +42,33 @@ void TcpConnection::HandleRead(ReceiveEvents events, core::Timestamp now) {
   }
 
   if (message_callback_) {
-    message_callback_(shared_from_this(), &input_, now);
+    message_callback_(shared_from_this(), input_, now);
   }
 }
-void TcpConnection::HandleError(ReceiveEvents events, core::Timestamp now) {
-  auto err = channel_.GetError();
+void TcpConnection::handleError(Socket::Error err) {
+  if (err.Empty()) {
+    ForceClose();
+    return;
+  }
+  
   if (error_callback_) {
-    error_callback_(shared_from_this());
+    error_callback_(shared_from_this(), err);
+    return;
   }
-  spdlog::error("TcpConnection error, reason[{}]", err.GetReason());
+  PEDRONET_ERROR("{}::handleError(): [{}]", *this, err);
 }
-void TcpConnection::WriteBuffer(ReceiveEvents events, core::Timestamp now) {
+void TcpConnection::handleWrite() {
   if (!channel_.Writable()) {
-    spdlog::trace("{} is down, no more writing", *this);
+    PEDRONET_TRACE("{} is down, no more writing", *this);
     return;
   }
 
   ssize_t n = output_.Retrieve(&channel_.File());
   if (n < 0) {
-    auto err = channel_.GetError();
-    spdlog::error("failed to write socket, reason[{}]", err.GetReason());
+    handleError(channel_.GetError());
     return;
   }
+
   if (output_.ReadableBytes() == 0) {
     channel_.SetWritable(false);
     if (write_complete_callback_) {
@@ -122,7 +89,7 @@ void TcpConnection::Close() {
 
   if (state_ == State::kDisconnecting) {
     if (output_.ReadableBytes() == 0) {
-      spdlog::trace("::Close()", *this);
+      PEDRONET_TRACE("::Close()", *this);
       channel_.SetWritable(false);
       channel_.SetReadable(false);
       eventloop_.Deregister(&channel_);
@@ -137,18 +104,66 @@ TcpConnection::TcpConnection(EventLoop &eventloop, Socket socket)
     : channel_(std::move(socket)), local_(channel_.GetLocalAddress()),
       peer_(channel_.GetPeerAddress()), eventloop_(eventloop) {
 
-  channel_.OnRead(
-      [this](auto events, auto now) { return HandleRead(events, now); });
-  channel_.OnWrite(
-      [this](auto events, auto now) { return WriteBuffer(events, now); });
+  channel_.OnRead([this](auto events, auto now) { return handleRead(now); });
+  channel_.OnWrite([this](auto events, auto now) { return handleWrite(); });
   channel_.OnClose([this](auto events, auto now) { return Close(); });
-  channel_.OnError(
-      [this](auto events, auto now) { return HandleError(events, now); });
+  channel_.OnError([this](auto events, auto now) {
+    return handleError(channel_.GetError());
+  });
 
   channel_.SetSelector(eventloop.GetSelector());
 }
 TcpConnection::~TcpConnection() {
   Close();
-  spdlog::trace("{}::~TcpConnection()", *this);
+  PEDRONET_TRACE("{}::~TcpConnection()", *this);
+}
+void TcpConnection::Send(Buffer &buffer) {
+  eventloop_.AssertInsideLoop();
+
+  if (state_ != State::kConnected) {
+    return;
+  }
+
+  if (state_ == State::kDisconnected) {
+    PEDRONET_WARN("give up sending");
+    return;
+  }
+
+  ssize_t w0 = trySendingDirect(buffer);
+  if (w0 < 0) {
+    auto err = channel_.GetError();
+    if (err.GetCode() != EWOULDBLOCK) {
+      handleError(err);
+      return;
+    }
+  }
+  output_.EnsureWriteable(buffer.ReadableBytes());
+  size_t w1 = output_.Append(&buffer);
+  // TODO: high watermark
+  if (w1 != 0) {
+    channel_.SetWritable(true);
+  }
+}
+ssize_t TcpConnection::trySendingDirect(Buffer &buffer) {
+  eventloop_.AssertInsideLoop();
+  if (channel_.Writable()) {
+    return 0;
+  }
+  if (output_.ReadableBytes() != 0) {
+    return 0;
+  }
+  return buffer.Retrieve(&channel_.File());
+}
+void TcpConnection::ForceClose() {
+  if (state_ == State::kConnected) {
+    state_ = State::kDisconnecting;
+  }
+
+  if (state_ == State::kDisconnecting) {
+    PEDRONET_TRACE("::ForceClose()", *this);
+    channel_.SetWritable(false);
+    channel_.SetReadable(false);
+    eventloop_.Deregister(&channel_);
+  }
 }
 } // namespace pedronet

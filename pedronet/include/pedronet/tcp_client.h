@@ -20,11 +20,19 @@
 namespace pedronet {
 
 class TcpClient : core::noncopyable, core::nonmovable {
-  std::shared_ptr<EventLoopGroup> worker_group_;
-  InetAddress address_;
+  enum class State {
+    kOffline,
+    kConnecting,
+    kConnected,
+    kDisconnecting,
+    kDisconnected
+  };
 
-  std::mutex mu_;
-  std::unordered_set<std::shared_ptr<TcpConnection>> actives_;
+  EventLoopGroupPtr worker_group_;
+  InetAddress address_;
+  std::atomic<State> state_{State::kOffline};
+  TcpConnectionPtr connection_;
+  EventLoop *eventloop_{};
 
   ConnectionCallback connection_callback_;
   CloseCallback close_callback_;
@@ -34,21 +42,22 @@ class TcpClient : core::noncopyable, core::nonmovable {
   HighWatermarkCallback high_watermark_callback_;
 
 private:
-  void connecting(EventLoop &conn, Socket socket);
+  void handleConnection(pedronet::Socket conn);
 
-  void retry(EventLoop &loop, Socket socket, core::File::Error reason);
+  void retry(Socket socket, Socket::Error reason);
 
-  void connect(EventLoop &loop);
+  void raiseConnection();
 
 public:
   explicit TcpClient(InetAddress address) : address_(std::move(address)) {}
 
-  void SetGroup(std::shared_ptr<EventLoopGroup> worker_group) {
+  void SetGroup(EventLoopGroupPtr worker_group) {
     worker_group_ = std::move(worker_group);
   }
 
   void Start();
   void Close();
+  void ForceClose();
 
   void OnConnect(ConnectionCallback callback) {
     connection_callback_ = std::move(callback);

@@ -7,13 +7,7 @@
 namespace pedronet::core {
 class Thread {
 public:
-  static pid_t GetID() noexcept {
-    thread_local std::optional<pid_t> cache_pid;
-    if (!cache_pid) {
-      cache_pid = gettid();
-    }
-    return *cache_pid;
-  }
+  static pid_t GetID() noexcept;
 };
 } // namespace pedronet
 

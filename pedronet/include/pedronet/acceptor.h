@@ -52,6 +52,6 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::Acceptor)
+PEDRONET_CLASS_FORMATTER(pedronet::Acceptor);
 
 #endif // PEDRONET_ACCEPTOR_H

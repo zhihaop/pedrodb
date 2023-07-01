@@ -27,7 +27,7 @@ struct Selector : core::noncopyable, core::nonmovable {
   virtual void Add(Channel *channel, SelectEvents events) = 0;
   virtual void Remove(Channel *channel) = 0;
   virtual void Update(Channel *channel, SelectEvents events) = 0;
-  virtual core::File::Error Wait(core::Duration timeout,
+  virtual Selector::Error Wait(core::Duration timeout,
                                  SelectChannels *selected) = 0;
   virtual ~Selector() = default;
 };

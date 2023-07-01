@@ -1,16 +1,17 @@
 #include "pedronet/tcp_server.h"
 
 namespace pedronet {
+
 void TcpServer::Start() {
-  spdlog::trace("TcpServer::Start() enter");
+  PEDRONET_TRACE("TcpServer::Start() enter");
 
   acceptor_->OnAccept([this](Socket socket) {
-    spdlog::trace("TcpServer::OnAccept({})", socket);
+    PEDRONET_TRACE("TcpServer::OnAccept({})", socket);
     auto connection = std::make_shared<TcpConnection>(worker_group_->Next(),
                                                       std::move(socket));
 
     connection->OnConnection([this](const TcpConnectionPtr &conn) {
-      spdlog::trace("server connect: {}", *conn);
+      PEDRONET_TRACE("server raiseConnection: {}", *conn);
 
       std::unique_lock<std::mutex> lock(mu_);
       actives_.emplace(conn);
@@ -22,7 +23,7 @@ void TcpServer::Start() {
     });
 
     connection->OnClose([this](const TcpConnectionPtr &conn) {
-      spdlog::trace("server disconnect: {}", *conn);
+      PEDRONET_TRACE("server disconnect: {}", *conn);
 
       std::unique_lock<std::mutex> lock(mu_);
       actives_.erase(conn);
@@ -41,10 +42,10 @@ void TcpServer::Start() {
   });
 
   acceptor_->Listen();
-  spdlog::trace("TcpServer::Start() exit");
+  PEDRONET_TRACE("TcpServer::Start() exit");
 }
 void TcpServer::Close() {
-  spdlog::trace("TcpServer::Close() enter");
+  PEDRONET_TRACE("TcpServer::Close() enter");
   acceptor_->Close();
 
   std::unique_lock<std::mutex> lock(mu_);
@@ -54,10 +55,10 @@ void TcpServer::Close() {
   actives_.clear();
 }
 void TcpServer::Bind(const pedronet::InetAddress &address) {
-  spdlog::trace("TcpServer::Bind({})", address);
+  PEDRONET_TRACE("TcpServer::Bind({})", address);
 
   if (!boss_group_) {
-    spdlog::error("boss group is not set");
+    PEDRONET_ERROR("boss group is not set");
     std::terminate();
   }
 

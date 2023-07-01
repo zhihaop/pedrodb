@@ -9,7 +9,7 @@ namespace pedronet {
 inline static core::File CreateTimerFile() {
   int fd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
   if (fd <= 0) {
-    spdlog::error("failed to create timer fd");
+    PEDRONET_ERROR("failed to create timer fd");
     std::terminate();
   }
   return core::File{fd};
@@ -20,7 +20,7 @@ TimerChannel::TimerChannel() : Channel(), file_(CreateTimerFile()) {}
 void TimerChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
   uint64_t val;
   if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
-    spdlog::error("failed to read timer fd: {}", file_.GetError());
+    PEDRONET_ERROR("failed to read timer fd: {}", file_.GetError());
     std::terminate();
   }
   if (event_callback_) {
@@ -38,7 +38,7 @@ void TimerChannel::WakeUpAfter(core::Duration duration) {
   v.it_value.tv_nsec = (usec % core::kMicroseconds) * 1000;
 
   if (::timerfd_settime(file_.Descriptor(), 0, &v, &u) < 0) {
-    spdlog::error("failed to set timerfd time");
+    PEDRONET_ERROR("failed to set timerfd time");
     std::terminate();
   }
 }

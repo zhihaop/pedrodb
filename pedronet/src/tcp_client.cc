@@ -1,47 +1,50 @@
 #include "pedronet/tcp_client.h"
 
+using pedronet::core::Duration;
+
 namespace pedronet {
-void TcpClient::connecting(pedronet::EventLoop &loop, pedronet::Socket socket) {
-  spdlog::trace("TcpClient::connection({})", socket);
-  auto connection = std::make_shared<TcpConnection>(loop, std::move(socket));
+void TcpClient::handleConnection(Socket socket) {
+  State s = State::kConnecting;
+  if (!state_.compare_exchange_strong(s, State::kConnected)) {
+    PEDRONET_WARN("state_ != State::kConnection, connection closed");
+    return;
+  }
 
-  connection->OnClose([this](const TcpConnectionPtr &conn) {
-    spdlog::trace("client disconnect: {}", *conn);
+  connection_ = std::make_shared<TcpConnection>(*eventloop_, std::move(socket));
 
-    std::unique_lock<std::mutex> lock(mu_);
-    actives_.erase(conn);
-    lock.unlock();
+  connection_->OnClose([this](auto &&conn) {
+    PEDRONET_TRACE("client disconnect: {}", *conn);
+    State s = State::kDisconnecting;
+    if (!state_.compare_exchange_strong(s, State::kDisconnected)) {
+      PEDRONET_ERROR("connection has been close, {}", *conn);
+      return;
+    }
+    connection_.reset();
 
     if (close_callback_) {
       close_callback_(conn);
     }
   });
 
-  connection->OnConnection([this](const TcpConnectionPtr &connection) {
-    spdlog::trace("client connect: {}", *connection);
-
-    std::unique_lock<std::mutex> lock(mu_);
-    actives_.emplace(connection);
-    lock.unlock();
-
+  connection_->OnConnection([this](auto &&conn) {
     if (connection_callback_) {
-      connection_callback_(connection);
+      connection_callback_(conn);
     }
   });
 
-  connection->OnClose(close_callback_);
-  connection->OnError(error_callback_);
-  connection->OnWriteComplete(write_complete_callback_);
-  connection->OnMessage(message_callback_);
-  connection->Start();
+  connection_->OnError(std::move(error_callback_));
+  connection_->OnWriteComplete(std::move(write_complete_callback_));
+  connection_->OnMessage(std::move(message_callback_));
+  connection_->Start();
 }
 
-void TcpClient::connect(pedronet::EventLoop &loop) {
-  Socket socket = Socket::Create(address_.Family());
-  if (!socket.Valid()) {
-    spdlog::error("socket fd is invalid");
+void TcpClient::raiseConnection() {
+  if (state_ != State::kConnecting) {
+    PEDRONET_WARN("TcpClient::raiseConnection() state is not kConnecting");
     return;
   }
+
+  Socket socket = Socket::Create(address_.Family());
 
   auto err = socket.Connect(address_);
   switch (err.GetCode()) {
@@ -49,16 +52,16 @@ void TcpClient::connect(pedronet::EventLoop &loop) {
   case EINPROGRESS:
   case EINTR:
   case EISCONN:
-    connecting(loop, std::move(socket));
-    break;
+    handleConnection(std::move(socket));
+    return;
 
   case EAGAIN:
   case EADDRINUSE:
   case EADDRNOTAVAIL:
   case ECONNREFUSED:
   case ENETUNREACH:
-    retry(loop, std::move(socket), err);
-    break;
+    retry(std::move(socket), err);
+    return;
 
   case EACCES:
   case EPERM:
@@ -67,35 +70,55 @@ void TcpClient::connect(pedronet::EventLoop &loop) {
   case EBADF:
   case EFAULT:
   case ENOTSOCK:
-    spdlog::error("connect error: {}", err);
+    PEDRONET_ERROR("raiseConnection error: {}", err);
     break;
 
   default:
-    spdlog::error("unexpected connect error: {}", err);
+    PEDRONET_ERROR("unexpected raiseConnection error: {}", err);
     break;
   }
+
+  state_ = State::kOffline;
 }
-void TcpClient::retry(pedronet::EventLoop &loop, pedronet::Socket socket,
-                      pedronet::core::File::Error reason) {
+
+void TcpClient::retry(Socket socket, Socket::Error reason) {
   socket.Close();
-  spdlog::trace("TcpClient::retry(): {}", reason);
-  loop.ScheduleAfter(core::Duration::Seconds(1), [&] { connect(loop); });
+  PEDRONET_TRACE("TcpClient::retry(): {}", reason);
+  eventloop_->ScheduleAfter(Duration::Seconds(1), [&] { raiseConnection(); });
 }
 
 void TcpClient::Start() {
-  spdlog::trace("TcpClient::Start()");
-  auto &loop = worker_group_->Next();
-  loop.Run([this, &loop] { connect(loop); });
+  PEDRONET_TRACE("TcpClient::Start()");
+
+  State s = State::kOffline;
+  if (!state_.compare_exchange_strong(s, State::kConnecting)) {
+    PEDRONET_WARN("TcpClient::Start() has been invoked");
+    return;
+  }
+
+  eventloop_ = &worker_group_->Next();
+  eventloop_->Run([this] { raiseConnection(); });
 }
 
 void TcpClient::Close() {
-  std::unique_lock<std::mutex> lock(mu_);
-  for (auto &conn : actives_) {
-    if (conn == nullptr) {
-      continue;
-    }
-    conn->Close();
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
   }
-  actives_.clear();
+
+  if (connection_) {
+    connection_->Close();
+  }
+}
+
+void TcpClient::ForceClose() {
+  State s = State::kConnected;
+  if (!state_.compare_exchange_strong(s, State::kDisconnecting)) {
+    return;
+  }
+
+  if (connection_) {
+    connection_->ForceClose();
+  }
 }
 } // namespace pedronet

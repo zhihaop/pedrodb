@@ -10,6 +10,9 @@ class Socket : public core::File {
 
 public:
   Socket() : Socket(kInvalid) {}
+  ~Socket() override;
+  Socket(Socket &&other) noexcept : Socket(other.fd_) { other.fd_ = kInvalid; }
+  Socket &operator=(Socket &&other) noexcept;
   static Socket Create(int family);
 
   void Bind(const InetAddress &address);
@@ -30,9 +33,11 @@ public:
   Error GetError() const noexcept override;
 
   std::string String() const override;
+
+  ssize_t Write(const void *buf, size_t size) noexcept override;
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::Socket)
+PEDRONET_CLASS_FORMATTER(pedronet::Socket);
 
 #endif // PEDRONET_SOCKET_H

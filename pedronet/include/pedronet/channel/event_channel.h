@@ -32,4 +32,6 @@ public:
   }
 };
 } // namespace pedronet
+
+PEDRONET_CLASS_FORMATTER(pedronet::EventChannel);
 #endif // PEDRONET_CHANNEL_EVENT_CHANNEL_H

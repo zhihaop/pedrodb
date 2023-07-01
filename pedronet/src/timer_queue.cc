@@ -8,7 +8,7 @@ void TimerQueue::updateExpire(core::Timestamp) {
   channel_.WakeUpAt(schedule_timer_.top().expire);
 }
 void TimerQueue::selectExpiredTimer(core::Timestamp now) {
-  spdlog::trace("select timers, size[{}]", schedule_timer_.size());
+  PEDRONET_TRACE("select timers, size[{}]", schedule_timer_.size());
   while (!schedule_timer_.empty() && schedule_timer_.top().expire <= now) {
     auto timer = schedule_timer_.top().timer;
     schedule_timer_.pop();
@@ -16,7 +16,7 @@ void TimerQueue::selectExpiredTimer(core::Timestamp now) {
   }
 }
 void TimerQueue::processExpireTimer() {
-  spdlog::trace("invoke expire timers[{}]", expired_timers_.size());
+  PEDRONET_TRACE("invoke expire timers[{}]", expired_timers_.size());
 
   while (!expired_timers_.empty()) {
     auto weak_timer = std::move(expired_timers_.front());
@@ -61,7 +61,7 @@ void TimerQueue::processPendingTimer(core::Timestamp now) {
 TimerQueue::TimerQueue(TimerChannel &channel, core::Executor &executor)
     : channel_(channel), executor_(executor) {
   channel.SetEventCallBack([this](ReceiveEvents event, core::Timestamp now) {
-    spdlog::trace("invoke timer ch");
+    PEDRONET_TRACE("invoke timer ch");
     std::unique_lock<std::mutex> lock(mu_);
     next_expire_ = core::Timestamp::Max();
 
@@ -78,7 +78,7 @@ uint64_t TimerQueue::createTimer(Callback cb, const core::Duration &delay,
                                  const core::Duration &interval) {
   core::Timestamp now = core::Timestamp::Now();
   uint64_t id = ++sequences_;
-  spdlog::trace("create timer {}", id);
+  PEDRONET_TRACE("create timer {}", id);
 
   auto timer = std::make_shared<TimerStruct>(id, std::move(cb), interval);
   schedule_timer_.emplace(now + delay, timer);

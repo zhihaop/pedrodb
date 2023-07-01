@@ -37,4 +37,6 @@ public:
 };
 
 } // namespace pedronet
+
+PEDRONET_CLASS_FORMATTER(pedronet::TimerChannel);
 #endif // PEDRONET_CHANNEL_TIMED_CHANNEL_H

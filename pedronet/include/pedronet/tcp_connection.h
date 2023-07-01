@@ -42,6 +42,11 @@ protected:
   InetAddress peer_;
   EventLoop &eventloop_;
 
+  ssize_t trySendingDirect(Buffer &buffer);
+  void handleRead(core::Timestamp now);
+  void handleError(Socket::Error);
+  void handleWrite();
+
 public:
   TcpConnection(EventLoop &eventloop, Socket socket);
 
@@ -54,45 +59,9 @@ public:
 
   void Start();
 
-  ssize_t TrySendingDirect(Buffer *buffer) {
-    eventloop_.AssertInsideLoop();
-    if (channel_.Writable()) {
-      return 0;
-    }
-    if (output_.ReadableBytes() != 0) {
-      return 0;
-    }
-    return buffer->Retrieve(&channel_.File());
-  }
+  void Send(Buffer &buffer);
 
-  void Send(Buffer *buffer) {
-    eventloop_.AssertInsideLoop();
-
-    if (state_ != State::kConnected) {
-      return;
-    }
-
-    if (state_ == State::kDisconnected) {
-      spdlog::warn("give up sending");
-      return;
-    }
-
-    ssize_t w0 = TrySendingDirect(buffer);
-    if (w0 < 0) {
-      auto err = channel_.GetError();
-      if (err.GetCode() != EWOULDBLOCK) {
-        spdlog::error("{}::HandleSend throws {}", err.GetReason());
-        return;
-      }
-    }
-    output_.EnsureWriteable(buffer->ReadableBytes());
-    size_t w1 = output_.Append(buffer->ReadIndex(), buffer->ReadableBytes());
-    buffer->Retrieve(w1);
-    // TODO: high watermark
-    if (w1 != 0) {
-      channel_.SetWritable(true);
-    }
-  }
+  void Send(Buffer &&buffer) { Send(buffer); }
 
   void OnMessage(MessageCallback cb) { message_callback_ = std::move(cb); }
 
@@ -115,17 +84,9 @@ public:
   const InetAddress &GetLocalAddress() const noexcept { return local_; }
   const InetAddress &GetPeerAddress() const noexcept { return peer_; }
 
-  void Send(const std::string &data);
-
-  ssize_t TrySendingDirect(const char *data, size_t n);
-
-  void HandleRead(ReceiveEvents events, core::Timestamp now);
-
-  void HandleError(ReceiveEvents events, core::Timestamp now);
-
-  void WriteBuffer(ReceiveEvents events, core::Timestamp now);
-
   void Close();
+
+  void ForceClose();
 
   EventLoop &GetEventLoop() noexcept { return eventloop_; }
 
@@ -133,5 +94,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::TcpConnection)
+PEDRONET_CLASS_FORMATTER(pedronet::TcpConnection);
 #endif // PEDRONET_TCP_CONNECTION_H

@@ -6,7 +6,7 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
                    const Acceptor::Option &option)
     : address_(address), channel_(Socket::Create(address.Family())),
       eventloop_(eventloop) {
-  spdlog::trace("Acceptor::Acceptor()");
+  PEDRONET_TRACE("Acceptor::Acceptor()");
 
   auto &socket = channel_.File();
   socket.SetReuseAddr(option.reuse_addr);
@@ -18,14 +18,14 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
 
   channel_.OnRead([this](auto events, auto now) {
     while (true) {
-      spdlog::trace("{}::HandleRead()", *this);
+      PEDRONET_TRACE("{}::handleRead()", *this);
       Socket socket;
       Socket::Error err = channel_.File().Accept(address_, &socket);
       if (!err.Empty()) {
         if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
           break;
         }
-        spdlog::error("failed to accept [{}]", err);
+        PEDRONET_ERROR("failed to accept [{}]", err);
         continue;
       }
       if (acceptor_callback_) {
@@ -38,7 +38,7 @@ std::string Acceptor::String() const {
   return fmt::format("Acceptor[socket={}]", channel_.File());
 }
 void Acceptor::Close() {
-  spdlog::trace("Acceptor::Close() enter");
+  PEDRONET_TRACE("Acceptor::Close() enter");
   core::Latch latch(1);
   eventloop_.Run([this, &latch] {
     channel_.SetReadable(false);
@@ -47,7 +47,7 @@ void Acceptor::Close() {
     latch.CountDown();
   });
   latch.Await();
-  spdlog::trace("Acceptor::Close() exit");
+  PEDRONET_TRACE("Acceptor::Close() exit");
 }
 void Acceptor::Listen() {
   eventloop_.Register(&channel_, [this] {
