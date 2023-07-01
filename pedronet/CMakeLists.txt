@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 project(pedronet)
 
 set(CMAKE_CXX_STANDARD 17)
-file(GLOB_RECURSE srcs *.cc)
-add_library(pedronet ${srcs} include/pedronet/inetaddress_impl.h src/tcp_client.cc src/tcp_server.cc src/tcp_connection.cc src/timer_queue.cc test/test_tcp_client.cc src/acceptor.cc)
+file(GLOB_RECURSE srcs src/*.cc)
+add_library(pedronet ${srcs})
 target_include_directories(pedronet PUBLIC include)
 target_link_libraries(pedronet PRIVATE spdlog fmt)
 

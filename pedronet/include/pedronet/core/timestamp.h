@@ -15,7 +15,9 @@ struct Timestamp : public Comparable<Timestamp> {
 
   static Timestamp Now();
 
-  static Timestamp Max() { return Timestamp{std::numeric_limits<int64_t>::max()}; }
+  static Timestamp Max() {
+    return Timestamp{std::numeric_limits<int64_t>::max()};
+  }
 
   static Timestamp Min() { return Timestamp{0}; }
 
@@ -35,6 +37,6 @@ struct Timestamp : public Comparable<Timestamp> {
     return Timestamp{usecs - d.usecs};
   }
 };
-} // namespace pedronet
+} // namespace pedronet::core
 
 #endif // PEDRONET_CORE_TIMESTAMP_H
