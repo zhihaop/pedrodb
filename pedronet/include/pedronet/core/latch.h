@@ -1,6 +1,7 @@
 #ifndef PEDRONET_CORE_LATCH_H
 #define PEDRONET_CORE_LATCH_H
-#include "duration.h"
+#include <pedrolib/duration.h>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -27,7 +28,7 @@ public:
     }
   }
 
-  bool Await(const core::Duration &d) {
+  bool Await(const pedrolib::Duration &d) {
     std::unique_lock<std::mutex> lock(mu_);
     auto st = std::chrono::steady_clock::now();
     auto et = st + std::chrono::microseconds(d.Microseconds());

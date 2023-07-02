@@ -1,5 +1,5 @@
-
 #include <pedronet/eventloopgroup.h>
+#include <pedronet/logger/logger.h>
 #include <pedronet/selector/epoller.h>
 #include <pedronet/tcp_server.h>
 
@@ -19,7 +19,7 @@ int main() {
   size_t n_workers = std::thread::hardware_concurrency();
   auto boss_group = EventLoopGroup::Create<EpollSelector>(1);
   auto worker_group = EventLoopGroup::Create<EpollSelector>(n_workers);
-  
+
   server.SetGroup(boss_group, worker_group);
   server.OnConnect([](auto &&conn) { PEDRONET_INFO("connect: {}", *conn); });
   server.OnClose([](auto &&conn) { PEDRONET_INFO("disconnect: {}", *conn); });

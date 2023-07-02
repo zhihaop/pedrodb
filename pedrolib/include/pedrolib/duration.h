@@ -1,19 +1,20 @@
-#ifndef PEDRONET_CORE_DURATION_H
-#define PEDRONET_CORE_DURATION_H
+#ifndef PEDROLIB_DURATION_H
+#define PEDROLIB_DURATION_H
 
-#include "pedronet/core/comparable.h"
-#include "pedronet/core/debug.h"
+#include "pedrolib/comparable.h"
+#include "pedrolib/format/formatter.h"
 
 #include <chrono>
 #include <string>
 
-namespace pedronet::core {
-
-constexpr inline static int64_t kMilliseconds = 1000;
-constexpr inline static int64_t kMicroseconds = kMilliseconds * 1000;
-constexpr inline static int64_t kNanoseconds = kMicroseconds * 1000;
+namespace pedrolib {
 
 struct Duration : public Comparable<Duration> {
+
+  constexpr inline static int64_t kMilliseconds = 1000;
+  constexpr inline static int64_t kMicroseconds = kMilliseconds * 1000;
+  constexpr inline static int64_t kNanoseconds = kMicroseconds * 1000;
+
   int64_t usecs{};
 
   Duration() = default;
@@ -68,8 +69,8 @@ struct Duration : public Comparable<Duration> {
     return *this;
   }
 };
-} // namespace pedronet::core
+} // namespace pedrolib
 
-PEDRONET_CLASS_FORMATTER(pedronet::core::Duration);
+PEDROLIB_CLASS_FORMATTER(pedrolib::Duration);
 
-#endif // PEDRONET_CORE_DURATION_H
+#endif // PEDROLIB_DURATION_H

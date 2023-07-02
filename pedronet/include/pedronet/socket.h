@@ -16,9 +16,9 @@ public:
   static Socket Create(int family);
 
   void Bind(const InetAddress &address);
-  Error Accept(const InetAddress &local, Socket *socket);
+  core::Error Accept(const InetAddress &local, Socket *socket);
   void Listen();
-  Error Connect(const InetAddress &address);
+  core::Error Connect(const InetAddress &address);
 
   void SetReuseAddr(bool on);
   void SetReusePort(bool on);
@@ -29,10 +29,10 @@ public:
   InetAddress GetPeerAddress() const;
 
   void CloseWrite();
-  
+
   void Shutdown();
 
-  Error GetError() const noexcept override;
+  core::Error GetError() const noexcept override;
 
   std::string String() const override;
 
@@ -40,6 +40,6 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::Socket);
+PEDROLIB_CLASS_FORMATTER(pedronet::Socket);
 
 #endif // PEDRONET_SOCKET_H

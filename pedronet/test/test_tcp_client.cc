@@ -1,15 +1,16 @@
 #include "reporter.h"
 #include <pedronet/eventloopgroup.h>
+#include <pedronet/logger/logger.h>
 #include <pedronet/selector/epoller.h>
 #include <pedronet/tcp_client.h>
 
 using namespace std::chrono_literals;
+using pedrolib::Duration;
 using pedronet::BufferView;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 using pedronet::TcpClient;
-using pedronet::core::Duration;
 using pedronet::core::StaticVector;
 namespace logger = pedronet::logger;
 
@@ -28,10 +29,9 @@ int main() {
   reporter.SetCallback(ClientReport);
   reporter.Start(*worker_group, Duration::Seconds(1));
 
-
   auto buf = std::string(1 << 20, 'a');
 
-  size_t n_clients = 32;
+  size_t n_clients = 128;
   StaticVector<TcpClient> clients(n_clients);
   InetAddress address = InetAddress::Create("127.0.0.1", 1082);
   for (size_t i = 0; i < n_clients; ++i) {

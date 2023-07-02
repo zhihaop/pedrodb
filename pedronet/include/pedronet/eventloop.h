@@ -5,19 +5,17 @@
 #include "pedronet/channel/channel.h"
 #include "pedronet/channel/event_channel.h"
 #include "pedronet/channel/timer_channel.h"
-#include "pedronet/core/duration.h"
 #include "pedronet/core/executor.h"
-#include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmovable.h"
 #include "pedronet/core/thread.h"
 #include "pedronet/event.h"
 #include "pedronet/selector/selector.h"
-#include "timer_queue.h"
+#include "pedronet/timer_queue.h"
+#include <atomic>
 
 namespace pedronet {
 
 class EventLoop : public core::Executor {
-  inline const static core::Duration kSelectTimeout{std::chrono::seconds(10)};
+  inline const static Duration kSelectTimeout{std::chrono::seconds(10)};
 
   std::unique_ptr<Selector> selector_;
   EventChannel event_channel_;
@@ -53,11 +51,11 @@ public:
 
   void Schedule(Callback cb) override;
 
-  uint64_t ScheduleAfter(core::Duration delay, Callback cb) override {
+  uint64_t ScheduleAfter(Duration delay, Callback cb) override {
     return timer_queue_.ScheduleAfter(delay, std::move(cb));
   }
 
-  uint64_t ScheduleEvery(core::Duration delay, core::Duration interval,
+  uint64_t ScheduleEvery(Duration delay, Duration interval,
                          Callback cb) override {
     return timer_queue_.ScheduleEvery(delay, interval, std::move(cb));
   }

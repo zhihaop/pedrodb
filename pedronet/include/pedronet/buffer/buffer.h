@@ -1,9 +1,13 @@
 #ifndef PEDRONET_BUFFER_BUFFER_H
 #define PEDRONET_BUFFER_BUFFER_H
-#include "pedronet/core/noncopyable.h"
-#include "pedronet/socket.h"
+
+#include <cstdio>
+#include <cstring>
+#include <string_view>
 
 namespace pedronet {
+
+class Socket;
 
 struct Buffer {
   virtual size_t ReadableBytes() = 0;

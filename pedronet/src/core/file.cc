@@ -1,5 +1,5 @@
 #include "pedronet/core/file.h"
-
+#include "pedronet/logger/logger.h"
 #include <cstring>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -10,7 +10,7 @@ struct DefaultDeleter {
   void operator()(struct iovec *ptr) const noexcept { std::free(ptr); }
 };
 
-const char *File::Error::GetReason() const noexcept {
+const char *Error::GetReason() const noexcept {
   thread_local char buf[1024];
   return strerror_r(code_, buf, sizeof(buf));
 }

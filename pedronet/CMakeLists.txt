@@ -3,9 +3,11 @@ project(pedronet)
 
 set(CMAKE_CXX_STANDARD 17)
 file(GLOB_RECURSE srcs src/*.cc)
+
+add_subdirectory(../pedrolib pedrolib)
 add_library(pedronet ${srcs})
-target_include_directories(pedronet PUBLIC include)
-target_link_libraries(pedronet PRIVATE spdlog fmt)
+target_include_directories(pedronet PUBLIC include ../pedrolib/include)
+target_link_libraries(pedronet PRIVATE pedrolib)
 
 add_executable(test_tcp_server test/test_tcp_server.cc)
 target_link_libraries(test_tcp_server PRIVATE pedronet)

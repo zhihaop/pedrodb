@@ -1,7 +1,7 @@
-#ifndef PEDRONET_CORE_COMPARABLE_H
-#define PEDRONET_CORE_COMPARABLE_H
+#ifndef PEDROLIB_COMPARABLE_H
+#define PEDROLIB_COMPARABLE_H
 
-namespace pedronet::core {
+namespace pedrolib {
 template <typename T> struct Comparable {
   friend bool operator<(const T &p, const T &q) noexcept {
     return T::Compare(p, q) < 0;
@@ -23,6 +23,6 @@ template <typename T> struct Comparable {
   }
 };
 
-} // namespace pedronet::core
+} // namespace pedrolib
 
-#endif // PEDRONET_CORE_COMPARABLE_H
+#endif // PEDROLIB_COMPARABLE_H

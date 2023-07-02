@@ -1,5 +1,5 @@
 #include "pedronet/channel/timer_channel.h"
-#include "pedronet/core/debug.h"
+#include "pedronet/logger/logger.h"
 #include <sys/timerfd.h>
 
 namespace pedronet {
@@ -7,37 +7,34 @@ namespace pedronet {
 inline static core::File CreateTimerFile() {
   int fd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
   if (fd <= 0) {
-    PEDRONET_ERROR("failed to create timer fd");
-    std::terminate();
+    PEDRONET_FATAL("failed to create timer fd");
   }
   return core::File{fd};
 }
 
 TimerChannel::TimerChannel() : Channel(), file_(CreateTimerFile()) {}
 
-void TimerChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
+void TimerChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
   uint64_t val;
   if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
-    PEDRONET_ERROR("failed to read timer fd: {}", file_.GetError());
-    std::terminate();
+    PEDRONET_FATAL("failed to read timer fd: {}", file_.GetError());
   }
   if (event_callback_) {
     event_callback_(events, now);
   }
 }
 
-void TimerChannel::WakeUpAfter(core::Duration duration) {
+void TimerChannel::WakeUpAfter(Duration duration) {
   duration = std::max(duration, kMinWakeUpDuration);
 
   struct itimerspec u {};
   struct itimerspec v {};
   int64_t usec = duration.Microseconds();
-  v.it_value.tv_sec = usec / core::kMicroseconds;
-  v.it_value.tv_nsec = (usec % core::kMicroseconds) * 1000;
+  v.it_value.tv_sec = usec / Duration::kMicroseconds;
+  v.it_value.tv_nsec = (usec % Duration::kMicroseconds) * 1000;
 
   if (::timerfd_settime(file_.Descriptor(), 0, &v, &u) < 0) {
-    PEDRONET_ERROR("failed to set timerfd time");
-    std::terminate();
+    PEDRONET_FATAL("failed to set timerfd time");
   }
 }
 

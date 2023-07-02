@@ -4,6 +4,9 @@
 #include "pedronet/core/static_vector.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/selector/epoller.h"
+
+#include <atomic>
+#include <thread>
 namespace pedronet {
 
 class EventLoopGroup;
@@ -44,9 +47,9 @@ public:
 
   void Schedule(Callback cb) override { Next().Schedule(std::move(cb)); }
 
-  uint64_t ScheduleAfter(core::Duration delay, Callback cb) override;
+  uint64_t ScheduleAfter(Duration delay, Callback cb) override;
 
-  uint64_t ScheduleEvery(core::Duration delay, core::Duration interval,
+  uint64_t ScheduleEvery(Duration delay, Duration interval,
                          Callback cb) override;
 
   void ScheduleCancel(uint64_t id) override;

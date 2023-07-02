@@ -1,12 +1,12 @@
-#ifndef PEDRONET_CORE_TIMESTAMP_H
-#define PEDRONET_CORE_TIMESTAMP_H
+#ifndef PEDROLIB_TIMESTAMP_H
+#define PEDROLIB_TIMESTAMP_H
 
-#include "comparable.h"
-#include "duration.h"
+#include "pedrolib/comparable.h"
+#include "pedrolib/duration.h"
 
 #include <limits>
 
-namespace pedronet::core {
+namespace pedrolib {
 struct Timestamp : public Comparable<Timestamp> {
   int64_t usecs{};
 
@@ -37,6 +37,6 @@ struct Timestamp : public Comparable<Timestamp> {
     return Timestamp{usecs - d.usecs};
   }
 };
-} // namespace pedronet::core
+} // namespace pedrolib
 
-#endif // PEDRONET_CORE_TIMESTAMP_H
+#endif // PEDROLIB_TIMESTAMP_H

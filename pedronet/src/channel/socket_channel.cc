@@ -1,4 +1,6 @@
 #include "pedronet/channel/socket_channel.h"
+#include "pedronet/logger/logger.h"
+#include "pedronet/selector/selector.h"
 
 namespace pedronet {
 
@@ -24,7 +26,7 @@ void SocketChannel::SetReadable(bool on) {
     selector_->Update(this, events_);
   }
 }
-void SocketChannel::HandleEvents(ReceiveEvents events, core::Timestamp now) {
+void SocketChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
   PEDRONET_TRACE("{} handel events[{}]", *this, events.Value());
   if (events.Contains(ReceiveEvents::kHangUp) &&
       !events.Contains(ReceiveEvents::kReadable)) {

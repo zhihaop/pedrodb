@@ -1,16 +1,18 @@
 #include <pedronet/eventloopgroup.h>
+#include <pedronet/logger/logger.h>
 #include <pedronet/selector/epoller.h>
 
 #include <iostream>
 
 using namespace std::chrono_literals;
+using pedrolib::Duration;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
-using pedronet::core::Duration;
-
+namespace logger = pedronet::logger;
 
 int main() {
-  spdlog::set_level(spdlog::level::trace);
+  logger::SetLevel(logger::Level::kInfo);
+
   auto group = EventLoopGroup::Create<EpollSelector>(12);
 
   group->Schedule([] { std::cout << "hello world" << std::endl; });

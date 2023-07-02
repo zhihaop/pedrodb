@@ -3,7 +3,6 @@
 
 #include "pedronet/acceptor.h"
 #include "pedronet/buffer/buffer.h"
-#include "pedronet/core/debug.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/eventloopgroup.h"
@@ -19,7 +18,7 @@
 
 namespace pedronet {
 
-class TcpServer : core::noncopyable, core::nonmovable {
+class TcpServer : pedrolib::noncopyable, pedrolib::nonmovable {
   std::shared_ptr<EventLoopGroup> boss_group_;
   std::shared_ptr<EventLoopGroup> worker_group_;
 

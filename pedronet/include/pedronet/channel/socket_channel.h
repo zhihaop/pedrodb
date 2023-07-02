@@ -1,13 +1,14 @@
 #ifndef PEDRONET_CHANNEL_SOCKET_CHANNEL_H
 #define PEDRONET_CHANNEL_SOCKET_CHANNEL_H
 
+#include "pedronet/callbacks.h"
 #include "pedronet/channel/channel.h"
-#include "pedronet/core/debug.h"
-#include "pedronet/core/latch.h"
-#include "pedronet/eventloop.h"
 #include "pedronet/socket.h"
+#include <pedrolib/format/formatter.h>
 
 namespace pedronet {
+
+struct Selector;
 
 class SocketChannel final : public Channel {
 protected:
@@ -44,7 +45,7 @@ public:
     error_callback_ = std::move(error_callback);
   }
 
-  void HandleEvents(ReceiveEvents events, core::Timestamp now) final;
+  void HandleEvents(ReceiveEvents events, Timestamp now) final;
 
   void SetReadable(bool on);
 
@@ -77,7 +78,7 @@ public:
 
   ssize_t Read(void *buf, size_t n) { return socket_.Read(buf, n); }
 
-  Socket::Error GetError() const { return socket_.GetError(); }
+  core::Error GetError() const { return socket_.GetError(); }
 
   void CloseWrite() { return socket_.CloseWrite(); }
 
@@ -86,5 +87,5 @@ public:
 
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::SocketChannel);
+PEDROLIB_CLASS_FORMATTER(pedronet::SocketChannel);
 #endif // PEDRONET_CHANNEL_SOCKET_CHANNEL_H

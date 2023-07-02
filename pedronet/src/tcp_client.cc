@@ -1,6 +1,7 @@
 #include "pedronet/tcp_client.h"
+#include "pedronet/logger/logger.h"
 
-using pedronet::core::Duration;
+using pedronet::Duration;
 
 namespace pedronet {
 void TcpClient::handleConnection(Socket socket) {
@@ -76,7 +77,7 @@ void TcpClient::raiseConnection() {
   state_ = State::kOffline;
 }
 
-void TcpClient::retry(Socket socket, Socket::Error reason) {
+void TcpClient::retry(Socket socket, core::Error reason) {
   socket.Close();
   PEDRONET_TRACE("TcpClient::retry(): {}", reason);
   eventloop_->ScheduleAfter(Duration::Seconds(1), [&] { raiseConnection(); });

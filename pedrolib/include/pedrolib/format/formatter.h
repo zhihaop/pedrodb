@@ -1,13 +1,9 @@
-#ifndef PEDRONET_CORE_DEBUG_H
-#define PEDRONET_CORE_DEBUG_H
-
-#include "pedronet/logger/logger.h"
+#ifndef PEDROLIB_FORMATT_FORMATTER_H
+#define PEDROLIB_FORMATT_FORMATTER_H
 
 #include <fmt/core.h>
-#include <spdlog/spdlog.h>
-#include <type_traits>
 
-#define PEDRONET_CLASS_FORMATTER(T)                                            \
+#define PEDROLIB_CLASS_FORMATTER(T)                                            \
   template <> struct fmt::formatter<T> {                                       \
     constexpr auto parse(format_parse_context &ctx)                            \
         -> format_parse_context::iterator {                                    \
@@ -18,4 +14,4 @@
     };                                                                         \
   }
 
-#endif // PEDRONET_CORE_DEBUG_H
+#endif // PEDROLIB_FORMATT_FORMATTER_H

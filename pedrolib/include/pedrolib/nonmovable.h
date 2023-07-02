@@ -1,7 +1,7 @@
-#ifndef PEDRONET_CORE_NONMOVABLE_H
-#define PEDRONET_CORE_NONMOVABLE_H
+#ifndef PEDROLIB_NONMOVABLE_H
+#define PEDROLIB_NONMOVABLE_H
 
-namespace pedronet::core {
+namespace pedrolib {
 
 struct nonmovable {
   nonmovable() = default;
@@ -9,6 +9,5 @@ struct nonmovable {
   nonmovable(nonmovable &&) noexcept = delete;
   nonmovable &operator=(nonmovable &&) noexcept = delete;
 };
-
-} // namespace pedronet::core
-#endif // PEDRONET_CORE_NONMOVABLE_H
+} // namespace pedrolib
+#endif // PEDROLIB_NONMOVABLE_H

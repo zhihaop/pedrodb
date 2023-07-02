@@ -6,9 +6,6 @@
 #include "pedronet/buffer/buffer_view.h"
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/socket_channel.h"
-#include "pedronet/core/debug.h"
-#include "pedronet/core/duration.h"
-#include "pedronet/core/timestamp.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/inetaddress.h"
@@ -19,8 +16,8 @@
 #include <memory>
 
 namespace pedronet {
-class TcpConnection : core::noncopyable,
-                      core::nonmovable,
+class TcpConnection : pedrolib::noncopyable,
+                      pedrolib::nonmovable,
                       public std::enable_shared_from_this<TcpConnection> {
 public:
   enum class State { kConnected, kDisconnected, kConnecting, kDisconnecting };
@@ -45,8 +42,8 @@ protected:
   EventLoop &eventloop_;
 
   ssize_t trySendingDirect(Buffer *buffer);
-  void handleRead(core::Timestamp now);
-  void handleError(Socket::Error);
+  void handleRead(Timestamp now);
+  void handleError(core::Error);
   void handleWrite();
   void handleSend(Buffer *buffer);
   void handleClose();
@@ -112,5 +109,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::TcpConnection);
+PEDROLIB_CLASS_FORMATTER(pedronet::TcpConnection);
 #endif // PEDRONET_TCP_CONNECTION_H

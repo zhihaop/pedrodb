@@ -1,36 +1,40 @@
 #include "pedronet/tcp_connection.h"
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 void TcpConnection::Start() {
   auto conn = shared_from_this();
-  eventloop_.Register(
-      &channel_,
-      [this, conn] {
-        State s = State::kConnecting;
-        if (!state_.compare_exchange_strong(s, State::kConnected)) {
-          PEDRONET_ERROR("{} has been register to channel", *this);
-          return;
-        }
 
-        PEDRONET_INFO("handleConnection {}", *this);
-        channel_.SetReadable(true);
-        if (connection_callback_) {
-          connection_callback_(conn);
-        }
-      },
-      [this, conn] {
-        if (state_ != State::kDisconnected) {
-          PEDRONET_ERROR("should not happened");
-          return;
-        }
+  auto handle_register = [this, conn] {
+    State s = State::kConnecting;
+    if (!state_.compare_exchange_strong(s, State::kConnected)) {
+      PEDRONET_ERROR("{} has been register to channel", *this);
+      return;
+    }
 
-        if (close_callback_) {
-          close_callback_(conn);
-        }
-      });
+    PEDRONET_INFO("handleConnection {}", *this);
+    channel_.SetReadable(true);
+    if (connection_callback_) {
+      connection_callback_(conn);
+    }
+  };
+
+  auto handle_deregister = [this, conn] {
+    if (state_ != State::kDisconnected) {
+      PEDRONET_ERROR("should not happened");
+      return;
+    }
+
+    if (close_callback_) {
+      close_callback_(conn);
+    }
+  };
+
+  eventloop_.Register(&channel_, std::move(handle_register),
+                      std::move(handle_deregister));
 }
 
-void TcpConnection::handleRead(core::Timestamp now) {
+void TcpConnection::handleRead(Timestamp now) {
   ssize_t n = input_.Append(&channel_.File());
   PEDRONET_TRACE("read {} bytes", n);
   if (n < 0) {
@@ -47,7 +51,7 @@ void TcpConnection::handleRead(core::Timestamp now) {
     message_callback_(shared_from_this(), input_, now);
   }
 }
-void TcpConnection::handleError(Socket::Error err) {
+void TcpConnection::handleError(core::Error err) {
   if (err.Empty()) {
     handleClose();
     return;

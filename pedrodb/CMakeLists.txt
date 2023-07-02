@@ -6,5 +6,5 @@ file(GLOB_RECURSE srcs src/*.cc)
 
 add_subdirectory(../pedronet pedronet)
 add_executable(pedrodb ${srcs})
-target_include_directories(pedrodb PUBLIC include pedronet::include)
-target_link_libraries(pedrodb PRIVATE pedronet spdlog fmt)
+target_include_directories(pedrodb PUBLIC include ../pedronet/include)
+target_link_libraries(pedrodb PRIVATE pedronet)

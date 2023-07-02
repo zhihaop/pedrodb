@@ -2,16 +2,16 @@
 #define PEDRONET_CORE_EXECUTOR_H
 
 #include "pedronet/callbacks.h"
-#include "pedronet/core/duration.h"
-#include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmovable.h"
+
+#include <pedrolib/noncopyable.h>
+#include <pedrolib/nonmovable.h>
 
 namespace pedronet::core {
 
-struct Executor : core::noncopyable, core::nonmovable {
+struct Executor : pedrolib::noncopyable, pedrolib::nonmovable {
   virtual void Schedule(Callback cb) = 0;
-  virtual uint64_t ScheduleAfter(core::Duration delay, Callback cb) = 0;
-  virtual uint64_t ScheduleEvery(core::Duration delay, core::Duration interval,
+  virtual uint64_t ScheduleAfter(Duration delay, Callback cb) = 0;
+  virtual uint64_t ScheduleEvery(Duration delay, Duration interval,
                                  Callback cb) = 0;
   virtual void ScheduleCancel(uint64_t) = 0;
 };

@@ -1,7 +1,7 @@
-#ifndef PEDRONET_CORE_NONCOPYABLE_H
-#define PEDRONET_CORE_NONCOPYABLE_H
+#ifndef PEDROLIB_NONCOPYABLE_H
+#define PEDROLIB_NONCOPYABLE_H
 
-namespace pedronet::core {
+namespace pedrolib {
 
 struct noncopyable {
   noncopyable() = default;
@@ -10,5 +10,5 @@ struct noncopyable {
   noncopyable &operator=(const noncopyable &) = delete;
 };
 
-} // namespace pedronet::core
-#endif // PEDRONET_CORE_NONCOPYABLE_H
+} // namespace pedrolib
+#endif // PEDROLIB_NONCOPYABLE_H

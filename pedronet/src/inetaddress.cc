@@ -1,6 +1,6 @@
 #include "pedronet/inetaddress.h"
-#include "pedronet/core/debug.h"
 #include "pedronet/inetaddress_impl.h"
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -50,8 +50,7 @@ InetAddress InetAddress::Create(const std::string &host, uint16_t port) {
   impl->in4.sin_family = AF_INET;
   impl->in4.sin_port = htobe16(port);
   if (::inet_pton(AF_INET, host.c_str(), &impl->in4.sin_addr) <= 0) {
-    PEDRONET_ERROR("incorrect host[{}]: {}", strerror(errno));
-    std::terminate();
+    PEDRONET_FATAL("incorrect host[{}]: {}", strerror(errno));
   }
   return InetAddress{std::move(impl)};
 }
@@ -61,8 +60,7 @@ InetAddress InetAddress::CreateV6(const std::string &host, uint16_t port) {
   impl->in6.sin6_family = AF_INET6;
   impl->in6.sin6_port = htobe16(port);
   if (::inet_pton(AF_INET6, host.c_str(), &impl->in6.sin6_addr) <= 0) {
-    PEDRONET_ERROR("incorrect host[{}]: {}", strerror(errno));
-    std::terminate();
+    PEDRONET_FATAL("incorrect host[{}]: {}", strerror(errno));
   }
   return InetAddress{std::move(impl)};
 }

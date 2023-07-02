@@ -1,6 +1,6 @@
 #include "pedronet/socket.h"
-#include "pedronet/core/debug.h"
 #include "pedronet/inetaddress_impl.h"
+#include "pedronet/logger/logger.h"
 #include <csignal>
 #include <netinet/tcp.h>
 
@@ -17,9 +17,8 @@ Socket Socket::Create(int family) {
   int protocol = IPPROTO_TCP;
   int fd = ::socket(family, type, protocol);
   if (fd < 0) {
-    PEDRONET_ERROR("failed to call ::socket({}, {}, {}), reason[{}]", family,
-                   type, protocol, Socket::Error{errno});
-    std::terminate();
+    PEDRONET_FATAL("failed to call ::socket({}, {}, {}), reason[{}]", family,
+                   type, protocol, core::Error{errno});
   }
   return Socket{fd};
 }
@@ -27,25 +26,23 @@ Socket Socket::Create(int family) {
 void Socket::Bind(const InetAddress &address) {
   auto &impl = address.impl_;
   if (::bind(fd_, impl->data(), impl->size())) {
-    PEDRONET_ERROR("Socket::Bind({}) failed: {}", address, GetError());
-    std::terminate();
+    PEDRONET_FATAL("Socket::Bind({}) failed: {}", address, GetError());
   }
 }
 
 void Socket::Listen() {
   PEDRONET_TRACE("call listen fd{}", fd_);
   if (::listen(fd_, SOMAXCONN) < 0) {
-    PEDRONET_ERROR("failed to listen, errno[{}]", errno);
-    std::terminate();
+    PEDRONET_FATAL("failed to listen, errno[{}]", errno);
   }
 }
 
-Socket::Error Socket::Connect(const InetAddress &address) {
+core::Error Socket::Connect(const InetAddress &address) {
   auto &impl = address.impl_;
   if (::connect(fd_, impl->data(), impl->size())) {
     return GetError();
   }
-  return Error::Success();
+  return core::Error::Success();
 }
 
 InetAddress Socket::GetLocalAddress() const {
@@ -91,34 +88,33 @@ void Socket::SetTcpNoDelay(bool on) {
 
 void Socket::CloseWrite() {
   if (::shutdown(fd_, SHUT_WR) < 0) {
-    PEDRONET_ERROR("failed to close write end");
-    std::terminate();
+    PEDRONET_FATAL("failed to close write end");
   }
 }
 
-Socket::Error Socket::GetError() const noexcept {
+core::Error Socket::GetError() const noexcept {
   int val;
   auto len = static_cast<socklen_t>(sizeof val);
   if (::getsockopt(fd_, SOL_SOCKET, SO_ERROR, &val, &len) < 0) {
-    return Socket::Error{errno};
+    return core::Error{errno};
   } else {
-    return Socket::Error{val};
+    return core::Error{val};
   }
 }
 
-Socket::Error Socket::Accept(const InetAddress &local, Socket *socket) {
+core::Error Socket::Accept(const InetAddress &local, Socket *socket) {
   auto impl = std::make_unique<InetAddressImpl>();
   auto len = impl->size();
 
   Socket file{::accept4(fd_, impl->data(), &len, SOCK_NONBLOCK | SOCK_CLOEXEC)};
   if (!file.Valid()) {
-    return Error{errno};
+    return core::Error{errno};
   }
 
   PEDRONET_TRACE("Socket::Accept() {} {} -> {}", file, local,
                  file.GetPeerAddress());
   *socket = std::move(file);
-  return Error::Success();
+  return core::Error::Success();
 }
 std::string Socket::String() const { return fmt::format("Socket[fd={}]", fd_); }
 
@@ -141,8 +137,7 @@ Socket::~Socket() {
 }
 void Socket::Shutdown() {
   if (::shutdown(fd_, SHUT_RDWR) < 0) {
-    PEDRONET_ERROR("failed to close write end");
-    std::terminate();
+    PEDRONET_FATAL("failed to close write end");
   }
 }
 

@@ -1,8 +1,8 @@
 #ifndef PEDRONET_EVENT_H
 #define PEDRONET_EVENT_H
 
-#include "pedronet/core/debug.h"
 #include <initializer_list>
+#include <pedrolib/format/formatter.h>
 #include <string>
 
 namespace pedronet {
@@ -33,7 +33,7 @@ public:
     events_ &= ~other.events_;
     return *this;
   }
-  bool operator != (const SelectEvents& other) const noexcept {
+  bool operator!=(const SelectEvents &other) const noexcept {
     return events_ != other.events_;
   }
 
@@ -87,5 +87,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::SelectEvents);
+PEDROLIB_CLASS_FORMATTER(pedronet::SelectEvents);
 #endif // PEDRONET_EVENT_H

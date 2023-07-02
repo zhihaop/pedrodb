@@ -1,8 +1,8 @@
 #ifndef PEDRONET_INETADDRESS_H
 #define PEDRONET_INETADDRESS_H
 
-#include "pedronet/core/debug.h"
 #include <memory>
+#include <pedrolib/format/formatter.h>
 #include <string>
 
 namespace pedronet {
@@ -41,5 +41,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::InetAddress);
+PEDROLIB_CLASS_FORMATTER(pedronet::InetAddress);
 #endif // PEDRONET_INETADDRESS_H

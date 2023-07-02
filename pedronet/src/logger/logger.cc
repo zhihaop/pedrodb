@@ -1,10 +1,11 @@
 #include "pedronet/logger/logger.h"
+#include "../../../pedrodb/include/pedrodb/logger/logger.h"
 
-#ifdef USE_SPDLOG
-
-#include <spdlog/sinks/stdout_color_sinks.h>
-spdlog::logger &pedronet::logger::GetLogger() {
-  static auto logger = spdlog::stdout_color_mt("pedronet");
-  return *logger;
+namespace pedronet::logger {
+pedrolib::Logger &GetLogger() {
+  static auto logger = pedrolib::Logger("pedronet");
+  return logger;
 }
-#endif
+void SetLevel(Level level) { GetLogger().SetLevel(level); }
+} // namespace pedronet::logger
+

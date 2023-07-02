@@ -8,8 +8,7 @@
 namespace pedronet {
 
 class TimerChannel final : public Channel {
-  inline static const core::Duration kMinWakeUpDuration =
-      core::Duration::Microseconds(100);
+  inline static const Duration kMinWakeUpDuration = Duration::Microseconds(100);
 
   SelectorCallback event_callback_;
   core::File file_;
@@ -22,21 +21,21 @@ public:
     event_callback_ = std::move(cb);
   }
 
-  void HandleEvents(ReceiveEvents events, core::Timestamp now) override;
+  void HandleEvents(ReceiveEvents events, Timestamp now) override;
 
   core::File &File() noexcept override { return file_; }
   const core::File &File() const noexcept override { return file_; }
 
   std::string String() const override;
 
-  void WakeUpAt(core::Timestamp timestamp) {
-    WakeUpAfter(timestamp - core::Timestamp::Now());
+  void WakeUpAt(Timestamp timestamp) {
+    WakeUpAfter(timestamp - Timestamp::Now());
   }
 
-  void WakeUpAfter(core::Duration duration);
+  void WakeUpAfter(Duration duration);
 };
 
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::TimerChannel);
+PEDROLIB_CLASS_FORMATTER(pedronet::TimerChannel);
 #endif // PEDRONET_CHANNEL_TIMED_CHANNEL_H

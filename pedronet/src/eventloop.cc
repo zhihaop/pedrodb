@@ -1,4 +1,5 @@
 #include "pedronet/eventloop.h"
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -55,8 +56,7 @@ void EventLoop::Schedule(Callback cb) {
 }
 void EventLoop::AssertUnderLoop() const {
   if (!CheckUnderLoop()) {
-    PEDRONET_ERROR("check in event loop failed");
-    std::terminate();
+    PEDRONET_FATAL("check in event loop failed");
   }
 }
 void EventLoop::Register(Channel *channel, Callback register_callback,

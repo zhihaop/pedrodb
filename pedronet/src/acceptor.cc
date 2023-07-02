@@ -1,4 +1,7 @@
 #include "pedronet/acceptor.h"
+#include "pedronet/core/latch.h"
+#include "pedronet/eventloop.h"
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -20,7 +23,7 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
     while (true) {
       PEDRONET_TRACE("{}::handleRead()", *this);
       Socket socket;
-      Socket::Error err = channel_.File().Accept(address_, &socket);
+      auto err = channel_.File().Accept(address_, &socket);
       if (!err.Empty()) {
         if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
           break;

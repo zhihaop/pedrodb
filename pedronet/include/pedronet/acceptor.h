@@ -1,22 +1,18 @@
 #ifndef PEDRONET_ACCEPTOR_H
 #define PEDRONET_ACCEPTOR_H
-
-#include "pedronet/callbacks.h"
 #include "pedronet/channel/socket_channel.h"
-#include "pedronet/core/debug.h"
-#include "pedronet/core/latch.h"
-#include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmovable.h"
-#include "pedronet/event.h"
 #include "pedronet/socket.h"
 
 #include <algorithm>
+#include <pedrolib/format/formatter.h>
 
 namespace pedronet {
 
+class EventLoop;
+
 using AcceptorCallback = std::function<void(Socket)>;
 
-class Acceptor : core::noncopyable, core::nonmovable {
+class Acceptor : pedrolib::noncopyable, pedrolib::nonmovable {
 public:
   struct Option {
     bool reuse_addr = true;
@@ -52,6 +48,6 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::Acceptor);
+PEDROLIB_CLASS_FORMATTER(pedronet::Acceptor);
 
 #endif // PEDRONET_ACCEPTOR_H

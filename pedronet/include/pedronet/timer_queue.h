@@ -3,26 +3,25 @@
 
 #include "pedronet/channel/timer_channel.h"
 #include "pedronet/core/executor.h"
-#include "pedronet/selector/selector.h"
-
+#include <mutex>
 #include <queue>
 
 namespace pedronet {
 
-struct TimerStruct : core::noncopyable, core::nonmovable {
+struct TimerStruct : pedrolib::noncopyable, pedrolib::nonmovable {
   uint64_t id;
   Callback callback;
-  core::Duration interval;
+  Duration interval;
 
-  TimerStruct(uint64_t id, Callback callback, const core::Duration &interval)
+  TimerStruct(uint64_t id, Callback callback, const Duration &interval)
       : id(id), callback(std::move(callback)), interval(interval) {}
 };
 
 struct TimerOrder {
-  core::Timestamp expire;
+  Timestamp expire;
   std::weak_ptr<TimerStruct> timer;
 
-  TimerOrder(core::Timestamp expire, const std::weak_ptr<TimerStruct> &timer)
+  TimerOrder(Timestamp expire, const std::weak_ptr<TimerStruct> &timer)
       : expire(expire), timer(timer) {}
 
   bool operator<(const TimerOrder &other) const noexcept {
@@ -33,7 +32,7 @@ struct TimerOrder {
 class TimerQueue {
 
   TimerChannel &channel_;
-  core::Timestamp next_expire_ = core::Timestamp::Max();
+  Timestamp next_expire_ = Timestamp::Max();
   std::priority_queue<TimerOrder> schedule_timer_;
   std::queue<std::weak_ptr<TimerStruct>> expired_timers_;
   std::queue<std::weak_ptr<TimerStruct>> pending_timers_;
@@ -43,25 +42,25 @@ class TimerQueue {
   std::unordered_map<uint64_t, std::shared_ptr<TimerStruct>> timers_;
   core::Executor &executor_;
 
-  void updateExpire(core::Timestamp now);
+  void updateExpire(Timestamp now);
 
-  uint64_t createTimer(Callback cb, const core::Duration &delay,
-                       const core::Duration &interval);
+  uint64_t createTimer(Callback cb, const Duration &delay,
+                       const Duration &interval);
 
-  void selectExpiredTimer(core::Timestamp now);
+  void selectExpiredTimer(Timestamp now);
 
   void processExpireTimer();
 
-  void processPendingTimer(core::Timestamp now);
+  void processPendingTimer(Timestamp now);
 
 public:
   TimerQueue(TimerChannel &channel, core::Executor &executor);
 
   ~TimerQueue() { channel_.SetEventCallBack({}); }
 
-  uint64_t ScheduleAfter(const core::Duration& delay, Callback callback);
+  uint64_t ScheduleAfter(const Duration &delay, Callback callback);
 
-  uint64_t ScheduleEvery(const core::Duration& delay, const core::Duration& interval,
+  uint64_t ScheduleEvery(const Duration &delay, const Duration &interval,
                          Callback callback);
 
   void Cancel(uint64_t timer_id);

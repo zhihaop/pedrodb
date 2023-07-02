@@ -19,7 +19,7 @@ public:
     event_callback_ = std::move(cb);
   }
 
-  void HandleEvents(ReceiveEvents event, core::Timestamp now) override;
+  void HandleEvents(ReceiveEvents event, Timestamp now) override;
 
   core::File &File() noexcept override { return file_; }
   const core::File &File() const noexcept override { return file_; }
@@ -33,5 +33,5 @@ public:
 };
 } // namespace pedronet
 
-PEDRONET_CLASS_FORMATTER(pedronet::EventChannel);
+PEDROLIB_CLASS_FORMATTER(pedronet::EventChannel);
 #endif // PEDRONET_CHANNEL_EVENT_CHANNEL_H

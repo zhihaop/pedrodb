@@ -20,13 +20,13 @@ void EventLoopGroup::Join() {
   }
   threads_.clear();
 }
-uint64_t EventLoopGroup::ScheduleAfter(core::Duration delay, Callback cb) {
+uint64_t EventLoopGroup::ScheduleAfter(Duration delay, Callback cb) {
   size_t loop_id = next();
   uint64_t timer_id = loops_[loop_id].ScheduleAfter(delay, std::move(cb));
   return timer_id * loops_.size() + loop_id;
 }
-uint64_t EventLoopGroup::ScheduleEvery(core::Duration delay,
-                                       core::Duration interval, Callback cb) {
+uint64_t EventLoopGroup::ScheduleEvery(Duration delay, Duration interval,
+                                       Callback cb) {
   size_t loop_id = next();
   uint64_t timer_id =
       loops_[loop_id].ScheduleEvery(delay, interval, std::move(cb));

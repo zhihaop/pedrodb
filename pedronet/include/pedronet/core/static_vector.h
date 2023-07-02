@@ -1,13 +1,14 @@
 #ifndef PEDRONET_CORE_STATIC_VECTOR_H
 #define PEDRONET_CORE_STATIC_VECTOR_H
 
-#include "pedronet/core/noncopyable.h"
-#include "pedronet/core/nonmovable.h"
 #include <cstdlib>
 #include <memory>
+#include <pedrolib/noncopyable.h>
+#include <pedrolib/nonmovable.h>
 
 namespace pedronet::core {
-template <typename T> class StaticVector : nonmovable, noncopyable {
+template <typename T>
+class StaticVector : pedrolib::nonmovable, pedrolib::noncopyable {
 
   struct Deleter {
     void operator()(void *p) const noexcept { std::free(p); }

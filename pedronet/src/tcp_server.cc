@@ -1,4 +1,5 @@
 #include "pedronet/tcp_server.h"
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -58,8 +59,7 @@ void TcpServer::Bind(const pedronet::InetAddress &address) {
   PEDRONET_TRACE("TcpServer::Bind({})", address);
 
   if (!boss_group_) {
-    PEDRONET_ERROR("boss group is not set");
-    std::terminate();
+    PEDRONET_FATAL("boss group is not set");
   }
 
   acceptor_ = std::make_shared<Acceptor>(boss_group_->Next(), address,
