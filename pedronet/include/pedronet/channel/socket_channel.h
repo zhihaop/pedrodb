@@ -10,7 +10,7 @@ namespace pedronet {
 
 struct Selector;
 
-class SocketChannel final : public Channel {
+class SocketChannel final : public Socket, public Channel {
 protected:
   SelectEvents events_{SelectEvents::kNoneEvent};
 
@@ -20,10 +20,9 @@ protected:
   SelectorCallback write_callback_;
 
   Selector *selector_{};
-  Socket socket_;
 
 public:
-  explicit SocketChannel(Socket socket) : socket_(std::move(socket)) {}
+  explicit SocketChannel(Socket socket) : Socket(std::move(socket)) {}
 
   ~SocketChannel() override = default;
 
@@ -59,30 +58,12 @@ public:
 
   void SetWritable(bool on);
 
-  Socket &File() noexcept final { return socket_; }
-  const Socket &File() const noexcept final { return socket_; }
+  Socket &GetFile() noexcept final { return *this; }
+  const Socket &GetFile() const noexcept final { return *this; }
 
   std::string String() const override {
-    return fmt::format("SocketChannel[fd={}]", socket_.Descriptor());
+    return fmt::format("SocketChannel[fd={}]", fd_);
   }
-
-  InetAddress GetLocalAddress() const noexcept {
-    return socket_.GetLocalAddress();
-  }
-
-  InetAddress GetPeerAddress() const noexcept {
-    return socket_.GetPeerAddress();
-  }
-
-  ssize_t Write(const void *buf, size_t n) { return socket_.Write(buf, n); }
-
-  ssize_t Read(void *buf, size_t n) { return socket_.Read(buf, n); }
-
-  core::Error GetError() const { return socket_.GetError(); }
-
-  void CloseWrite() { return socket_.CloseWrite(); }
-
-  void Shutdown() { return socket_.Shutdown(); }
 };
 
 } // namespace pedronet

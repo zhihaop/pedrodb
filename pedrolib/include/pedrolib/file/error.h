@@ -1,11 +1,10 @@
-#ifndef PEDRONET_CORE_ERROR_H
-#define PEDRONET_CORE_ERROR_H
+#ifndef PEDROLIB_FILE_ERROR_H
+#define PEDROLIB_FILE_ERROR_H
 
-#include <pedrolib/format/formatter.h>
+#include "pedrolib/format/formatter.h"
 #include <string>
 
-namespace pedronet {
-namespace core {
+namespace pedrolib {
 class Error {
   int code_{};
 
@@ -31,8 +30,7 @@ public:
     return fmt::format("Error[code:{}, reason:{}]", code_, GetReason());
   }
 };
-} // namespace core
-} // namespace pedronet
+} // namespace pedrolib
 
-PEDROLIB_CLASS_FORMATTER(pedronet::core::Error);
+PEDROLIB_CLASS_FORMATTER(pedrolib::Error);
 #endif // PEDRONET_CORE_ERROR_H

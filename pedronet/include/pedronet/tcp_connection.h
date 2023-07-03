@@ -1,9 +1,9 @@
 #ifndef PEDRONET_TCP_CONNECTION_H
 #define PEDRONET_TCP_CONNECTION_H
 
-#include "pedronet/buffer/array_buffer.h"
-#include "pedronet/buffer/buffer.h"
-#include "pedronet/buffer/buffer_view.h"
+#include "pedrolib/buffer/array_buffer.h"
+#include "pedrolib/buffer/buffer.h"
+#include "pedrolib/buffer/buffer_view.h"
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/socket_channel.h"
 #include "pedronet/event.h"
@@ -43,7 +43,7 @@ protected:
 
   ssize_t trySendingDirect(Buffer *buffer);
   void handleRead(Timestamp now);
-  void handleError(core::Error);
+  void handleError(Error);
   void handleWrite();
   void handleSend(Buffer *buffer);
   void handleClose();

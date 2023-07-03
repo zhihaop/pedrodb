@@ -1,8 +1,8 @@
 #ifndef PEDRONET_TIMER_QUEUE
 #define PEDRONET_TIMER_QUEUE
 
+#include "pedrolib/executor/executor.h"
 #include "pedronet/channel/timer_channel.h"
-#include "pedronet/core/executor.h"
 #include <mutex>
 #include <queue>
 
@@ -40,7 +40,7 @@ class TimerQueue {
   std::mutex mu_;
   uint64_t sequences_{};
   std::unordered_map<uint64_t, std::shared_ptr<TimerStruct>> timers_;
-  core::Executor &executor_;
+  Executor &executor_;
 
   void updateExpire(Timestamp now);
 
@@ -54,7 +54,7 @@ class TimerQueue {
   void processPendingTimer(Timestamp now);
 
 public:
-  TimerQueue(TimerChannel &channel, core::Executor &executor);
+  TimerQueue(TimerChannel &channel, Executor &executor);
 
   ~TimerQueue() { channel_.SetEventCallBack({}); }
 

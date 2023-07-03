@@ -11,7 +11,7 @@ class TimerChannel final : public Channel {
   inline static const Duration kMinWakeUpDuration = Duration::Microseconds(100);
 
   SelectorCallback event_callback_;
-  core::File file_;
+  File file_;
 
 public:
   TimerChannel();
@@ -23,8 +23,8 @@ public:
 
   void HandleEvents(ReceiveEvents events, Timestamp now) override;
 
-  core::File &File() noexcept override { return file_; }
-  const core::File &File() const noexcept override { return file_; }
+  File &GetFile() noexcept override { return file_; }
+  const File &GetFile() const noexcept override { return file_; }
 
   std::string String() const override;
 

@@ -1,17 +1,13 @@
 #ifndef PEDRONET_CALLBACK_H
 #define PEDRONET_CALLBACK_H
 
-#include "pedronet/socket.h"
+#include "pedronet/defines.h"
 
 #include <functional>
 #include <memory>
 #include <pedrolib/timestamp.h>
 namespace pedronet {
 
-using Timestamp = pedrolib::Timestamp;
-using Duration = pedrolib::Duration;
-
-class Buffer;
 class TcpConnection;
 class ReceiveEvents;
 class SelectEvents;
@@ -25,8 +21,7 @@ using MessageCallback =
 using WriteCompleteCallback = std::function<void(const TcpConnectionPtr &)>;
 using HighWatermarkCallback =
     std::function<void(const TcpConnectionPtr &, size_t)>;
-using ErrorCallback =
-    std::function<void(const TcpConnectionPtr &, core::Error)>;
+using ErrorCallback = std::function<void(const TcpConnectionPtr &, Error)>;
 using CloseCallback = std::function<void(const TcpConnectionPtr &)>;
 using ConnectionCallback = std::function<void(const TcpConnectionPtr &)>;
 

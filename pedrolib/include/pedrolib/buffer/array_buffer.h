@@ -1,11 +1,12 @@
-#ifndef PEDRONET_BUFFER_ARRAY_BUFFER_H
-#define PEDRONET_BUFFER_ARRAY_BUFFER_H
+#ifndef PEDROLIB_BUFFER_ARRAY_BUFFER_H
+#define PEDROLIB_BUFFER_ARRAY_BUFFER_H
 
-#include "pedronet/buffer/buffer.h"
+#include "pedrolib/buffer/buffer.h"
+#include "pedrolib/file/file.h"
 #include <cstring>
 #include <vector>
 
-namespace pedronet {
+namespace pedrolib {
 class ArrayBuffer final : public Buffer {
   static const size_t kInitialSize = 1024;
 
@@ -38,9 +39,9 @@ public:
 
   void EnsureWriteable(size_t n) override;
 
-  ssize_t Append(Socket *source) override;
+  ssize_t Append(File *source) override;
 
-  ssize_t Retrieve(Socket *target) override;
+  ssize_t Retrieve(File *target) override;
 
   size_t Append(Buffer *buffer) override;
 
@@ -53,6 +54,6 @@ public:
 
   size_t Find(std::string_view sv) override;
 };
-} // namespace pedronet
+} // namespace pedrolib
 
-#endif // PEDRONET_BUFFER_ARRAY_BUFFER_H
+#endif // PEDROLIB_BUFFER_ARRAY_BUFFER_H

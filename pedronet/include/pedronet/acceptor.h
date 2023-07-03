@@ -34,7 +34,7 @@ public:
 
   ~Acceptor() { Close(); }
 
-  void Bind() { channel_.File().Bind(address_); }
+  void Bind() { channel_.GetFile().Bind(address_); }
 
   void OnAccept(AcceptorCallback acceptor_callback) {
     acceptor_callback_ = std::move(acceptor_callback);

@@ -4,12 +4,12 @@
 
 namespace pedronet {
 
-static core::File CreateEventFile() {
+static File CreateEventFile() {
   int fd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
   if (fd <= 0) {
     PEDRONET_FATAL("failed to create event fd, reason[{}]", errno);
   }
-  return core::File{fd};
+  return File{fd};
 }
 
 EventChannel::EventChannel() : Channel(), file_(CreateEventFile()) {}

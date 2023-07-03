@@ -9,7 +9,7 @@ namespace pedronet {
 
 class EventChannel final : public Channel {
   SelectorCallback event_callback_;
-  core::File file_;
+  File file_;
 
 public:
   EventChannel();
@@ -21,8 +21,8 @@ public:
 
   void HandleEvents(ReceiveEvents event, Timestamp now) override;
 
-  core::File &File() noexcept override { return file_; }
-  const core::File &File() const noexcept override { return file_; }
+  File &GetFile() noexcept override { return file_; }
+  const File &GetFile() const noexcept override { return file_; }
 
   std::string String() const override;
 

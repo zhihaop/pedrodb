@@ -24,7 +24,7 @@ class Reporter {
   std::function<void(size_t, size_t, size_t, size_t)> callback_;
 
   uint64_t id_{};
-  pedronet::core::Executor *executor_{};
+  pedrolib::Executor *executor_{};
 
 public:
   explicit Reporter() = default;

@@ -59,7 +59,7 @@ void TimerQueue::processPendingTimer(Timestamp now) {
   updateExpire(now);
 }
 
-TimerQueue::TimerQueue(TimerChannel &channel, core::Executor &executor)
+TimerQueue::TimerQueue(TimerChannel &channel, Executor &executor)
     : channel_(channel), executor_(executor) {
   channel.SetEventCallBack([this](ReceiveEvents event, Timestamp now) {
     PEDRONET_TRACE("invoke timer ch");

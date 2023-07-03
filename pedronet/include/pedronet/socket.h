@@ -1,12 +1,12 @@
 #ifndef PEDRONET_SOCKET_H
 #define PEDRONET_SOCKET_H
-#include "pedronet/core/file.h"
+#include "defines.h"
 #include "pedronet/inetaddress.h"
 
 namespace pedronet {
 
-class Socket : public core::File {
-  explicit Socket(int fd) : core::File(fd) {}
+class Socket : public File {
+  explicit Socket(int fd) : File(fd) {}
 
 public:
   Socket() : Socket(kInvalid) {}
@@ -16,9 +16,9 @@ public:
   static Socket Create(int family);
 
   void Bind(const InetAddress &address);
-  core::Error Accept(const InetAddress &local, Socket *socket);
+  Error Accept(const InetAddress &local, Socket *socket);
   void Listen();
-  core::Error Connect(const InetAddress &address);
+  Error Connect(const InetAddress &address);
 
   void SetReuseAddr(bool on);
   void SetReusePort(bool on);
@@ -32,7 +32,7 @@ public:
 
   void Shutdown();
 
-  core::Error GetError() const noexcept override;
+  Error GetError() const noexcept override;
 
   std::string String() const override;
 

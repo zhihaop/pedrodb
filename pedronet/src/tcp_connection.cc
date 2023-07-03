@@ -35,7 +35,7 @@ void TcpConnection::Start() {
 }
 
 void TcpConnection::handleRead(Timestamp now) {
-  ssize_t n = input_.Append(&channel_.File());
+  ssize_t n = input_.Append(&channel_.GetFile());
   PEDRONET_TRACE("read {} bytes", n);
   if (n < 0) {
     handleError(channel_.GetError());
@@ -51,7 +51,7 @@ void TcpConnection::handleRead(Timestamp now) {
     message_callback_(shared_from_this(), input_, now);
   }
 }
-void TcpConnection::handleError(core::Error err) {
+void TcpConnection::handleError(Error err) {
   if (err.Empty()) {
     handleClose();
     return;
@@ -69,7 +69,7 @@ void TcpConnection::handleWrite() {
     return;
   }
 
-  ssize_t n = output_.Retrieve(&channel_.File());
+  ssize_t n = output_.Retrieve(&channel_.GetFile());
   if (n < 0) {
     handleError(channel_.GetError());
     return;
@@ -111,13 +111,10 @@ TcpConnection::TcpConnection(EventLoop &eventloop, Socket socket)
     : channel_(std::move(socket)), local_(channel_.GetLocalAddress()),
       peer_(channel_.GetPeerAddress()), eventloop_(eventloop) {
 
-  channel_.OnRead([this](auto events, auto now) { return handleRead(now); });
-  channel_.OnWrite([this](auto events, auto now) { return handleWrite(); });
-  channel_.OnClose([this](auto events, auto now) { return handleClose(); });
-  channel_.OnError([this](auto events, auto now) {
-    return handleError(channel_.GetError());
-  });
-
+  channel_.OnRead([this](auto events, auto now) { handleRead(now); });
+  channel_.OnWrite([this](auto events, auto now) { handleWrite(); });
+  channel_.OnClose([this](auto events, auto now) { handleClose(); });
+  channel_.OnError([this](auto, auto) { handleError(channel_.GetError()); });
   channel_.SetSelector(eventloop.GetSelector());
 }
 TcpConnection::~TcpConnection() {
@@ -163,7 +160,7 @@ ssize_t TcpConnection::trySendingDirect(Buffer *buffer) {
   if (output_.ReadableBytes() != 0) {
     return 0;
   }
-  return buffer->Retrieve(&channel_.File());
+  return buffer->Retrieve(&channel_.GetFile());
 }
 void TcpConnection::ForceClose() {
   if (state_ == State::kDisconnected) {

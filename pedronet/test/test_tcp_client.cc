@@ -6,12 +6,12 @@
 
 using namespace std::chrono_literals;
 using pedrolib::Duration;
+using pedrolib::StaticVector;
 using pedronet::BufferView;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 using pedronet::TcpClient;
-using pedronet::core::StaticVector;
 namespace logger = pedronet::logger;
 
 void ClientReport(size_t bps, size_t ops, size_t, size_t) {
@@ -29,7 +29,7 @@ int main() {
   reporter.SetCallback(ClientReport);
   reporter.Start(*worker_group, Duration::Seconds(1));
 
-  auto buf = std::string(1 << 20, 'a');
+  auto buf = std::string(1 << 10, 'a');
 
   size_t n_clients = 128;
   StaticVector<TcpClient> clients(n_clients);

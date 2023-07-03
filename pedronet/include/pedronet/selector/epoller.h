@@ -1,8 +1,8 @@
 #ifndef PERDONET_SELECTOR_EPOLLER_H
 #define PERDONET_SELECTOR_EPOLLER_H
 
+#include "pedrolib/file/file.h"
 #include "pedronet/channel/channel.h"
-#include "pedronet/core/file.h"
 #include "pedronet/event.h"
 #include "pedronet/selector/selector.h"
 
@@ -12,7 +12,7 @@ struct epoll_event;
 
 namespace pedronet {
 
-class EpollSelector : public core::File, public Selector {
+class EpollSelector : public File, public Selector {
   std::vector<struct epoll_event> buf_;
 
   void internalUpdate(Channel *channel, int op, SelectEvents events);
@@ -26,7 +26,7 @@ public:
   void Remove(Channel *channel) override;
   void Update(Channel *channel, SelectEvents events) override;
 
-  Selector::Error Wait(Duration timeout, SelectChannels *selected) override;
+  Error Wait(Duration timeout, SelectChannels *selected) override;
 };
 } // namespace pedronet
 

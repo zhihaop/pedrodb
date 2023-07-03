@@ -1,7 +1,6 @@
-#include "pedronet/buffer/buffer_view.h"
-#include "pedronet/socket.h"
+#include "pedrolib/buffer/buffer_view.h"
 
-namespace pedronet {
+namespace pedrolib {
 
 size_t BufferView::Retrieve(Buffer *buffer) {
   size_t w = buffer->Append(data_ + read_index_, ReadableBytes());
@@ -21,7 +20,7 @@ size_t BufferView::Peek(char *data, size_t n) {
   memcpy(data, data_ + read_index_, n);
   return n;
 }
-ssize_t BufferView::Retrieve(Socket *target) {
+ssize_t BufferView::Retrieve(File *target) {
   ssize_t w = target->Write(data_ + read_index_, ReadableBytes());
   if (w > 0) {
     Retrieve(w);
@@ -34,4 +33,4 @@ size_t BufferView::Retrieve(char *data, size_t n) {
   Retrieve(w);
   return w;
 }
-} // namespace pedronet
+} // namespace pedrolib

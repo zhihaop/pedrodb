@@ -1,7 +1,7 @@
 #ifndef PEDRONET_CHANNEL_CHANNEL_H
 #define PEDRONET_CHANNEL_CHANNEL_H
 
-#include "pedronet/core/file.h"
+#include "pedronet/defines.h"
 #include "pedronet/event.h"
 
 #include <pedrolib/format/formatter.h>
@@ -19,8 +19,8 @@ using Duration = pedrolib::Duration;
 struct Channel : pedrolib::noncopyable, pedrolib::nonmovable {
 
   // For pedronet::Selector.
-  virtual core::File &File() noexcept = 0;
-  virtual const core::File &File() const noexcept = 0;
+  virtual File &GetFile() noexcept = 0;
+  virtual const File &GetFile() const noexcept = 0;
   virtual void HandleEvents(ReceiveEvents events, Timestamp now) = 0;
   virtual std::string String() const = 0;
   virtual ~Channel() = default;

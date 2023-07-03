@@ -1,12 +1,12 @@
-#ifndef PEDRONET_CORE_STATIC_VECTOR_H
-#define PEDRONET_CORE_STATIC_VECTOR_H
+#ifndef PEDROLIB_COLLECTION_STATIC_VECTOR_H
+#define PEDROLIB_COLLECTION_STATIC_VECTOR_H
 
 #include <cstdlib>
 #include <memory>
 #include <pedrolib/noncopyable.h>
 #include <pedrolib/nonmovable.h>
 
-namespace pedronet::core {
+namespace pedrolib {
 template <typename T>
 class StaticVector : pedrolib::nonmovable, pedrolib::noncopyable {
 
@@ -52,5 +52,5 @@ public:
     return data_.get()[index];
   }
 };
-} // namespace pedronet::core
-#endif // PEDRONET_CORE_STATIC_VECTOR_H
+} // namespace pedrolib
+#endif // PEDROLIB_COLLECTION_STATIC_VECTOR_H

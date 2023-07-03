@@ -5,15 +5,15 @@
 
 namespace pedronet {
 
-inline static core::File CreateEpollFile() {
+inline static File CreateEpollFile() {
   int fd = ::epoll_create1(EPOLL_CLOEXEC);
   if (fd <= 0) {
     PEDRONET_FATAL("failed to create epoll fd, errno[{}]", errno);
   }
-  return core::File{fd};
+  return File{fd};
 }
 
-EpollSelector::EpollSelector() : core::File(CreateEpollFile()), buf_(8192) {}
+EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(8192) {}
 
 EpollSelector::~EpollSelector() = default;
 
@@ -23,7 +23,7 @@ void EpollSelector::internalUpdate(Channel *channel, int op,
   ev.events = events.Value();
   ev.data.ptr = channel;
 
-  int fd = channel->File().Descriptor();
+  int fd = channel->GetFile().Descriptor();
   if (::epoll_ctl(fd_, op, fd, op == EPOLL_CTL_DEL ? nullptr : &ev) < 0) {
     PEDRONET_FATAL("failed to call epoll_ctl, reason[{}]", errno);
   }
@@ -41,19 +41,18 @@ void EpollSelector::Remove(Channel *channel) {
   internalUpdate(channel, EPOLL_CTL_DEL, SelectEvents::kNoneEvent);
 }
 
-Selector::Error EpollSelector::Wait(Duration timeout,
-                                    SelectChannels *selected) {
+Error EpollSelector::Wait(Duration timeout, SelectChannels *selected) {
   int n = ::epoll_wait(fd_, buf_.data(), buf_.size(), timeout.Milliseconds());
   selected->now = Timestamp::Now();
   selected->channels.clear();
   selected->events.clear();
 
   if (n == 0) {
-    return Selector::Error::Success();
+    return Error::Success();
   }
 
   if (n < 0) {
-    return Selector::Error{errno};
+    return Error{errno};
   }
 
   selected->channels.resize(n);
@@ -62,7 +61,7 @@ Selector::Error EpollSelector::Wait(Duration timeout,
     selected->channels[i] = static_cast<Channel *>(buf_[i].data.ptr);
     selected->events[i] = ReceiveEvents{buf_[i].events};
   }
-  return Selector::Error::Success();
+  return Error::Success();
 }
 void EpollSelector::SetBufferSize(size_t size) { buf_.resize(size); }
 } // namespace pedronet

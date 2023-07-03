@@ -1,10 +1,10 @@
-#ifndef PEDRONET_BUFFER_BUFFER_VIEW_H
-#define PEDRONET_BUFFER_BUFFER_VIEW_H
+#ifndef PEDROLIB_BUFFER_BUFFER_VIEW_H
+#define PEDROLIB_BUFFER_BUFFER_VIEW_H
 
-#include "pedronet/buffer/buffer.h"
+#include "pedrolib/buffer/buffer.h"
 #include <string>
 
-namespace pedronet {
+namespace pedrolib {
 class BufferView final : public Buffer {
   const char *data_{};
   size_t size_{};
@@ -27,8 +27,8 @@ public:
 
   void Append(size_t size) override {}
   void Reset() override { read_index_ = size_; }
-  ssize_t Append(Socket *source) override { return 0; }
-  ssize_t Retrieve(Socket *target) override;
+  ssize_t Append(File *source) override { return 0; }
+  ssize_t Retrieve(File *target) override;
 
   size_t Append(Buffer *buffer) override { return 0; }
 
@@ -39,6 +39,13 @@ public:
   size_t Peek(char *data, size_t n) override;
 
   size_t Find(std::string_view sv) override;
+
+  size_t Retrieve(std::string_view *sv, size_t n) noexcept {
+    n = std::min(ReadableBytes(), n);
+    *sv = std::string_view{data_ + read_index_, n};
+    Retrieve(n);
+    return n;
+  }
 };
-} // namespace pedronet
-#endif // PEDRONET_BUFFER_BUFFER_VIEW_H
+} // namespace pedrolib
+#endif // PEDROLIB_BUFFER_BUFFER_VIEW_H

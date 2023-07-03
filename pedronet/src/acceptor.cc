@@ -1,7 +1,7 @@
 #include "pedronet/acceptor.h"
-#include "pedronet/core/latch.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/logger/logger.h"
+#include <pedrolib/concurrent/latch.h>
 
 namespace pedronet {
 
@@ -11,7 +11,7 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
       eventloop_(eventloop) {
   PEDRONET_TRACE("Acceptor::Acceptor()");
 
-  auto &socket = channel_.File();
+  auto &socket = channel_.GetFile();
   socket.SetReuseAddr(option.reuse_addr);
   socket.SetReusePort(option.reuse_port);
   socket.SetKeepAlive(option.keep_alive);
@@ -23,7 +23,7 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
     while (true) {
       PEDRONET_TRACE("{}::handleRead()", *this);
       Socket socket;
-      auto err = channel_.File().Accept(address_, &socket);
+      auto err = channel_.Accept(address_, &socket);
       if (!err.Empty()) {
         if (err.GetCode() == EAGAIN || err.GetCode() == EWOULDBLOCK) {
           break;
@@ -38,11 +38,11 @@ Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
   });
 }
 std::string Acceptor::String() const {
-  return fmt::format("Acceptor[socket={}]", channel_.File());
+  return fmt::format("Acceptor[socket={}]", channel_.GetFile());
 }
 void Acceptor::Close() {
   PEDRONET_TRACE("Acceptor::Close() enter");
-  core::Latch latch(1);
+  pedrolib::Latch latch(1);
   eventloop_.Run([this, &latch] {
     channel_.SetReadable(false);
     channel_.SetWritable(false);
@@ -55,7 +55,7 @@ void Acceptor::Close() {
 void Acceptor::Listen() {
   Callback callback = [this] {
     channel_.SetReadable(true);
-    channel_.File().Listen();
+    channel_.Listen();
   };
   eventloop_.Register(&channel_, std::move(callback), {});
 }

@@ -77,7 +77,7 @@ void TcpClient::raiseConnection() {
   state_ = State::kOffline;
 }
 
-void TcpClient::retry(Socket socket, core::Error reason) {
+void TcpClient::retry(Socket socket, Error reason) {
   socket.Close();
   PEDRONET_TRACE("TcpClient::retry(): {}", reason);
   eventloop_->ScheduleAfter(Duration::Seconds(1), [&] { raiseConnection(); });

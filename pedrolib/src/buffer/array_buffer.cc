@@ -1,7 +1,6 @@
-#include "pedronet/buffer/array_buffer.h"
-#include "pedronet/socket.h"
+#include "pedrolib/buffer/array_buffer.h"
 
-namespace pedronet {
+namespace pedrolib {
 
 void ArrayBuffer::EnsureWriteable(size_t n) {
   size_t w = WritableBytes();
@@ -20,7 +19,7 @@ void ArrayBuffer::EnsureWriteable(size_t n) {
   size_t delta = n - w;
   buf_.resize(buf_.size() + delta);
 }
-ssize_t ArrayBuffer::Append(Socket *source) {
+ssize_t ArrayBuffer::Append(File *source) {
   char buf[65535];
   size_t writable = WritableBytes();
   std::string_view views[2] = {{buf_.data() + write_index_, writable},
@@ -51,7 +50,7 @@ size_t ArrayBuffer::Find(std::string_view sv) {
   return n + read_index_;
 }
 size_t ArrayBuffer::Append(const char *data, size_t n) {
-  n = std::min(n, WritableBytes());
+  EnsureWriteable(n);
   memcpy(buf_.data() + write_index_, data, n);
   Append(n);
   return n;
@@ -62,7 +61,7 @@ size_t ArrayBuffer::Retrieve(char *data, size_t n) {
   Retrieve(n);
   return n;
 }
-ssize_t ArrayBuffer::Retrieve(Socket *target) {
+ssize_t ArrayBuffer::Retrieve(File *target) {
   ssize_t w = target->Write(buf_.data() + read_index_, ReadableBytes());
   if (w > 0) {
     Retrieve(w);
@@ -70,6 +69,7 @@ ssize_t ArrayBuffer::Retrieve(Socket *target) {
   return w;
 }
 size_t ArrayBuffer::Append(Buffer *buffer) {
+  EnsureWriteable(buffer->ReadableBytes());
   size_t r = buffer->Retrieve(buf_.data() + write_index_, WritableBytes());
   Append(r);
   return r;
@@ -91,4 +91,4 @@ void ArrayBuffer::Retrieve(size_t n) {
   }
 }
 // namespace pedronet
-} // namespace pedronet
+} // namespace pedrolib

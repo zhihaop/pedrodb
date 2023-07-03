@@ -18,7 +18,7 @@ Socket Socket::Create(int family) {
   int fd = ::socket(family, type, protocol);
   if (fd < 0) {
     PEDRONET_FATAL("failed to call ::socket({}, {}, {}), reason[{}]", family,
-                   type, protocol, core::Error{errno});
+                   type, protocol, Error{errno});
   }
   return Socket{fd};
 }
@@ -37,12 +37,12 @@ void Socket::Listen() {
   }
 }
 
-core::Error Socket::Connect(const InetAddress &address) {
+Error Socket::Connect(const InetAddress &address) {
   auto &impl = address.impl_;
   if (::connect(fd_, impl->data(), impl->size())) {
     return GetError();
   }
-  return core::Error::Success();
+  return Error::Success();
 }
 
 InetAddress Socket::GetLocalAddress() const {
@@ -92,29 +92,29 @@ void Socket::CloseWrite() {
   }
 }
 
-core::Error Socket::GetError() const noexcept {
+Error Socket::GetError() const noexcept {
   int val;
   auto len = static_cast<socklen_t>(sizeof val);
   if (::getsockopt(fd_, SOL_SOCKET, SO_ERROR, &val, &len) < 0) {
-    return core::Error{errno};
+    return Error{errno};
   } else {
-    return core::Error{val};
+    return Error{val};
   }
 }
 
-core::Error Socket::Accept(const InetAddress &local, Socket *socket) {
+Error Socket::Accept(const InetAddress &local, Socket *socket) {
   auto impl = std::make_unique<InetAddressImpl>();
   auto len = impl->size();
 
   Socket file{::accept4(fd_, impl->data(), &len, SOCK_NONBLOCK | SOCK_CLOEXEC)};
   if (!file.Valid()) {
-    return core::Error{errno};
+    return Error{errno};
   }
 
   PEDRONET_TRACE("Socket::Accept() {} {} -> {}", file, local,
                  file.GetPeerAddress());
   *socket = std::move(file);
-  return core::Error::Success();
+  return Error::Success();
 }
 std::string Socket::String() const { return fmt::format("Socket[fd={}]", fd_); }
 
@@ -126,7 +126,7 @@ Socket &Socket::operator=(Socket &&other) noexcept {
     return *this;
   }
 
-  core::File::Close();
+  File::Close();
   std::swap(fd_, other.fd_);
   return *this;
 }

@@ -1,11 +1,11 @@
 #ifndef PEDRONET_EVENTLOOP_H
 #define PEDRONET_EVENTLOOP_H
 
+#include "pedrolib/executor/executor.h"
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/channel.h"
 #include "pedronet/channel/event_channel.h"
 #include "pedronet/channel/timer_channel.h"
-#include "pedronet/core/executor.h"
 #include "pedronet/core/thread.h"
 #include "pedronet/event.h"
 #include "pedronet/selector/selector.h"
@@ -14,7 +14,7 @@
 
 namespace pedronet {
 
-class EventLoop : public core::Executor {
+class EventLoop : public Executor {
   inline const static Duration kSelectTimeout{std::chrono::seconds(10)};
 
   std::unique_ptr<Selector> selector_;

@@ -4,12 +4,12 @@
 
 namespace pedronet {
 
-inline static core::File CreateTimerFile() {
+inline static File CreateTimerFile() {
   int fd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
   if (fd <= 0) {
     PEDRONET_FATAL("failed to create timer fd");
   }
-  return core::File{fd};
+  return File{fd};
 }
 
 TimerChannel::TimerChannel() : Channel(), file_(CreateTimerFile()) {}

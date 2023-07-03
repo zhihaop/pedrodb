@@ -2,7 +2,6 @@
 #define PEDRONET_TCP_CLIENT_H
 
 #include "pedronet/callbacks.h"
-#include "pedronet/core/latch.h"
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/eventloopgroup.h"
@@ -40,7 +39,7 @@ class TcpClient : pedrolib::noncopyable, pedrolib::nonmovable {
 
 private:
   void handleConnection(pedronet::Socket conn);
-  void retry(Socket socket, core::Error reason);
+  void retry(Socket socket, Error reason);
   void raiseConnection();
 
 public:

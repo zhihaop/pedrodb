@@ -4,9 +4,13 @@
 #include <string>
 
 namespace pedrodb {
-struct Options {};
+struct Options {
+  int16_t max_open_files = 32;
+};
 struct ReadOptions {};
-struct WriteOptions {};
+struct WriteOptions {
+  bool sync = false;
+};
 } // namespace pedrodb
 
 #endif // PEDRODB_OPTIONS_H
