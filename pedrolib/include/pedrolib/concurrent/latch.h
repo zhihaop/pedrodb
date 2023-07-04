@@ -42,7 +42,7 @@ public:
 
   void CountDown() {
     size_t cnt = count_.fetch_add(-1, std::memory_order_acq_rel);
-    if (cnt == 0) {
+    if (cnt - 1 == 0) {
       std::unique_lock<std::mutex> lock(mu_);
       zero_.notify_all();
     }

@@ -4,7 +4,8 @@
 #include <unordered_map>
 
 namespace pedrolib::lru {
-template <typename K, typename V> class unordered_map {
+template <typename K, typename V, typename Hash = std::hash<K>>
+class unordered_map {
 
   struct KeyValue {
     K key;
@@ -13,47 +14,44 @@ template <typename K, typename V> class unordered_map {
 
   using KeyValueIterator = typename std::list<KeyValue>::iterator;
 
-  std::unordered_map<K, KeyValueIterator> indices_;
+  std::unordered_map<K, KeyValueIterator, Hash> indices_;
   std::list<KeyValue> data_;
   std::size_t capacity_;
 
 public:
   explicit unordered_map(std::size_t capacity) : capacity_(capacity) {}
+  unordered_map() : capacity_(std::numeric_limits<size_t>::max()) {}
 
   void clear() noexcept {
     data_.clear();
     indices_.clear();
   }
 
-  void evict() noexcept {
-    if (data_.empty()) {
-      return;
-    }
+  size_t size() const noexcept { return indices_.size(); }
 
+  V evict() noexcept {
     auto iter = data_.begin();
     KeyValue kv = std::move(*iter);
     data_.erase(iter);
     indices_.erase(kv.key);
+    return std::move(kv.value);
   }
 
-  void erase(const K &key) noexcept {
+  V erase(const K &key) noexcept {
     auto iter = indices_.find(key);
-    if (iter == indices_.end()) {
-      return;
-    }
-
+    KeyValue kv = std::move(*iter->second);
     data_.erase(iter->second);
     indices_.erase(iter);
+    return std::move(kv.value);
   }
 
   bool contains(const K &key) const noexcept {
     return indices_.find(key) != indices_.end();
   }
 
-  template <typename Value> void update(const K &key, Value &&value) {
+  template <typename Value> Value &update(const K &key, Value &&value) {
     if (contains(key)) {
-      (*this)[key] = std::forward<Value>(value);
-      return;
+      return (*this)[key] = std::forward<Value>(value);
     }
 
     if (indices_.size() == capacity_) {
@@ -62,7 +60,7 @@ public:
     KeyValue kv{};
     kv.key = key;
     kv.value = std::forward<Value>(value);
-    indices_[key] = data_.insert(data_.end(), std::move(kv));
+    return (indices_[key] = data_.insert(data_.end(), std::move(kv)))->value;
   }
 
   V &operator[](const K &key) noexcept {

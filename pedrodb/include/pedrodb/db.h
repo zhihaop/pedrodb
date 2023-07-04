@@ -21,6 +21,8 @@ struct DB : pedrolib::noncopyable {
 
   virtual Status Delete(const WriteOptions &options,
                         const std::string &key) = 0;
+  
+  virtual Status Compact() = 0;
 };
 } // namespace pedrodb
 

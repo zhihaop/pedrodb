@@ -6,6 +6,7 @@
 #include "pedrolib/logger/logger.h"
 #include "pedrolib/noncopyable.h"
 
+#include <optional>
 #include <string_view>
 
 namespace pedrolib {
@@ -16,6 +17,13 @@ public:
 
   enum class Whence { kSeekSet, kSeekCur, kSeekEnd };
 
+  enum class OpenMode { kRead, kWrite, kReadWrite };
+
+  struct OpenOption {
+    OpenMode mode{OpenMode::kRead};
+    std::optional<int32_t> create{};
+  };
+
 protected:
   int fd_{kInvalid};
 
@@ -23,6 +31,14 @@ protected:
 
 public:
   File() = default;
+
+  static File Open(const char *name, OpenOption option);
+
+  static Error Remove(const char *name);
+
+  static int64_t Fill(File &file, char ch, uint64_t n);
+
+  static int64_t Size(File &file);
 
   explicit File(int fd) : fd_(fd) {}
 
@@ -40,7 +56,7 @@ public:
 
   virtual ssize_t Pread(uint64_t offset, void *buf, size_t n);
 
-  virtual uint64_t Seek(uint64_t offset, Whence whence);
+  virtual int64_t Seek(uint64_t offset, Whence whence);
 
   virtual ssize_t Pwrite(uint64_t offset, const void *buf, size_t n);
 

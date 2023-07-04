@@ -50,6 +50,8 @@ public:
   size_t ReadIndex() override { return read_index_; }
   size_t WriteIndex() override { return write_index_; }
 
+  char *Data() { return buf_.data(); }
+
   size_t Peek(char *data, size_t n) override;
 
   size_t Find(std::string_view sv) override;

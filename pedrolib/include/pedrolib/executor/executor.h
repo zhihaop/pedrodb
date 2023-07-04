@@ -13,11 +13,16 @@ namespace pedrolib {
 using Callback = std::function<void()>;
 
 struct Executor : pedrolib::noncopyable, pedrolib::nonmovable {
+  Executor() = default;
+  virtual ~Executor() = default;
   virtual void Schedule(Callback cb) = 0;
   virtual uint64_t ScheduleAfter(Duration delay, Callback cb) = 0;
   virtual uint64_t ScheduleEvery(Duration delay, Duration interval,
                                  Callback cb) = 0;
   virtual void ScheduleCancel(uint64_t) = 0;
+
+  virtual void Close() = 0;
+  virtual void Join() = 0;
 };
 
 } // namespace pedrolib

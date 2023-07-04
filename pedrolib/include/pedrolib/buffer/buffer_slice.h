@@ -14,6 +14,9 @@ class BufferSlice final : public Buffer {
 public:
   BufferSlice(char *data, size_t size)
       : data_(data), size_(size), read_index_(0), write_index_(size) {}
+  BufferSlice(void *data, size_t size)
+      : data_(static_cast<char *>(data)), size_(size), read_index_(0),
+        write_index_(size) {}
   explicit BufferSlice(char *data) : BufferSlice(data, ::strlen(data)) {}
   explicit BufferSlice(std::string &s) : BufferSlice(s.data(), s.size()) {}
   size_t ReadableBytes() override { return write_index_ - read_index_; }

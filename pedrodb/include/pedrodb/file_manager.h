@@ -2,98 +2,62 @@
 #define PEDRODB_FILE_MANAGER_H
 
 #include "pedrodb/defines.h"
-#include "pedrodb/file/random_access_file.h"
+#include "pedrodb/file/readable_file.h"
 #include "pedrodb/file/writable_file.h"
 #include "pedrodb/logger/logger.h"
-#include "pedrodb/metadata.h"
+#include "pedrodb/metadata_manager.h"
+
 #include <pedrolib/collection/lru_unordered_map.h>
 
-#include <list>
 namespace pedrodb {
+
+using ReadableFileGuard =
+    std::unique_ptr<ReadableFile, std::function<void(ReadableFile *)>>;
+
 class FileManager {
+  mutable std::mutex mu_;
+  
   MetadataManager *metadata_;
 
-  std::mutex mu_;
+  pedrolib::lru::unordered_map<uint32_t, ReadableFile> open_files_;
+  std::unordered_map<uint32_t, ReadableFile> in_use_;
 
-  pedrolib::lru::unordered_map<uint32_t, std::shared_ptr<RandomAccessFile>>
-      open_files_;
-  std::shared_ptr<WritableFile> active_;
+  // always in use.
+  std::unique_ptr<WritableFile> active_;
+  uint32_t active_id_{};
 
-  std::shared_ptr<RandomAccessFile> open(uint32_t file_id) {
-    std::string filename = metadata_->GetFile(file_id);
-    auto file = RandomAccessFile::Open(filename);
-    if (file == nullptr) {
-      PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, file_id);
-      return nullptr;
-    }
-    return std::move(file);
-  }
-
-  Error createActiveFile(std::shared_ptr<WritableFile> *active, uint32_t id) {
-    PEDRODB_INFO("create active file {}", id);
-    *active = WritableFile::Create(id, metadata_->GetFile(id));
-    if (*active == nullptr) {
-      return Error{errno};
-    }
-    return Error::Success();
-  }
+  Status OpenActiveFile(WritableFile **file, uint32_t id);
 
 public:
   FileManager(MetadataManager *metadata, uint16_t max_open_files)
       : open_files_(max_open_files), metadata_(metadata) {}
 
-  Status Init() {
-    size_t active_id;
-    if (metadata_->GetActiveID() == 0) {
-      active_id = metadata_->AddActiveID();
-    } else {
-      active_id = metadata_->GetActiveID();
-    }
+  Status Init();
 
-    auto err = createActiveFile(&active_, active_id);
-    if (!err.Empty()) {
-      PEDRODB_ERROR("failed to load active file: {}", err);
-      return Status::kIOError;
-    }
-    PEDRODB_INFO("load active file: {}", metadata_->GetActiveID());
+  std::unique_lock<std::mutex> AcquireLock() const noexcept {
+    return std::unique_lock(mu_);
+  }
+
+  Status GetActiveFile(WritableFile **file, uint32_t *id) noexcept {
+    *file = active_.get();
+    *id = active_id_;
     return Status::kOk;
   }
 
-  std::shared_ptr<WritableFile> GetActiveFile() noexcept {
-    std::unique_lock<std::mutex> lock(mu_);
-    return active_;
-  }
+  Status CreateActiveFile(WritableFile **file, uint32_t *id);
 
-  Error CreateActiveFile() {
-    std::unique_lock<std::mutex> lock(mu_);
-    return createActiveFile(&active_, metadata_->AddActiveID());
-  }
+  uint32_t GetActiveFileID() const noexcept { return active_id_; }
 
-  std::shared_ptr<RandomAccessFile> GetFile(uint32_t file_id) {
-    std::unique_lock<std::mutex> lock(mu_);
-    if (open_files_.contains(file_id)) {
-      return open_files_[file_id];
-    }
+  Status ReleaseDataFile(uint32_t id);
 
-    PEDRODB_INFO("open file {}", file_id);
+  Status AcquireDataFile(uint32_t id, ReadableFileGuard *file);
 
-    auto file = open(file_id);
-    if (file == nullptr) {
-      return nullptr;
-    }
+  void Close(uint32_t id) { open_files_.erase(id); }
 
-    open_files_.update(file_id, file);
-    return file;
-  }
-
-  void Release() {
-    std::unique_lock<std::mutex> lock(mu_);
-    open_files_.clear();
-  }
-
-  void Close(uint32_t file_id) {
-    std::unique_lock<std::mutex> lock(mu_);
-    open_files_.erase(file_id);
+  Error RemoveDataFile(uint32_t id) {
+    Close(id);
+    metadata_->DeleteFile(id);
+    return File::Remove(metadata_->GetDataFilePath(id).c_str());
   }
 };
 

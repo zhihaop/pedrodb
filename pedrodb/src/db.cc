@@ -7,18 +7,8 @@ Status DB::Open(const Options &options, const std::string &name,
                 std::shared_ptr<DB> *db) {
   PEDRODB_INFO("Open database {}", name);
 
-  auto impl = std::make_shared<DBImpl>();
-  impl->metadata_ = std::make_unique<MetadataManager>();
-
-  auto stat = impl->metadata_->Open(name);
-  if (stat != Status::kOk) {
-    return stat;
-  }
-
-  impl->file_manager_ = std::make_unique<FileManager>(impl->metadata_.get(),
-                                                      options.max_open_files);
-
-  stat = impl->Init();
+  auto impl = std::make_shared<DBImpl>(options, name);
+  auto stat = impl->Init();
   if (stat != Status::kOk) {
     return stat;
   }

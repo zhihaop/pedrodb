@@ -12,3 +12,5 @@ target_link_libraries(pedrodb PRIVATE pedrolib)
 add_executable(test_db_basic test/test_db_basic.cc)
 target_include_directories(test_db_basic PUBLIC include ../pedrolib/include)
 target_link_libraries(test_db_basic PRIVATE pedrodb pedrolib)
+
+

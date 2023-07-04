@@ -26,10 +26,30 @@ using Error = pedrolib::Error;
 using nonmovable = pedrolib::nonmovable;
 using noncopyable = pedrolib::noncopyable;
 
-// the maximum size of file is 64MB.
-const uint64_t kMaxFileBytes = 64ULL << 20;
+// the maximum size of file is 128MB.
+const uint64_t kMaxFileBytes = 128ULL << 20;
 
-const uint64_t kBatchVersions = 64 << 10;
+const uint32_t kBatchVersions = 16 << 10;
+
+struct ValueLocation {
+  uint32_t id{};
+  uint32_t offset{};
+
+  ValueLocation() = default;
+  ValueLocation(const ValueLocation &) = default;
+  ValueLocation &operator=(const ValueLocation &) = default;
+
+  bool operator==(const ValueLocation &other) const noexcept {
+    return id == other.id && offset == other.offset;
+  }
+};
+
+struct ValueLocationHash {
+  size_t operator()(const ValueLocation &v) const noexcept {
+    return std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(&v));
+  }
+};
+
 } // namespace pedrodb
 
 #endif // PEDRODB_DEFINES_H

@@ -17,7 +17,8 @@ void ArrayBuffer::EnsureWriteable(size_t n) {
     return;
   }
   size_t delta = n - w;
-  buf_.resize(buf_.size() + delta);
+  size_t size = buf_.size() + delta;
+  buf_.resize(size << 1);
 }
 ssize_t ArrayBuffer::Append(File *source) {
   char buf[65535];
