@@ -6,7 +6,7 @@ file(GLOB_RECURSE srcs src/*.cc)
 
 add_library(pedrolib ${srcs})
 target_include_directories(pedrolib PUBLIC include)
-target_link_libraries(pedrolib PRIVATE spdlog fmt)
+target_link_libraries(pedrolib PUBLIC spdlog fmt)
 
 add_executable(test_thread_pool_executor test/test_thread_pool_executor.cc)
 target_include_directories(test_thread_pool_executor PUBLIC include)

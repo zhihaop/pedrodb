@@ -11,6 +11,7 @@ struct Options {
   size_t compaction_threshold_bytes = kMaxFileBytes / 2;
   Duration sync_interval = Duration::Seconds(10);
   size_t executor_threads = 32;
+  bool prefetch = false;
 };
 
 struct ReadOptions {};

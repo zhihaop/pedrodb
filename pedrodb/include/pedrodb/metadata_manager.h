@@ -68,13 +68,13 @@ public:
   ~MetadataManager() = default;
 
   Status Init() {
-    size_t index = path_.find(".db");
-    if (index == std::string::npos) {
+    size_t index = path_.find_last_of(".db");
+    if (index != path_.size() - 1) {
       PEDRODB_ERROR("db filename[{}] error", path_);
       return Status::kInvalidArgument;
     }
 
-    name_ = path_.substr(0, index);
+    name_ = path_.substr(0, path_.size() - 3);
 
     File::OpenOption option{.mode = File::OpenMode::kReadWrite, .create = 0777};
     file_ = File::Open(path_.c_str(), option);

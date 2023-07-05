@@ -137,7 +137,7 @@ int64_t File::Fill(File &file, char ch, uint64_t n) {
   uint64_t total = 0;
   uint64_t buf_size = buf.size();
   while (total < n) {
-    ssize_t w = file.Write(buf.data(), std::min(n - total, buf_size));
+    ssize_t w = file.Pwrite(total, buf.data(), std::min(n - total, buf_size));
     if (w <= 0) {
       return -1;
     }
@@ -166,6 +166,44 @@ Error File::Remove(const char *name) {
     return Error{errno};
   }
   return Error::Success();
+}
+
+ssize_t File::Preadv(uint64_t offset, std::string_view *buf, size_t n) {
+  struct iovec *io;
+  std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
+  if (n * sizeof(struct iovec) <= 65536) {
+    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+  } else {
+    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    cleaner.reset(io);
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_len = buf[i].size();
+  }
+
+  return ::preadv64(fd_, io, static_cast<int>(n),
+                    static_cast<__off64_t>(offset));
+}
+
+ssize_t File::Pwritev(uint64_t offset, std::string_view *buf, size_t n) {
+  struct iovec *io;
+  std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
+  if (n * sizeof(struct iovec) <= 65536) {
+    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+  } else {
+    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    cleaner.reset(io);
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_len = buf[i].size();
+  }
+
+  return ::pwritev64(fd_, io, static_cast<int>(n),
+                     static_cast<__off64_t>(offset));
 }
 
 Error GetFileSize(const char *filename, uint64_t *n) {

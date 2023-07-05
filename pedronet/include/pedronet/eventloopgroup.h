@@ -20,6 +20,8 @@ class EventLoopGroup : public Executor {
 
   size_t next() noexcept;
 
+  void HandleJoin();
+
 public:
   explicit EventLoopGroup(size_t threads)
       : loops_(threads), threads_(threads), size_(threads), next_(0) {}
@@ -39,11 +41,11 @@ public:
     return group;
   }
 
-  ~EventLoopGroup() { Join(); }
+  ~EventLoopGroup() override { HandleJoin(); }
 
   EventLoop &Next() { return loops_[next()]; }
 
-  void Join();
+  void Join() override;
 
   void Schedule(Callback cb) override { Next().Schedule(std::move(cb)); }
 
@@ -54,7 +56,7 @@ public:
 
   void ScheduleCancel(uint64_t id) override;
 
-  void Close();
+  void Close() override;
 };
 
 } // namespace pedronet

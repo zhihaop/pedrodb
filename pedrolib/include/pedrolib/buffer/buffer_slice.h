@@ -83,23 +83,8 @@ public:
     return w;
   }
 
-  size_t ReadIndex() override { return read_index_; }
-  size_t WriteIndex() override { return write_index_; }
-
-  size_t Peek(char *data, size_t n) override {
-    n = std::min(n, ReadableBytes());
-    memcpy(data, data_ + read_index_, n);
-    return n;
-  }
-
-  size_t Find(std::string_view sv) override {
-    std::string_view view{data_ + read_index_, size_};
-    size_t n = view.find(sv);
-    if (n == std::string_view::npos) {
-      return n;
-    }
-    return n + read_index_;
-  }
+  const char *ReadIndex() override { return data_ + read_index_; }
+  char *WriteIndex() override { return data_ + write_index_; }
 };
 } // namespace pedrolib
 

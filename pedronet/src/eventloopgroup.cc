@@ -12,14 +12,8 @@ size_t EventLoopGroup::next() noexcept {
     return c;
   }
 }
-void EventLoopGroup::Join() {
-  for (auto &t : threads_) {
-    if (t.joinable()) {
-      t.join();
-    }
-  }
-  threads_.clear();
-}
+void EventLoopGroup::Join() { HandleJoin(); }
+
 uint64_t EventLoopGroup::ScheduleAfter(Duration delay, Callback cb) {
   size_t loop_id = next();
   uint64_t timer_id = loops_[loop_id].ScheduleAfter(delay, std::move(cb));
@@ -42,5 +36,13 @@ void EventLoopGroup::Close() {
   for (auto &loop : loops_) {
     loop.Close();
   }
+}
+void EventLoopGroup::HandleJoin() {
+  for (auto &t : threads_) {
+    if (t.joinable()) {
+      t.join();
+    }
+  }
+  threads_.clear();
 }
 } // namespace pedronet

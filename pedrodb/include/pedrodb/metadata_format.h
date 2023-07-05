@@ -29,14 +29,14 @@ struct MetadataHeader {
     }
 
     name.resize(length);
-    buffer->Retrieve(&name, name.size());
+    buffer->Retrieve(name.data(), name.size());
     return true;
   }
 
   bool Pack(Buffer *buffer) const {
     buffer->AppendInt(timestamp);
     buffer->AppendInt(static_cast<uint32_t>(name.size()));
-    buffer->Append(name);
+    buffer->Append(name.data(), name.size());
     return true;
   }
 };

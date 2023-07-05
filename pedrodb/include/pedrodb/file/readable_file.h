@@ -31,6 +31,10 @@ public:
     return file_.Pread(offset, data, length);
   }
 
+  ssize_t Readv(uint64_t offset, std::string_view *io, size_t n) {
+    return file_.Preadv(offset, io, n);
+  }
+
   uint64_t Size() const noexcept { return size_; }
 
   Error GetError() { return file_.GetError(); }

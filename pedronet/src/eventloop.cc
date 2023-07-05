@@ -105,4 +105,10 @@ EventLoop::EventLoop(std::unique_ptr<Selector> selector)
 
   PEDRONET_TRACE("create event loop");
 }
+
+void EventLoop::Join() {
+  // TODO check joinable.
+  close_latch_.Await();
+}
+
 } // namespace pedronet

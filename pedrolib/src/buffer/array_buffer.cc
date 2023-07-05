@@ -42,14 +42,7 @@ ssize_t ArrayBuffer::Append(File *source) {
   Append(buf, r - writable);
   return r;
 }
-size_t ArrayBuffer::Find(std::string_view sv) {
-  std::string_view view{buf_.data() + read_index_, ReadableBytes()};
-  size_t n = view.find(sv);
-  if (n == std::string_view::npos) {
-    return n;
-  }
-  return n + read_index_;
-}
+
 size_t ArrayBuffer::Append(const char *data, size_t n) {
   EnsureWriteable(n);
   memcpy(buf_.data() + write_index_, data, n);
@@ -62,6 +55,7 @@ size_t ArrayBuffer::Retrieve(char *data, size_t n) {
   Retrieve(n);
   return n;
 }
+
 ssize_t ArrayBuffer::Retrieve(File *target) {
   ssize_t w = target->Write(buf_.data() + read_index_, ReadableBytes());
   if (w > 0) {
@@ -69,22 +63,20 @@ ssize_t ArrayBuffer::Retrieve(File *target) {
   }
   return w;
 }
+
 size_t ArrayBuffer::Append(Buffer *buffer) {
   EnsureWriteable(buffer->ReadableBytes());
   size_t r = buffer->Retrieve(buf_.data() + write_index_, WritableBytes());
   Append(r);
   return r;
 }
-size_t ArrayBuffer::Peek(char *data, size_t n) {
-  n = std::min(n, ReadableBytes());
-  memcpy(data, buf_.data() + read_index_, n);
-  return n;
-}
+
 size_t ArrayBuffer::Retrieve(Buffer *buffer) {
   size_t w = buffer->Append(buf_.data() + read_index_, ReadableBytes());
   Retrieve(w);
   return w;
 }
+
 void ArrayBuffer::Retrieve(size_t n) {
   read_index_ = std::min(read_index_ + n, write_index_);
   if (read_index_ == write_index_) {

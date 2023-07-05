@@ -47,14 +47,9 @@ public:
 
   size_t Retrieve(Buffer *buffer) override;
 
-  size_t ReadIndex() override { return read_index_; }
-  size_t WriteIndex() override { return write_index_; }
-
-  char *Data() { return buf_.data(); }
-
-  size_t Peek(char *data, size_t n) override;
-
-  size_t Find(std::string_view sv) override;
+  const char *ReadIndex() override { return buf_.data() + read_index_; }
+  
+  char *WriteIndex() override { return buf_.data() + write_index_; }
 };
 } // namespace pedrolib
 

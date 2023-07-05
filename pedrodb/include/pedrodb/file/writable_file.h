@@ -5,12 +5,14 @@
 
 namespace pedrodb {
 class WritableFile : noncopyable {
+  ArrayBuffer buffer_{};
   uint64_t offset_{};
   File file_{};
 
 public:
   ~WritableFile() {
     if (file_.Valid()) {
+      Flush();
       file_.Sync();
     }
   }
@@ -37,35 +39,48 @@ public:
     return Status::kOk;
   }
 
-  void SetOffset(uint64_t offset) { offset_ = offset; }
-
-  Error Reserve(size_t bytes) {
+  Error Fill(size_t bytes) {
     if (file_.Valid()) {
-      int64_t cur = file_.Seek(0, File::Whence::kSeekCur);
-      if (cur < 0) {
-        return file_.GetError();
-      }
       if (File::Fill(file_, 0, bytes) < 0) {
-        return file_.GetError();
-      }
-      if (file_.Seek(cur, File::Whence::kSeekSet) < 0) {
         return file_.GetError();
       }
     }
     return Error::Success();
   }
 
-  uint64_t GetOffSet() const noexcept { return offset_; }
-
-  ssize_t Write(pedrolib::Buffer *buffer) {
-    ssize_t w = buffer->Retrieve(&file_);
-    if (w > 0) {
-      offset_ += w;
-    }
-    return w;
+  uint64_t GetOffSet() const noexcept {
+    return offset_; 
   }
 
-  Error Flush() { return file_.Sync(); }
+  Error Write(pedrolib::Buffer *buffer) {
+    if (buffer_.ReadableBytes() + buffer->ReadableBytes() > kBlockSize) {
+      std::string_view sv[2]{{buffer_.ReadIndex(), buffer_.ReadableBytes()},
+                             {buffer->ReadIndex(), buffer->ReadableBytes()}};
+      ssize_t w = file_.Writev(sv, 2);
+      if (w < 0) {
+        return file_.GetError();
+      }
+      offset_ += buffer->ReadableBytes();
+      buffer_.Retrieve(buffer_.ReadableBytes());
+      buffer->Retrieve(buffer->ReadableBytes());
+      return Error::Success(); return Error::Success();
+    }
+
+    offset_ += buffer->ReadableBytes();
+    buffer_.Append(buffer);
+    return Error::Success();
+  }
+
+  Error Sync() { return file_.Sync(); }
+
+  Error Flush() {
+    if (buffer_.ReadableBytes()) {
+      if (buffer_.Retrieve(&file_) < 0) {
+        return file_.GetError();
+      }
+    }
+    return Error::Success();
+  }
 };
 
 } // namespace pedrodb

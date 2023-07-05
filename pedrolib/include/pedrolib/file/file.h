@@ -55,10 +55,14 @@ public:
   virtual ssize_t Writev(std::string_view *buf, size_t n) noexcept;
 
   virtual ssize_t Pread(uint64_t offset, void *buf, size_t n);
+  
+  virtual ssize_t Preadv(uint64_t offset, std::string_view *buf, size_t n);
 
   virtual int64_t Seek(uint64_t offset, Whence whence);
 
   virtual ssize_t Pwrite(uint64_t offset, const void *buf, size_t n);
+  
+  virtual ssize_t Pwritev(uint64_t offset, std::string_view *buf, size_t n);
 
   bool Valid() const noexcept { return fd_ != kInvalid; }
 

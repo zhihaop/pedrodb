@@ -14,8 +14,8 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <pedrolib/executor/thread_pool_executor.h>
-#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -33,7 +33,7 @@ struct CompactionState {
 };
 
 class DBImpl : public DB {
-  mutable std::shared_mutex mu_;
+  mutable std::mutex mu_;
 
   Options options_;
   ArrayBuffer buffer_;
@@ -53,21 +53,28 @@ class DBImpl : public DB {
 
   Status GetActiveFile(WritableFile **file, uint32_t *id, size_t record_length);
 
-  Status HandlePut(const WriteOptions &options, const std::string &key,
-                     std::string_view value);
+  bool CheckStealRecord(const std::string &key, ValueLocation location);
+
 public:
   ~DBImpl() override;
 
   explicit DBImpl(const Options &options, const std::string &name);
+
+  Status HandlePut(const WriteOptions &options, const std::string &key,
+                   std::string_view value);
+
+  auto AcquireLock() const { return std::unique_lock{mu_}; }
+
+  Status FetchRecord(ReadableFile *file, ValueMetadata metadata,
+                     std::string *value);
+
+  Status Flush();
 
   Status Compact() override;
 
   double CacheHitRatio() const { return read_cache_->HitRatio(); }
 
   Status Init();
-
-  auto AcquireLock() const { return std::unique_lock{mu_}; }
-  auto AcquireReadLock() const { return std::shared_lock{mu_}; }
 
   Status Get(const ReadOptions &options, const std::string &key,
              std::string *value) override;

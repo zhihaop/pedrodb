@@ -34,12 +34,8 @@ public:
 
   size_t Retrieve(Buffer *buffer) override;
 
-  size_t ReadIndex() override { return read_index_; }
-  size_t WriteIndex() override { return size_; }
-  size_t Peek(char *data, size_t n) override;
-
-  size_t Find(std::string_view sv) override;
-
+  const char *ReadIndex() override { return data_ + read_index_; }
+  char *WriteIndex() override { return const_cast<char *>(data_ + size_); }
   size_t Retrieve(std::string_view *sv, size_t n) noexcept {
     n = std::min(ReadableBytes(), n);
     *sv = std::string_view{data_ + read_index_, n};

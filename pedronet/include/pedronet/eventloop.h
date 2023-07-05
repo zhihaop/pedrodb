@@ -10,7 +10,9 @@
 #include "pedronet/event.h"
 #include "pedronet/selector/selector.h"
 #include "pedronet/timer_queue.h"
+
 #include <atomic>
+#include <pedrolib/concurrent/latch.h>
 
 namespace pedronet {
 
@@ -28,6 +30,8 @@ class EventLoop : public Executor {
 
   std::atomic_int32_t state_{1};
   std::unordered_map<Channel *, Callback> channels_;
+
+  pedrolib::Latch close_latch_{1};
 
   int32_t state() const noexcept {
     return state_.load(std::memory_order_acquire);
@@ -72,9 +76,14 @@ public:
 
   bool Closed() const noexcept { return state() == 0; }
 
-  void Close();
+  void Close() override;
 
   void Loop();
+
+  // TODO join before exit.
+  ~EventLoop() override = default;
+
+  void Join() override;
 };
 
 } // namespace pedronet

@@ -7,8 +7,9 @@
 
 namespace pedrodb {
 
-struct DB : pedrolib::noncopyable {
-  static Status Open(const Options &options, const std::string &name, std::shared_ptr<DB> *db);
+struct DB : pedrolib::noncopyable, pedrolib::nonmovable {
+  static Status Open(const Options &options, const std::string &name,
+                     std::shared_ptr<DB> *db);
 
   DB() = default;
   virtual ~DB() = default;
@@ -21,7 +22,7 @@ struct DB : pedrolib::noncopyable {
 
   virtual Status Delete(const WriteOptions &options,
                         const std::string &key) = 0;
-  
+
   virtual Status Compact() = 0;
 };
 } // namespace pedrodb

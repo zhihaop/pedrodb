@@ -17,40 +17,60 @@ struct RecordView : public RecordHeader {
 class RecordIterator {
   ReadableFile *file_;
   RecordView view{};
-  size_t offset_;
-  ArrayBuffer buffer_;
+  size_t offset_{};
+  size_t size_{};
+  size_t buffer_offset_{};
+  Buffer *buffer_;
+
+  void FetchBuffer(size_t size) {
+    if (buffer_->ReadableBytes() >= size) {
+      return;
+    }
+
+    if (buffer_offset_ >= size_) {
+      return;
+    }
+
+    size_t r = std::min(size_ - buffer_offset_, (size_t)kPageSize);
+    buffer_->EnsureWriteable(r);
+    file_->Read(buffer_offset_, buffer_->WriteIndex(), r);
+    buffer_offset_ += r;
+    buffer_->Append(r);
+  }
 
 public:
-  explicit RecordIterator(ReadableFile *file) : file_(file), offset_(0) {}
+  explicit RecordIterator(ReadableFile *file, Buffer *buffer)
+      : file_(file), size_(file_->Size()), buffer_(buffer) {}
+
+  explicit RecordIterator(ReadableFile *file, size_t size, Buffer *buffer)
+      : file_(file), size_(size), buffer_(buffer) {}
+
+  void SetOffset(size_t offset) {
+    buffer_->Reset();
+    buffer_offset_ = offset_ = offset;
+  }
 
   bool Valid() noexcept {
-    if (offset_ + RecordHeader::SizeOf() >= file_->Size()) {
+    FetchBuffer(RecordHeader::SizeOf());
+    if (buffer_->ReadableBytes() < RecordHeader::SizeOf()) {
       return false;
     }
 
-    buffer_.Reset();
-    buffer_.EnsureWriteable(RecordHeader::SizeOf());
-    file_->Read(offset_, buffer_.Data() + buffer_.WriteIndex(),
-                RecordHeader::SizeOf());
-    buffer_.Append(RecordHeader::SizeOf());
+    RecordHeader::Unpack(&view, buffer_);
+    if (view.type == RecordHeader::kEmpty) {
+      return false;
+    }
 
-    RecordHeader::Unpack(&view, &buffer_);
-    return view.type != RecordHeader::kEmpty;
+    FetchBuffer(view.key_size + view.value_size);
+    return buffer_->ReadableBytes() >= view.key_size + view.value_size;
   }
 
   RecordView Next() noexcept {
-    buffer_.Reset();
-    buffer_.EnsureWriteable(view.key_size + view.value_size);
-    file_->Read(offset_ + RecordHeader::SizeOf(),
-                buffer_.Data() + buffer_.WriteIndex(),
-                view.key_size + view.value_size);
-    buffer_.Append(view.key_size + view.value_size);
+    view.key = {buffer_->ReadIndex(), view.key_size};
+    buffer_->Retrieve(view.key_size);
 
-    view.key = {buffer_.Data() + buffer_.ReadIndex(), view.key_size};
-
-    buffer_.Retrieve(view.key_size);
-    view.value = {buffer_.Data() + buffer_.ReadIndex(), view.value_size};
-    buffer_.Retrieve(view.value_size);
+    view.value = {buffer_->ReadIndex(), view.value_size};
+    buffer_->Retrieve(view.value_size);
 
     view.offset = offset_;
     view.length = RecordHeader::SizeOf() + view.key_size + view.value_size;

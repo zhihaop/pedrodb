@@ -4,7 +4,7 @@ namespace pedrodb {
 
 Status DBImpl::Get(const ReadOptions &options, const std::string &key,
                    std::string *value) {
-  auto rlock = AcquireReadLock();
+  auto lock = AcquireLock();
 
   auto it = indices_.find(key);
   if (it == indices_.end()) {
@@ -26,39 +26,7 @@ Status DBImpl::Get(const ReadOptions &options, const std::string &key,
     }
   }
 
-  ArrayBuffer buffer;
-  buffer.EnsureWriteable(metadata.length);
-  file->Read(metadata.location.offset, buffer.Data() + buffer.WriteIndex(),
-             metadata.length);
-  buffer.Append(metadata.length);
-
-  RecordHeader header{};
-  if (!RecordHeader::Unpack(&header, &buffer)) {
-    PEDRODB_ERROR("failed to unpack header");
-    return Status::kIOError;
-  }
-
-  std::string key0(header.key_size, 0);
-  buffer.Retrieve(key0.data(), key0.size());
-  if (key0 != key) {
-    PEDRODB_ERROR("key is not match: expected[{}], actual[{}]", key, key0);
-    return Status::kCorruption;
-  }
-
-  if (header.timestamp != metadata.timestamp) {
-    PEDRODB_ERROR("timestamp is not consistent: expect[{}], actual[{}]",
-                  metadata.timestamp, header.timestamp);
-    return Status::kCorruption;
-  }
-
-  if (header.type == RecordHeader::kSet) {
-    value->resize(header.value_size, 0);
-    buffer.Retrieve(value->data(), header.value_size);
-    read_cache_->UpdateCache(metadata.location, *value);
-    return Status::kOk;
-  }
-
-  return Status::kNotFound;
+  return FetchRecord(file.get(), metadata, value);
 }
 
 Status DBImpl::GetActiveFile(WritableFile **file, uint32_t *id,
@@ -130,17 +98,7 @@ Status DBImpl::Init() {
   PEDRODB_INFO("crash recover finished");
 
   sync_worker_ = executor_->ScheduleEvery(
-      options_.sync_interval, options_.sync_interval, [this] {
-        auto lock = AcquireLock();
-        auto fm_lock = file_manager_->AcquireLock();
-
-        WritableFile *file;
-        uint32_t id;
-        file_manager_->GetActiveFile(&file, &id);
-
-        PEDRODB_INFO("active file {} sync", id);
-        file->Flush();
-      });
+      options_.sync_interval, options_.sync_interval, [this] { Flush(); });
 
   return Status::kOk;
 }
@@ -176,7 +134,8 @@ Status DBImpl::RebuildIndices(uint32_t id) {
     return stat;
   }
 
-  auto iter = RecordIterator(file.get());
+  buffer_.Reset();
+  auto iter = RecordIterator(file.get(), &buffer_);
   while (iter.Valid()) {
     auto record = iter.Next();
     ValueLocation location{
@@ -204,27 +163,26 @@ Status DBImpl::RebuildIndices(uint32_t id) {
 
 Status DBImpl::WriteDisk(Buffer *buf, WritableFile *file,
                          WriteOptions options) {
-  size_t expected = buf->ReadableBytes();
-  ssize_t w = file->Write(buf);
-  if (w != expected) {
-    if (w < 0) {
-      PEDRODB_ERROR("failed to write record: {}", Error{errno});
-    } else {
-      PEDRODB_ERROR("failed to write record: write[{}], expected[{}]", w,
-                    expected);
-    }
+  auto err = file->Write(buf);
+  if (!err.Empty()) {
+    PEDRODB_ERROR("failed to write record: {}", err);
     return Status::kIOError;
   }
 
   if (options.sync) {
-    auto err = file->Flush();
+    err = file->Flush();
     if (!err.Empty()) {
-      PEDRODB_ERROR("failed to flush data");
+      PEDRODB_ERROR("failed to flush data: {}", err);
+    }
+
+    err = file->Sync();
+    if (!err.Empty()) {
+      PEDRODB_ERROR("failed to sync data: {}", err);
       return Status::kIOError;
     }
   }
 
-  auto err = metadata_->Flush();
+  err = metadata_->Flush();
   if (!err.Empty()) {
     PEDRODB_ERROR("failed to flush metadata");
     return Status::kIOError;
@@ -249,45 +207,70 @@ void DBImpl::Compact(uint32_t id) {
 
   PEDRODB_INFO("start compacting {}", id);
 
-  std::unordered_map<std::string, std::string> data;
+  struct CompactingValue {
+    std::string value;
+    uint32_t offset{};
+  };
+
+  std::unordered_map<std::string, CompactingValue> values;
   std::string key;
   size_t records{};
+  ArrayBuffer buffer;
+  for (auto iter = RecordIterator(file.get(), &buffer); iter.Valid();
+       records++) {
+    auto next = iter.Next();
+    key.assign(next.key);
+    auto &value = values[key];
+    value.value.assign(next.value);
+    value.offset = next.offset;
+  }
+
+  const size_t kBatchSize = 4096;
+
+  // batch remove steal records.
   {
-    auto rlock = AcquireReadLock();
-    for (auto iter = RecordIterator(file.get()); iter.Valid(); records++) {
-      auto next = iter.Next();
-
-      key.assign(next.key);
-
-      auto it = indices_.find(key);
-      if (it == indices_.end()) {
-        continue;
+    auto last = values.begin();
+    while (last != values.end()) {
+      auto next = last;
+      for (int i = 0; i < kBatchSize && next != values.end(); ++i) {
+        ++next;
       }
 
-      auto metadata = it->second;
-      if (metadata.location.id != id) {
-        continue;
+      auto lock = AcquireLock();
+      for (auto it = last; it != next;) {
+        ValueLocation location{};
+        location.id = id;
+        location.offset = it->second.offset;
+        if (CheckStealRecord(it->first, location)) {
+          it = values.erase(it);
+        } else {
+          ++it;
+        }
       }
-
-      if (metadata.location.offset != next.offset) {
-        continue;
-      }
-
-      data[key].assign(next.value);
+      last = next;
     }
   }
 
-  if (records == data.size()) {
-    return;
-  }
-
-  // put data into active file.
+  // batch append valid record.
   {
-    auto lock = AcquireLock();
-    for (auto &[k, v] : data) {
-      HandlePut({}, k, v);
+    auto last = values.begin();
+    while (last != values.end()) {
+      auto next = last;
+      for (int i = 0; i < kBatchSize && next != values.end(); ++i) {
+        ++next;
+      }
+
+      auto lock = AcquireLock();
+      for (auto it = last; it != next; ++it) {
+        WriteOptions options{.sync = it == values.end()};
+        HandlePut(options, it->first, it->second.value);
+        // update compaction state.
+        if (it == values.end()) {
+          compaction_state_.erase(id);
+        }
+      }
+      last = next;
     }
-    compaction_state_.erase(id);
   }
 
   // remove file.
@@ -297,6 +280,7 @@ void DBImpl::Compact(uint32_t id) {
     PEDRODB_IGNORE_ERROR(file_manager_->RemoveDataFile(id));
   }
 }
+
 Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
                          std::string_view value) {
 
@@ -341,7 +325,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
   buffer_.Append(key.data(), key.size());
   buffer_.Append(value.data(), value.size());
   status = WriteDisk(&buffer_, active, options);
-  
+
   if (status != Status::kOk) {
     return status;
   }
@@ -365,5 +349,98 @@ Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
   indices_.emplace_hint(it, key, metadata);
   read_cache_->UpdateCache(metadata.location, value);
   return Status::kOk;
+}
+
+bool DBImpl::CheckStealRecord(const std::string &key, ValueLocation location) {
+  auto it = indices_.find(key);
+  if (it == indices_.end()) {
+    return true;
+  }
+
+  auto metadata = it->second;
+  if (metadata.location.id != location.id) {
+    return true;
+  }
+
+  if (metadata.location.offset != location.offset) {
+    return true;
+  }
+
+  return false;
+}
+
+Status DBImpl::Flush() {
+  auto lock = AcquireLock();
+  auto fm_lock = file_manager_->AcquireLock();
+
+  WritableFile *file;
+  uint32_t id;
+  file_manager_->GetActiveFile(&file, &id);
+
+  // TODO impl write guard.
+  PEDRODB_INFO("active file {} sync", id);
+  auto err = file->Flush();
+  if (!err.Empty()) {
+    PEDRODB_ERROR("failed to flush file: {}", err);
+    return Status::kIOError;
+  }
+
+  err = file->Sync();
+  if (!err.Empty()) {
+    PEDRODB_ERROR("failed to sync file: {}", err);
+    return Status::kIOError;
+  }
+  return Status::kOk;
+}
+
+Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
+                           std::string *value) {
+  ValueLocation l = metadata.location;
+  uint32_t filesize = file->Size();
+
+  uint32_t sentry = std::min(l.offset + metadata.length, filesize);
+
+  if (options_.prefetch) {
+    sentry = std::min(sentry - (sentry % kPageSize) + kPageSize, filesize);
+  }
+
+  buffer_.Reset();
+  std::string key;
+  auto it = RecordIterator(file, sentry, &buffer_);
+  it.SetOffset(l.offset);
+
+  // read the whole page.
+  bool first = true;
+  bool found = false;
+  while (it.Valid()) {
+    auto next = it.Next();
+    if (next.type != RecordHeader::kSet) {
+      continue;
+    }
+
+    if (metadata.timestamp != next.timestamp) {
+      continue;
+    }
+
+    if (first) {
+      read_cache_->UpdateCache(l, next.value);
+      value->assign(next.value);
+      first = false;
+      found = true;
+      continue;
+    }
+
+    key.assign(next.key);
+    ValueLocation loc{};
+    loc.id = l.id;
+    loc.offset = next.offset;
+    if (CheckStealRecord(key, loc)) {
+      continue;
+    }
+
+    read_cache_->UpdateCache(loc, next.value);
+  }
+
+  return found ? Status::kOk : Status::kNotFound;
 }
 } // namespace pedrodb
