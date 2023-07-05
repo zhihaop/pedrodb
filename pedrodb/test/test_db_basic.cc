@@ -13,6 +13,7 @@ using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
 std::string RandomString(const std::string &prefix, size_t bytes) {
+
   std::string s = prefix;
   s.reserve(s.size() + bytes);
   for (size_t i = 0; i < bytes; ++i) {
@@ -50,18 +51,18 @@ void parallel_for(pedrolib::Executor &executor, int from, int to,
 int main() {
   std::shared_ptr<DB> db;
   Options options{};
+  options.read_cache_bytes = 0;
 
   Logger logger("test");
 
   pedrodb::logger::SetLevel(Logger::Level::kWarn);
 
-  auto status =
-      pedrodb::SegmentDB::Open(options, "/home/zhihaop/db/test.db", 1, &db);
+  auto status = pedrodb::DB::Open(options, "/home/zhihaop/db/test.db", &db);
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
 
-//  db->Compact();
+  db->Compact();
 
   size_t n_puts = 1000000;
   size_t n_delete = 0;
@@ -72,14 +73,14 @@ int main() {
   pedrolib::ThreadPoolExecutor executor(1);
 
   // put
-  parallel_for(executor, 0, n_puts, [&](int i) {
-    std::string key = fmt::format("key{}", i);
-    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
-    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
-    if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}", key, value);
-    }
-  });
+  //  parallel_for(executor, 0, n_puts, [&](int i) {
+  //    std::string key = fmt::format("key{}", i);
+  //    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+  //    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+  //    if (stat != Status::kOk) {
+  //      logger.Fatal("failed to write {}, {}", key, value);
+  //    }
+  //  });
 
   std::normal_distribution<double> d(5.0, 2.0);
   std::mt19937_64 g;

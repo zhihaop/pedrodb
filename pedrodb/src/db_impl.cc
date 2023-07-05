@@ -2,31 +2,12 @@
 
 namespace pedrodb {
 
-Status DBImpl::Get(const ReadOptions &options, const std::string &key,
+using Executor = pedrolib::ThreadPoolExecutor;
+
+Status DBImpl::Get(const ReadOptions &options, std::string_view key,
                    std::string *value) {
   auto lock = AcquireLock();
-
-  auto it = indices_.find(key);
-  if (it == indices_.end()) {
-    return Status::kNotFound;
-  }
-
-  auto metadata = it->second;
-  if (read_cache_->Read(metadata.location, value)) {
-    return Status::kOk;
-  }
-
-  ReadableFileGuard file;
-  {
-    auto _ = file_manager_->AcquireLock();
-    auto stat = file_manager_->AcquireDataFile(metadata.location.id, &file);
-    if (stat != Status::kOk) {
-      PEDRODB_ERROR("cannot get file {}", metadata.location.id);
-      return stat;
-    }
-  }
-
-  return FetchRecord(file.get(), metadata, value);
+  return HandleGet(options, GetHash(key), key, value);
 }
 
 Status DBImpl::GetActiveFile(WritableFile **file, uint32_t *id,
@@ -60,19 +41,19 @@ void DBImpl::UpdateCompactionHint(ValueMetadata metadata) {
   }
 }
 
-Status DBImpl::Put(const WriteOptions &options, const std::string &key,
+Status DBImpl::Put(const WriteOptions &options, std::string_view key,
                    std::string_view value) {
   auto lock = AcquireLock();
-  return HandlePut(options, key, value);
+  return HandlePut(options, GetHash(key), key, value);
 }
 
-Status DBImpl::Delete(const WriteOptions &options, const std::string &key) {
+Status DBImpl::Delete(const WriteOptions &options, std::string_view key) {
   auto lock = AcquireLock();
-  return HandlePut(options, key, {});
+  return HandlePut(options, GetHash(key), key, {});
 }
 
 Status DBImpl::Init() {
-  Status status = metadata_->Init();
+  Status status = metadata_manager_->Init();
   if (status != Status::kOk) {
     return status;
   }
@@ -82,12 +63,16 @@ Status DBImpl::Init() {
     return status;
   }
 
+  status = version_set_->Init();
+  if (status != Status::kOk) {
+    return status;
+  }
+
   read_cache_ = std::make_unique<ReadCache>(options_.read_cache_bytes);
   read_cache_->UpdateActiveID(file_manager_->GetActiveFileID());
-  executor_ =
-      std::make_unique<pedrolib::ThreadPoolExecutor>(options_.executor_threads);
+  executor_ = std::make_unique<Executor>(options_.executor_threads);
 
-  status = Recover();
+  status = Recovery();
   if (status != Status::kOk) {
     return status;
   }
@@ -99,20 +84,24 @@ Status DBImpl::Init() {
 }
 
 Status DBImpl::Compact() {
-  auto files = metadata_->GetFiles();
-  std::sort(files.begin(), files.end());
-  for (int i = 0; i < files.size(); ++i) {
-    Compact(i);
+  std::vector<uint32_t> files;
+  {
+    auto _ = metadata_manager_->AcquireLock();
+    auto all_files = metadata_manager_->GetFiles();
+    files.assign(all_files.begin(), all_files.end());
   }
-  metadata_->Flush();
+  for (auto f : files) {
+    Compact(f);
+  }
   return Status::kOk;
 }
 
 DBImpl::DBImpl(const Options &options, const std::string &name)
     : options_(options) {
-  metadata_ = std::make_unique<MetadataManager>(name);
-  file_manager_ =
-      std::make_unique<FileManager>(metadata_.get(), options.max_open_files);
+  metadata_manager_ = std::make_unique<MetadataManager>(name);
+  file_manager_ = std::make_unique<FileManager>(metadata_manager_.get(),
+                                                options.max_open_files);
+  version_set_ = std::make_unique<VersionSet>(metadata_manager_.get());
 }
 
 DBImpl::~DBImpl() {
@@ -122,13 +111,13 @@ DBImpl::~DBImpl() {
   }
 }
 
-Status DBImpl::RebuildIndices(uint32_t id) {
+Status DBImpl::Recovery(uint32_t id) {
   ReadableFileGuard file;
   auto stat = file_manager_->AcquireDataFile(id, &file);
   if (stat != Status::kOk) {
     return stat;
   }
-  
+
   size_t records = 0;
   buffer_.Reset();
   auto iter = RecordIterator(file.get(), &buffer_);
@@ -145,17 +134,25 @@ Status DBImpl::RebuildIndices(uint32_t id) {
         .timestamp = record.timestamp,
     };
 
+    KeyValueMetadata kv_metadata{.key = std::string{record.key},
+                                 .metadata = metadata};
+
+    size_t h = GetHash(record.key);
     if (record.type == RecordHeader::kSet) {
-      indices_[std::string{record.key}] = metadata;
+      indices_.emplace(h, kv_metadata);
       read_cache_->UpdateCache(location, record.value);
       records++;
     } else if (record.type == RecordHeader::kDelete) {
-      indices_.erase(std::string{record.key});
+      auto it = GetMetadataIterator(h, record.key);
+      if (it != indices_.end()) {
+        compaction_state_[id].unused += it->second.metadata.length;
+        indices_.erase(it);
+      }
       read_cache_->Remove(location);
       records--;
     }
   }
-  PEDRODB_WARN("crash recover success: file[{}], record[{}]", id, records);
+  PEDRODB_TRACE("crash recover success: file[{}], record[{}]", id, records);
   PEDRODB_IGNORE_ERROR(file_manager_->ReleaseDataFile(id));
   return Status::kOk;
 }
@@ -181,7 +178,6 @@ Status DBImpl::WriteDisk(Buffer *buf, WritableFile *file,
     }
   }
 
-  err = metadata_->Flush();
   if (!err.Empty()) {
     PEDRODB_ERROR("failed to flush metadata");
     return Status::kIOError;
@@ -204,44 +200,62 @@ void DBImpl::Compact(uint32_t id) {
     }
   }
 
+  // check compaction state.
+  {
+    auto lock = AcquireLock();
+    auto it = compaction_state_.find(id);
+    if (it == compaction_state_.end()) {
+      return;
+    }
+
+    it->second.compacting = true;
+  }
+
   PEDRODB_INFO("start compacting {}", id);
 
-  struct CompactingValue {
+  struct CompactingRecord {
+    std::string key;
     std::string value;
     uint32_t offset{};
   };
 
-  std::unordered_map<std::string, CompactingValue> values;
-  std::string key;
-  size_t records{};
+  std::unordered_multimap<size_t, CompactingRecord> records;
   ArrayBuffer buffer;
-  for (auto iter = RecordIterator(file.get(), &buffer); iter.Valid();
-       records++) {
+  for (auto iter = RecordIterator(file.get(), &buffer); iter.Valid();) {
     auto next = iter.Next();
-    key.assign(next.key);
-    auto &value = values[key];
-    value.value.assign(next.value);
-    value.offset = next.offset;
+    if (next.type != RecordHeader::kSet) {
+      continue;
+    }
+
+    CompactingRecord record{
+        .key = std::string{next.key},
+        .value = std::string{next.value},
+        .offset = next.offset,
+    };
+
+    size_t h = GetHash(next.key);
+    records.emplace(h, std::move(record));
   }
 
   const size_t kBatchSize = 4096;
 
   // batch remove steal records.
   {
-    auto last = values.begin();
-    while (last != values.end()) {
+    auto last = records.begin();
+    while (last != records.end()) {
       auto next = last;
-      for (int i = 0; i < kBatchSize && next != values.end(); ++i) {
+      for (int i = 0; i < kBatchSize && next != records.end(); ++i) {
         ++next;
       }
 
       auto lock = AcquireLock();
       for (auto it = last; it != next;) {
+        auto &[h, record] = *it;
         ValueLocation location{};
         location.id = id;
-        location.offset = it->second.offset;
-        if (CheckStealRecord(it->first, location)) {
-          it = values.erase(it);
+        location.offset = record.offset;
+        if (CheckStealRecord(h, record.key, location)) {
+          it = records.erase(it);
         } else {
           ++it;
         }
@@ -252,19 +266,20 @@ void DBImpl::Compact(uint32_t id) {
 
   // batch append valid record.
   {
-    auto last = values.begin();
-    while (last != values.end()) {
+    auto last = records.begin();
+    while (last != records.end()) {
       auto next = last;
-      for (int i = 0; i < kBatchSize && next != values.end(); ++i) {
+      for (int i = 0; i < kBatchSize && next != records.end(); ++i) {
         ++next;
       }
 
       auto lock = AcquireLock();
       for (auto it = last; it != next; ++it) {
-        WriteOptions options{.sync = it == values.end()};
-        HandlePut(options, it->first, it->second.value);
+        auto &[h, record] = *it;
+        WriteOptions options{.sync = it == records.end()};
+        HandlePut(options, h, record.key, record.value);
         // update compaction state.
-        if (it == values.end()) {
+        if (it == records.end()) {
           compaction_state_.erase(id);
         }
       }
@@ -280,8 +295,8 @@ void DBImpl::Compact(uint32_t id) {
   }
 }
 
-Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
-                         std::string_view value) {
+Status DBImpl::HandlePut(const WriteOptions &options, size_t h,
+                         std::string_view key, std::string_view value) {
 
   size_t record_length = RecordHeader::SizeOf() + key.size() + value.size();
   if (record_length > kMaxFileBytes) {
@@ -291,7 +306,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
 
   // check valid deletion.
   if (value.empty()) {
-    auto it = indices_.find(key);
+    auto it = GetMetadataIterator(h, key);
     if (it == indices_.end()) {
       return Status::kNotFound;
     }
@@ -304,7 +319,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
     return status;
   }
 
-  uint64_t timestamp = metadata_->AddVersion();
+  uint64_t timestamp = version_set_->IncreaseVersion();
 
   ValueMetadata metadata;
   metadata.timestamp = timestamp;
@@ -329,34 +344,39 @@ Status DBImpl::HandlePut(const WriteOptions &options, const std::string &key,
     return status;
   }
 
-  auto it = indices_.find(key);
+  auto it = GetMetadataIterator(h, key);
   // replace or delete.
   if (it != indices_.end()) {
-    UpdateCompactionHint(it->second);
-    read_cache_->Remove(it->second.location);
+    auto &info = it->second;
+    UpdateCompactionHint(info.metadata);
+    read_cache_->Remove(info.metadata.location);
 
     if (value.empty()) {
       indices_.erase(it);
     } else {
-      it->second = metadata;
+      info.metadata = metadata;
       read_cache_->UpdateCache(metadata.location, value);
     }
     return Status::kOk;
   }
 
   // insert.
-  indices_.emplace_hint(it, key, metadata);
+  indices_.emplace(h, KeyValueMetadata{
+                          .key = std::string{key},
+                          .metadata = metadata,
+                      });
   read_cache_->UpdateCache(metadata.location, value);
   return Status::kOk;
 }
 
-bool DBImpl::CheckStealRecord(const std::string &key, ValueLocation location) {
-  auto it = indices_.find(key);
+bool DBImpl::CheckStealRecord(size_t h, std::string_view key,
+                              ValueLocation location) {
+  auto it = GetMetadataIterator(h, key);
   if (it == indices_.end()) {
     return true;
   }
 
-  auto metadata = it->second;
+  auto metadata = it->second.metadata;
   if (metadata.location.id != location.id) {
     return true;
   }
@@ -394,9 +414,9 @@ Status DBImpl::Flush() {
 
 Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
                            std::string *value) {
+
   ValueLocation l = metadata.location;
   uint32_t filesize = file->Size();
-
   uint32_t sentry = std::min(l.offset + metadata.length, filesize);
 
   if (options_.prefetch) {
@@ -404,7 +424,6 @@ Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
   }
 
   buffer_.Reset();
-  std::string key;
   auto it = RecordIterator(file, sentry, &buffer_);
   it.SetOffset(l.offset);
 
@@ -429,11 +448,10 @@ Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
       continue;
     }
 
-    key.assign(next.key);
     ValueLocation loc{};
     loc.id = l.id;
     loc.offset = next.offset;
-    if (CheckStealRecord(key, loc)) {
+    if (CheckStealRecord(GetHash(next.key), next.key, loc)) {
       continue;
     }
 
@@ -443,21 +461,54 @@ Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
   return found ? Status::kOk : Status::kCorruption;
 }
 
-Status DBImpl::Recover() {
-  if (metadata_->GetFileCount() == 0) {
-    return Status::kOk;
-  }
-
-  auto files = metadata_->GetFiles();
+Status DBImpl::Recovery() {
+  auto all_files = metadata_manager_->GetFiles();
+  std::vector<uint32_t> files(all_files.begin(), all_files.end());
   std::sort(files.begin(), files.end());
+
   for (auto file : files) {
-    PEDRODB_WARN("crash recover: file {}", file);
-    auto status = RebuildIndices(file);
+    PEDRODB_TRACE("crash recover: file {}", file);
+    auto status = Recovery(file);
     if (status != Status::kOk) {
       return status;
     }
   }
-  file_manager_->Close(files.back());
+  file_manager_->ReleaseDataFile(files.back());
   return Status::kOk;
+}
+
+auto DBImpl::GetMetadataIterator(size_t h, std::string_view key)
+    -> decltype(indices_.begin()) {
+  auto [s, t] = indices_.equal_range(h);
+  for (auto it = s; it != t; ++it) {
+    if (it->second.key == key) {
+      return it;
+    }
+  }
+  return indices_.end();
+}
+Status DBImpl::HandleGet(const ReadOptions &options, size_t h,
+                         std::string_view key, std::string *value) {
+  auto it = GetMetadataIterator(h, key);
+  if (it == indices_.end()) {
+    return Status::kNotFound;
+  }
+
+  auto metadata = it->second.metadata;
+  if (read_cache_->Read(metadata.location, value)) {
+    return Status::kOk;
+  }
+
+  ReadableFileGuard file;
+  {
+    auto lock = file_manager_->AcquireLock();
+    auto stat = file_manager_->AcquireDataFile(metadata.location.id, &file);
+    if (stat != Status::kOk) {
+      PEDRODB_ERROR("cannot get file {}", metadata.location.id);
+      return stat;
+    }
+  }
+
+  return FetchRecord(file.get(), metadata, value);
 }
 } // namespace pedrodb

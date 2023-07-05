@@ -11,16 +11,21 @@
 
 namespace pedrodb {
 
-using ReadableFileGuard =
-    std::unique_ptr<ReadableFile, std::function<void(ReadableFile *)>>;
+using ReadableFileGuard = std::shared_ptr<ReadableFile>;
 
 class FileManager {
   mutable std::mutex mu_;
-  
+
   MetadataManager *metadata_;
 
-  pedrolib::lru::unordered_map<uint32_t, ReadableFile> open_files_;
-  std::unordered_map<uint32_t, ReadableFile> in_use_;
+  struct OpenFile {
+    uint32_t id{};
+    std::shared_ptr<ReadableFile> file;
+  };
+
+  // std::vector is faster than std::unordered_map and std::list in this size.
+  std::vector<OpenFile> open_files_;
+  const uint8_t max_open_files_;
 
   // always in use.
   std::unique_ptr<WritableFile> active_;
@@ -29,14 +34,12 @@ class FileManager {
   Status OpenActiveFile(WritableFile **file, uint32_t id);
 
 public:
-  FileManager(MetadataManager *metadata, uint16_t max_open_files)
-      : open_files_(max_open_files), metadata_(metadata) {}
+  FileManager(MetadataManager *metadata, uint8_t max_open_files)
+      : max_open_files_(max_open_files), metadata_(metadata) {}
 
   Status Init();
 
-  std::unique_lock<std::mutex> AcquireLock() const noexcept {
-    return std::unique_lock(mu_);
-  }
+  auto AcquireLock() const noexcept { return std::unique_lock(mu_); }
 
   Status GetActiveFile(WritableFile **file, uint32_t *id) noexcept {
     *file = active_.get();
@@ -52,12 +55,12 @@ public:
 
   Status AcquireDataFile(uint32_t id, ReadableFileGuard *file);
 
-  void Close(uint32_t id) { open_files_.erase(id); }
-
   Error RemoveDataFile(uint32_t id) {
-    Close(id);
-    metadata_->DeleteFile(id);
-    metadata_->Flush();
+    ReleaseDataFile(id);
+    {
+      auto _ = metadata_->AcquireLock();
+      PEDRODB_IGNORE_ERROR(metadata_->DeleteFile(id));
+    }
     return File::Remove(metadata_->GetDataFilePath(id).c_str());
   }
 };

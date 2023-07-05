@@ -12,32 +12,28 @@ namespace pedrodb {
 
 class MetadataManager {
   mutable std::mutex mu_;
-
-  uint32_t min_timestamp_{};
-  uint32_t max_timestamp_{};
+  uint32_t version_{};
   std::string name_;
   std::unordered_set<uint32_t> files_;
 
-  ArrayBuffer buffer_;
   File file_;
 
   const std::string path_;
 
   Status Recovery() {
-    buffer_.EnsureWriteable(File::Size(file_));
-    buffer_.Append(&file_);
+    ArrayBuffer buffer(File::Size(file_));
+    buffer.Append(&file_);
 
     MetadataHeader header;
-    header.UnPack(&buffer_);
-    min_timestamp_ = header.timestamp;
-    max_timestamp_ = min_timestamp_;
+    header.UnPack(&buffer);
+    version_ = header.version;
     name_ = header.name;
 
     PEDRODB_INFO("read database {}", name_);
 
-    while (buffer_.ReadableBytes()) {
+    while (buffer.ReadableBytes()) {
       MetadataChangeLogEntry logEntry;
-      logEntry.UnPack(&buffer_);
+      logEntry.UnPack(&buffer);
 
       if (logEntry.type == kCreateFile) {
         files_.emplace(logEntry.id);
@@ -52,13 +48,11 @@ class MetadataManager {
   Status CreateDatabase() {
     MetadataHeader header;
     header.name = name_;
-    header.timestamp = 0;
+    header.version = version_ = 0;
 
-    min_timestamp_ = 0;
-    max_timestamp_ = 0;
-
-    header.Pack(&buffer_);
-    buffer_.Retrieve(&file_);
+    ArrayBuffer buffer(MetadataHeader::SizeOf(name_.size()));
+    header.Pack(&buffer);
+    buffer.Retrieve(&file_);
     file_.Sync();
     return Status::kOk;
   }
@@ -97,36 +91,22 @@ public:
     return CreateDatabase();
   }
 
-  void AcquireVersion() {
-    if (min_timestamp_ == max_timestamp_) {
-      if (buffer_.WritableBytes()) {
-        buffer_.Retrieve(&file_);
-      }
-      PEDRODB_INFO("acquire timestamp");
-      uint32_t timestamp = htobe(max_timestamp_ + kBatchVersions);
-      file_.Pwrite(0, &timestamp, sizeof(timestamp));
-      file_.Sync();
-    }
+  auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
+
+  uint32_t AcquireVersion() {
+    PEDRODB_INFO("acquire timestamp");
+    version_ += kBatchVersions;
+    auto v = htobe(version_);
+    file_.Pwrite(0, &v, sizeof(v));
+    PEDRODB_IGNORE_ERROR(file_.Sync());
+    return version_;
   }
 
-  uint64_t AddVersion() {
-    std::unique_lock<std::mutex> lock(mu_);
-    AcquireVersion();
-    return ++min_timestamp_;
-  }
+  uint32_t GetCurrentVersion() const noexcept { return version_; }
 
-  bool ExistFile(uint32_t id) {
-    std::unique_lock<std::mutex> lock(mu_);
-    return files_.count(id);
-  }
-
-  std::vector<uint32_t> GetFiles() {
-    std::unique_lock<std::mutex> lock(mu_);
-    return {files_.begin(), files_.end()};
-  }
+  const auto &GetFiles() const noexcept { return files_; }
 
   Status CreateFile(uint32_t id) {
-    std::unique_lock<std::mutex> lock(mu_);
     if (files_.count(id)) {
       return Status::kOk;
     }
@@ -136,43 +116,36 @@ public:
     entry.type = kCreateFile;
     entry.id = id;
 
-    entry.Pack(&buffer_);
+    char buf[64];
+    BufferSlice slice(buf, sizeof(buf));
+    entry.Pack(&slice);
+    slice.Retrieve(&file_);
+
+    PEDRODB_IGNORE_ERROR(file_.Sync());
     return Status::kOk;
   }
 
   Status DeleteFile(uint32_t id) {
-    std::unique_lock<std::mutex> lock(mu_);
-    if (!files_.count(id)) {
+    auto it = files_.find(id);
+    if (it == files_.end()) {
       return Status::kOk;
     }
-    files_.erase(id);
+    files_.erase(it);
 
     MetadataChangeLogEntry entry;
     entry.type = kDeleteFile;
     entry.id = id;
 
-    entry.Pack(&buffer_);
+    char buf[64];
+    BufferSlice slice(buf, sizeof(buf));
+    entry.Pack(&slice);
+    slice.Retrieve(&file_);
+
+    PEDRODB_IGNORE_ERROR(file_.Sync());
     return Status::kOk;
   }
 
-  size_t GetFileCount() const noexcept {
-    std::unique_lock<std::mutex> lock(mu_);
-    return files_.size();
-  }
-
-  Error handleFlush() {
-    if (buffer_.WritableBytes()) {
-      buffer_.Retrieve(&file_);
-    }
-    return Error::Success();
-  }
-
-  Error Flush() {
-    std::unique_lock<std::mutex> lock(mu_);
-    return handleFlush();
-  }
-
-  std::string GetDataFilePath(uint32_t id) {
+  std::string GetDataFilePath(uint32_t id) const noexcept {
     return fmt::format("{}_{}.data", name_, id);
   }
 };

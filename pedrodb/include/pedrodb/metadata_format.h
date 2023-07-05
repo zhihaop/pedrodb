@@ -8,7 +8,7 @@ namespace pedrodb {
 using pedrolib::htobe;
 
 struct MetadataHeader {
-  uint32_t timestamp{};
+  uint32_t version{};
   std::string name;
 
   static size_t SizeOf(size_t name_length) {
@@ -21,7 +21,7 @@ struct MetadataHeader {
     }
 
     uint32_t length;
-    buffer->RetrieveInt(&timestamp);
+    buffer->RetrieveInt(&version);
     buffer->RetrieveInt(&length);
 
     if (buffer->ReadableBytes() < length) {
@@ -34,7 +34,7 @@ struct MetadataHeader {
   }
 
   bool Pack(Buffer *buffer) const {
-    buffer->AppendInt(timestamp);
+    buffer->AppendInt(version);
     buffer->AppendInt(static_cast<uint32_t>(name.size()));
     buffer->Append(name.data(), name.size());
     return true;

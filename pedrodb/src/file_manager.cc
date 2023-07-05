@@ -18,17 +18,19 @@ Status FileManager::OpenActiveFile(WritableFile **file, uint32_t id) {
 Status FileManager::Init() {
   WritableFile *file;
   uint32_t id;
-  auto file_count = metadata_->GetFileCount();
-  if (file_count == 0) {
-    return CreateActiveFile(&file, &id);
-  }
 
-  auto files = metadata_->GetFiles();
-  id = *std::max_element(files.begin(), files.end());
-
-  auto status = OpenActiveFile(&file, id);
-  if (status != Status::kOk) {
-    return status;
+  auto &files = metadata_->GetFiles();
+  if (files.empty()) {
+    auto status = CreateActiveFile(&file, &id);
+    if (status != Status::kOk) {
+      return status;
+    }
+  } else {
+    id = *std::max_element(files.begin(), files.end());
+    auto status = OpenActiveFile(&file, id);
+    if (status != Status::kOk) {
+      return status;
+    }
   }
 
   active_id_ = id;
@@ -45,8 +47,8 @@ Status FileManager::CreateActiveFile(WritableFile **file, uint32_t *id) {
     return stat;
   }
 
+  auto _ = metadata_->AcquireLock();
   metadata_->CreateFile(next_id);
-  metadata_->Flush();
 
   active_.reset(next_active);
   active_id_ = next_id;
@@ -57,50 +59,36 @@ Status FileManager::CreateActiveFile(WritableFile **file, uint32_t *id) {
 }
 
 Status FileManager::ReleaseDataFile(uint32_t id) {
-  auto it = in_use_.find(id);
-  if (it == in_use_.end()) {
-    return Status::kInvalidArgument;
-  }
-
-  auto file = std::move(it->second);
-  in_use_.erase(it);
-
-  open_files_.update(id, std::move(file));
+  auto pred = [id](const OpenFile &file) { return file.id == id; };
+  auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
+  open_files_.erase(it, open_files_.end());
   return Status::kOk;
 }
 
 Status FileManager::AcquireDataFile(uint32_t id, ReadableFileGuard *file) {
-  if (!metadata_->ExistFile(id)) {
-    return Status::kInvalidArgument;
-  }
-
-  if (open_files_.contains(id)) {
-    auto ptr = &(in_use_[id] = std::move(open_files_[id]));
-    open_files_.erase(id);
-    *file = ReadableFileGuard(ptr, [this, id](ReadableFile *ptr) {
-      auto _ = AcquireLock();
-      ReleaseDataFile(id);
-    });
+  auto pred = [id](const OpenFile &file) { return file.id == id; };
+  auto it = std::find_if(open_files_.begin(), open_files_.end(), pred);
+  if (it != open_files_.end()) {
+    auto open_file = std::move(*it);
+    open_files_.erase(it);
+    *file = open_files_.emplace_back(std::move(open_file)).file;
     return Status::kOk;
   }
-
-  if (in_use_.count(id)) {
-    return Status::kInvalidArgument;
-  }
-
+  
+  *file = std::make_shared<ReadableFile>();
   std::string filename = metadata_->GetDataFilePath(id);
-  ReadableFile f;
-  auto stat = ReadableFile::Open(filename, &f);
+  auto stat = ReadableFile::Open(filename, file->get());
   if (stat != Status::kOk) {
     PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
     return stat;
   }
 
-  auto ptr = &(in_use_[id] = std::move(f));
-  *file = ReadableFileGuard(ptr, [this, id](ReadableFile *ptr) {
-    auto _ = AcquireLock();
-    ReleaseDataFile(id);
-  });
+  OpenFile open_file{id, *file};
+  if (open_files_.size() == max_open_files_) {
+    open_files_.erase(open_files_.begin());
+    open_files_.emplace_back(std::move(open_file));
+  }
+  
   return stat;
 }
-}
+} // namespace pedrodb

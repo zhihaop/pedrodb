@@ -6,7 +6,7 @@
 
 namespace pedrodb {
 class SegmentDB : public DB {
-  std::vector<std::shared_ptr<DB>> segments_;
+  std::vector<std::shared_ptr<DBImpl>> segments_;
 
 public:
   explicit SegmentDB(size_t n) : segments_(n) {}
@@ -19,8 +19,11 @@ public:
 
     auto &segments = impl->segments_;
     for (int i = 0; i < n; ++i) {
-      auto status = DB::Open(options, fmt::format("{}_segment{}.db", path, i),
-                             &segments[i]);
+      std::shared_ptr<DB> raw;
+      std::string segment_name = fmt::format("{}_segment{}.db", path, i);
+      auto status = DB::Open(options, segment_name, &raw);
+
+      segments[i] = std::dynamic_pointer_cast<DBImpl>(raw);
       if (status != Status::kOk) {
         return status;
       }
@@ -29,23 +32,33 @@ public:
     return Status::kOk;
   }
 
-  DB *GetDB(const std::string &key) {
-    size_t h = std::hash<std::string>()(key);
-    return segments_[h % segments_.size()].get();
+  DBImpl *GetDB(size_t h) { return segments_[h % segments_.size()].get(); }
+
+  static size_t GetHash(std::string_view key) noexcept {
+    return std::hash<std::string_view>()(key);
   }
 
-  Status Get(const ReadOptions &options, const std::string &key,
+  Status Get(const ReadOptions &options, std::string_view key,
              std::string *value) override {
-    return GetDB(key)->Get(options, key, value);
+    size_t h = GetHash(key);
+    auto db = GetDB(h);
+    auto lock = db->AcquireLock();
+    return db->HandleGet(options, h, key, value);
   }
 
-  Status Put(const WriteOptions &options, const std::string &key,
+  Status Put(const WriteOptions &options, std::string_view key,
              std::string_view value) override {
-    return GetDB(key)->Put(options, key, value);
+    size_t h = GetHash(key);
+    auto db = GetDB(h);
+    auto lock = db->AcquireLock();
+    return db->HandlePut(options, h, key, value);
   }
 
-  Status Delete(const WriteOptions &options, const std::string &key) override {
-    return GetDB(key)->Delete(options, key);
+  Status Delete(const WriteOptions &options, std::string_view key) override {
+    size_t h = GetHash(key);
+    auto db = GetDB(h);
+    auto lock = db->AcquireLock();
+    return db->HandlePut(options, h, key, {});
   }
 
   Status Compact() override {
