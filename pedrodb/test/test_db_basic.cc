@@ -49,27 +49,27 @@ void parallel_for(pedrolib::Executor &executor, int from, int to,
 
 int main() {
   std::shared_ptr<DB> db;
-  Options options{.prefetch = true};
+  Options options{};
 
   Logger logger("test");
 
-  pedrodb::logger::SetLevel(Logger::Level::kError);
+  pedrodb::logger::SetLevel(Logger::Level::kWarn);
 
   auto status =
-      pedrodb::SegmentDB::Open(options, "/home/zhihaop/db/test.db", 8, &db);
+      pedrodb::SegmentDB::Open(options, "/home/zhihaop/db/test.db", 1, &db);
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
 
-  db->Compact();
+//  db->Compact();
 
   size_t n_puts = 1000000;
-  size_t n_delete = 1000;
+  size_t n_delete = 0;
   size_t n_reads = 10000000;
 
   logger.Info("benchmark put");
 
-  pedrolib::ThreadPoolExecutor executor(8);
+  pedrolib::ThreadPoolExecutor executor(1);
 
   // put
   parallel_for(executor, 0, n_puts, [&](int i) {

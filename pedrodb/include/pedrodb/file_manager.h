@@ -57,6 +57,7 @@ public:
   Error RemoveDataFile(uint32_t id) {
     Close(id);
     metadata_->DeleteFile(id);
+    metadata_->Flush();
     return File::Remove(metadata_->GetDataFilePath(id).c_str());
   }
 };

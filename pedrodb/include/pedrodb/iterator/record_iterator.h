@@ -31,10 +31,13 @@ class RecordIterator {
       return;
     }
 
-    size_t r = std::min(size_ - buffer_offset_, (size_t)kPageSize);
+    size_t next = buffer_offset_ + size;
+    next = std::min(next - (next % kPageSize) + kPageSize, size_);
+
+    size_t r = (next - buffer_offset_);
     buffer_->EnsureWriteable(r);
     file_->Read(buffer_offset_, buffer_->WriteIndex(), r);
-    buffer_offset_ += r;
+    buffer_offset_ = next;
     buffer_->Append(r);
   }
 
@@ -62,7 +65,10 @@ public:
     }
 
     FetchBuffer(view.key_size + view.value_size);
-    return buffer_->ReadableBytes() >= view.key_size + view.value_size;
+    if (buffer_->ReadableBytes() < view.key_size + view.value_size) {
+      return false;
+    }
+    return true;
   }
 
   RecordView Next() noexcept {

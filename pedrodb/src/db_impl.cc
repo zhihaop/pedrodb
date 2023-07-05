@@ -87,15 +87,10 @@ Status DBImpl::Init() {
   executor_ =
       std::make_unique<pedrolib::ThreadPoolExecutor>(options_.executor_threads);
 
-  PEDRODB_INFO("crash recover start");
-  auto files = metadata_->GetFiles();
-  std::sort(files.begin(), files.end());
-
-  for (auto file : files) {
-    RebuildIndices(file);
+  status = Recover();
+  if (status != Status::kOk) {
+    return status;
   }
-  file_manager_->Close(files.back());
-  PEDRODB_INFO("crash recover finished");
 
   sync_worker_ = executor_->ScheduleEvery(
       options_.sync_interval, options_.sync_interval, [this] { Flush(); });
@@ -133,7 +128,8 @@ Status DBImpl::RebuildIndices(uint32_t id) {
   if (stat != Status::kOk) {
     return stat;
   }
-
+  
+  size_t records = 0;
   buffer_.Reset();
   auto iter = RecordIterator(file.get(), &buffer_);
   while (iter.Valid()) {
@@ -152,11 +148,14 @@ Status DBImpl::RebuildIndices(uint32_t id) {
     if (record.type == RecordHeader::kSet) {
       indices_[std::string{record.key}] = metadata;
       read_cache_->UpdateCache(location, record.value);
+      records++;
     } else if (record.type == RecordHeader::kDelete) {
       indices_.erase(std::string{record.key});
       read_cache_->Remove(location);
+      records--;
     }
   }
+  PEDRODB_WARN("crash recover success: file[{}], record[{}]", id, records);
   PEDRODB_IGNORE_ERROR(file_manager_->ReleaseDataFile(id));
   return Status::kOk;
 }
@@ -441,6 +440,24 @@ Status DBImpl::FetchRecord(ReadableFile *file, ValueMetadata metadata,
     read_cache_->UpdateCache(loc, next.value);
   }
 
-  return found ? Status::kOk : Status::kNotFound;
+  return found ? Status::kOk : Status::kCorruption;
+}
+
+Status DBImpl::Recover() {
+  if (metadata_->GetFileCount() == 0) {
+    return Status::kOk;
+  }
+
+  auto files = metadata_->GetFiles();
+  std::sort(files.begin(), files.end());
+  for (auto file : files) {
+    PEDRODB_WARN("crash recover: file {}", file);
+    auto status = RebuildIndices(file);
+    if (status != Status::kOk) {
+      return status;
+    }
+  }
+  file_manager_->Close(files.back());
+  return Status::kOk;
 }
 } // namespace pedrodb

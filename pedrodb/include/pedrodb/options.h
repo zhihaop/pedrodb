@@ -10,7 +10,7 @@ struct Options {
   size_t read_cache_bytes = kMaxFileBytes;
   size_t compaction_threshold_bytes = kMaxFileBytes / 2;
   Duration sync_interval = Duration::Seconds(10);
-  size_t executor_threads = 32;
+  size_t executor_threads = 1;
   bool prefetch = false;
 };
 

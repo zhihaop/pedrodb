@@ -68,6 +68,8 @@ public:
   Status FetchRecord(ReadableFile *file, ValueMetadata metadata,
                      std::string *value);
 
+  Status Recover();
+
   Status Flush();
 
   Status Compact() override;
