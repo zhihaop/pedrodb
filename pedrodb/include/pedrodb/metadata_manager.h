@@ -22,10 +22,14 @@ class MetadataManager {
 
   Status Recovery() {
     ArrayBuffer buffer(File::Size(file_));
-    buffer.Append(&file_);
+    if (buffer.Append(&file_) != buffer.Capacity()) {
+      PEDRODB_FATAL("failed to read file: {}", file_.GetError());
+    }
 
     MetadataHeader header;
-    header.UnPack(&buffer);
+    if (!header.UnPack(&buffer)) {
+      PEDRODB_FATAL("failed to read header");
+    }
     version_ = header.version;
     name_ = header.name;
 
@@ -33,7 +37,9 @@ class MetadataManager {
 
     while (buffer.ReadableBytes()) {
       MetadataChangeLogEntry logEntry;
-      logEntry.UnPack(&buffer);
+      if (!logEntry.UnPack(&buffer)) {
+        PEDRODB_FATAL("failed to open db");
+      }
 
       if (logEntry.type == kCreateFile) {
         files_.emplace(logEntry.id);
@@ -116,8 +122,7 @@ public:
     entry.type = kCreateFile;
     entry.id = id;
 
-    char buf[64];
-    BufferSlice slice(buf, sizeof(buf));
+    ArrayBuffer slice(MetadataChangeLogEntry::SizeOf());
     entry.Pack(&slice);
     slice.Retrieve(&file_);
 
@@ -136,8 +141,7 @@ public:
     entry.type = kDeleteFile;
     entry.id = id;
 
-    char buf[64];
-    BufferSlice slice(buf, sizeof(buf));
+    ArrayBuffer slice(MetadataChangeLogEntry::SizeOf());
     entry.Pack(&slice);
     slice.Retrieve(&file_);
 

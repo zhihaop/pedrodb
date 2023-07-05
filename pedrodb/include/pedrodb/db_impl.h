@@ -6,12 +6,12 @@
 #include "pedrodb/defines.h"
 #include "pedrodb/file/writable_file.h"
 #include "pedrodb/file_manager.h"
-#include "pedrodb/header.h"
 #include "pedrodb/iterator/record_iterator.h"
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
-#include <pedrolib/concurrent/latch.h>
+#include "pedrodb/record_format.h"
 #include "pedrodb/versionset.h"
+#include <pedrolib/concurrent/latch.h>
 
 #include <map>
 #include <memory>
@@ -22,15 +22,20 @@
 
 namespace pedrodb {
 
-struct ValueMetadata {
+struct KeyValueMetadata {
+  std::string key;
   ValueLocation location;
   uint32_t length{};
   uint32_t timestamp{};
 };
 
-struct KeyValueMetadata {
+struct KeyValueRecord {
+  uint32_t h;
   std::string key;
-  ValueMetadata metadata{};
+  std::string value;
+  uint32_t id{};
+  uint32_t offset{};
+  uint32_t timestamp{};
 };
 
 struct CompactionState {
@@ -48,21 +53,17 @@ class DBImpl : public DB {
   std::unique_ptr<ReadCache> read_cache_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
-  std::unique_ptr<pedrolib::Executor> executor_;
-  std::unordered_multimap<size_t, KeyValueMetadata> indices_;
+  std::shared_ptr<pedrolib::Executor> executor_;
+  std::unordered_multimap<uint32_t, KeyValueMetadata> indices_;
   std::unordered_map<uint32_t, CompactionState> compaction_state_;
 
-  Status WriteDisk(Buffer *buf, WritableFile *file, WriteOptions options);
+  Status CompactBatch(const std::vector<KeyValueRecord> &records);
 
   Status Recovery(uint32_t id);
 
   void Compact(uint32_t id);
 
-  Status GetActiveFile(WritableFile **file, uint32_t *id, size_t record_length);
-
-  bool CheckStealRecord(size_t h, std::string_view key, ValueLocation location);
-
-  auto GetMetadataIterator(size_t h, std::string_view key)
+  auto GetMetadataIterator(uint32_t h, std::string_view key)
       -> decltype(indices_.begin());
 
 public:
@@ -70,15 +71,15 @@ public:
 
   explicit DBImpl(const Options &options, const std::string &name);
 
-  Status HandlePut(const WriteOptions &options, size_t h, std::string_view key,
+  Status HandlePut(const WriteOptions &options, uint32_t h, std::string_view key,
                    std::string_view value);
 
-  Status HandleGet(const ReadOptions &options, size_t h, std::string_view key,
+  Status HandleGet(const ReadOptions &options, uint32_t h, std::string_view key,
                    std::string *value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
 
-  Status FetchRecord(ReadableFile *file, ValueMetadata metadata,
+  Status FetchRecord(ReadableFile *file, const KeyValueMetadata &metadata,
                      std::string *value);
 
   Status Recovery();
@@ -91,14 +92,10 @@ public:
 
   Status Init();
 
-  static size_t GetHash(std::string_view key) noexcept {
-    return std::hash<std::string_view>()(key);
-  }
-
   Status Get(const ReadOptions &options, std::string_view key,
              std::string *value) override;
 
-  void UpdateCompactionHint(ValueMetadata metadata);
+  void UpdateCompactionHint(const KeyValueMetadata &metadata);
 
   Status Put(const WriteOptions &options, std::string_view key,
              std::string_view value) override;

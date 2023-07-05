@@ -12,8 +12,9 @@
 #include <atomic>
 #include <cstring>
 #include <endian.h>
+#include <string_view>
 
-namespace pedrolib {
+namespace pedrodb {
 
 inline uint32_t DecodeFixed32(const char *ptr) {
   if (__BYTE_ORDER == __LITTLE_ENDIAN) {
@@ -29,14 +30,14 @@ inline uint32_t DecodeFixed32(const char *ptr) {
   }
 }
 
-uint32_t Hash(const char *data, size_t n, uint32_t seed = 397) {
+inline uint32_t Hash(const char *data, size_t n, uint32_t seed = 397) {
   // MurmurHash1 - fast but mediocre quality
   // https://github.com/aappleby/smhasher/wiki/MurmurHash1
   //
   const uint32_t m = 0xc6a4a793;
   const uint32_t r = 24;
   const char *limit = data + n;
-  uint32_t h = static_cast<uint32_t>(seed ^ (n * m));
+  auto h = static_cast<uint32_t>(seed ^ (n * m));
 
   // Pick up four bytes at a time
   while (data + 4 <= limit) {
@@ -68,6 +69,10 @@ uint32_t Hash(const char *data, size_t n, uint32_t seed = 397) {
   }
   return h;
 }
-} // namespace pedrolib
+
+inline uint32_t Hash(std::string_view s) noexcept {
+  return Hash(s.data(), s.size());
+}
+} // namespace pedrodb
 
 #endif // PEDRODB_HASH_H

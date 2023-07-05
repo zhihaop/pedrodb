@@ -8,7 +8,7 @@
 namespace pedrodb {
 class ReadableFile : noncopyable {
   uint64_t size_{};
-  File file_{};
+  mutable File file_{};
 
 public:
   ReadableFile() = default;
@@ -35,7 +35,7 @@ public:
     return file_.Preadv(offset, io, n);
   }
 
-  uint64_t Size() const noexcept { return size_; }
+  uint64_t Size() const noexcept { return File::Size(file_); }
 
   Error GetError() { return file_.GetError(); }
 
@@ -48,13 +48,6 @@ public:
       return Status::kIOError;
     }
 
-    int64_t size = File::Size(f);
-    if (size < 0) {
-      PEDRODB_ERROR("failed to seek tail {}: {}", filename, f.GetError());
-      return Status::kIOError;
-    }
-
-    file->size_ = size;
     file->file_ = std::move(f);
     return Status::kOk;
   }

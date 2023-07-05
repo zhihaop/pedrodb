@@ -22,6 +22,7 @@ public:
   struct OpenOption {
     OpenMode mode{OpenMode::kRead};
     std::optional<int32_t> create{};
+    bool direct{false};
   };
 
 protected:

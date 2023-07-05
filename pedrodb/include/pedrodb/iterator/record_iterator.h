@@ -1,7 +1,7 @@
 #ifndef PEDRODB_ITERATOR_RECORDITERATOR_H
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
 #include "pedrodb/file/readable_file.h"
-#include "pedrodb/header.h"
+#include "pedrodb/record_format.h"
 
 namespace pedrodb {
 using pedrolib::htobe;
@@ -22,50 +22,44 @@ class RecordIterator {
   size_t buffer_offset_{};
   Buffer *buffer_;
 
-  void FetchBuffer(size_t size) {
-    if (buffer_->ReadableBytes() >= size) {
+  void FetchBuffer(size_t fetch) {
+    if (buffer_->ReadableBytes() >= fetch) {
       return;
     }
+    
+    fetch = std::max((size_t)kBlockSize, fetch);
+    fetch = std::min(fetch, size_ - buffer_offset_);
 
-    if (buffer_offset_ >= size_) {
-      return;
-    }
-
-    size_t next = buffer_offset_ + size;
-    next = std::min(next - (next % kPageSize) + kPageSize, size_);
-
-    size_t r = (next - buffer_offset_);
-    buffer_->EnsureWriteable(r);
-    file_->Read(buffer_offset_, buffer_->WriteIndex(), r);
-    buffer_offset_ = next;
-    buffer_->Append(r);
+    PEDRODB_TRACE("fetch {}", fetch);
+    buffer_->EnsureWriteable(fetch);
+    file_->Read(buffer_offset_, buffer_->WriteIndex(), fetch);
+    buffer_offset_ += fetch;
+    buffer_->Append(fetch);
   }
 
 public:
   explicit RecordIterator(ReadableFile *file, Buffer *buffer)
       : file_(file), size_(file_->Size()), buffer_(buffer) {}
 
-  explicit RecordIterator(ReadableFile *file, size_t size, Buffer *buffer)
-      : file_(file), size_(size), buffer_(buffer) {}
-
-  void SetOffset(size_t offset) {
-    buffer_->Reset();
-    buffer_offset_ = offset_ = offset;
-  }
-
   bool Valid() noexcept {
-    FetchBuffer(RecordHeader::SizeOf());
-    if (buffer_->ReadableBytes() < RecordHeader::SizeOf()) {
+    if (offset_ >= size_) {
       return false;
     }
 
-    RecordHeader::Unpack(&view, buffer_);
-    if (view.type == RecordHeader::kEmpty) {
+    FetchBuffer(RecordHeader::SizeOf());
+    if (!view.UnPack(buffer_)) {
+      PEDRODB_ERROR("file corrupt, cannot unpack header");
+      return false;
+    }
+
+    if (view.type == RecordHeader::Type::kEmpty) {
+      PEDRODB_ERROR("file corrupt, type is empty");
       return false;
     }
 
     FetchBuffer(view.key_size + view.value_size);
     if (buffer_->ReadableBytes() < view.key_size + view.value_size) {
+      PEDRODB_ERROR("file corrupt");
       return false;
     }
     return true;

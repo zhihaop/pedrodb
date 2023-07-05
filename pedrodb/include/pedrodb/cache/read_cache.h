@@ -21,14 +21,18 @@ class ReadCache {
   uint64_t hits_{1};
   uint64_t total_{1};
 
+  mutable std::mutex mu_;
+
 public:
   explicit ReadCache(size_t capacity) : capacity_(capacity) {}
 
   double HitRatio() const noexcept {
-    return static_cast<double>(hits_) / total_;
+    std::unique_lock lock{mu_};
+    return static_cast<double>(hits_) / static_cast<double>(total_);
   }
 
   void UpdateCache(ValueLocation location, std::string_view value) {
+    std::unique_lock lock{mu_};
     if (location.id == active_id_) {
       active_cache_[location.offset].assign(value.begin(), value.end());
     } else {
@@ -44,6 +48,7 @@ public:
   }
 
   void Remove(ValueLocation location) {
+    std::unique_lock lock{mu_};
     if (location.id == active_id_) {
       active_cache_.erase(location.offset);
     } else {
@@ -54,6 +59,7 @@ public:
   }
 
   bool Read(ValueLocation location, std::string *value) {
+    std::unique_lock lock{mu_};
     ++total_;
     if (location.id == active_id_) {
       auto iter = active_cache_.find(location.offset);
@@ -75,6 +81,7 @@ public:
   }
 
   void UpdateActiveID(uint32_t active_id) {
+    std::unique_lock lock{mu_};
     for (auto &[k, v] : active_cache_) {
       ValueLocation location{
           .id = active_id,

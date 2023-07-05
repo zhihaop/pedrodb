@@ -2,6 +2,7 @@
 #define PEDRODB_DB_H
 
 #include "pedrodb/defines.h"
+#include "pedrodb/hash.h"
 #include "pedrodb/options.h"
 #include "pedrodb/status.h"
 

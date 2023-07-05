@@ -1,5 +1,7 @@
 #ifndef PEDRODB_DEFINES_H
 #define PEDRODB_DEFINES_H
+#include <pedrolib/executor/thread_pool_executor.h>
+
 #include <pedrolib/buffer/array_buffer.h>
 #include <pedrolib/buffer/buffer.h>
 #include <pedrolib/buffer/buffer_slice.h>
@@ -18,6 +20,9 @@ using Buffer = pedrolib::Buffer;
 using BufferView = pedrolib::BufferView;
 using BufferSlice = pedrolib::BufferSlice;
 
+using Executor = pedrolib::Executor;
+using DefaultExecutor = pedrolib::ThreadPoolExecutor;
+
 using Timestamp = pedrolib::Timestamp;
 using Duration = pedrolib::Duration;
 using File = pedrolib::File;
@@ -26,8 +31,8 @@ using Error = pedrolib::Error;
 using nonmovable = pedrolib::nonmovable;
 using noncopyable = pedrolib::noncopyable;
 
-// the maximum size of file is 128MB.
-const uint64_t kMaxFileBytes = 128ULL << 20;
+// the maximum size of file is 64MB.
+const uint64_t kMaxFileBytes = 64ULL << 20;
 
 const uint32_t kBatchVersions = 128 << 10;
 

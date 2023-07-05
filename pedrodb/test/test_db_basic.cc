@@ -23,39 +23,16 @@ std::string RandomString(const std::string &prefix, size_t bytes) {
   return s;
 }
 
-template <typename Caller>
-void parallel_for(pedrolib::Executor &executor, int from, int to,
-                  Caller &&caller) {
-  const size_t n = std::thread::hardware_concurrency();
-  int len = to - from;
-  const int blk = len / n;
-  len -= blk * n;
-
-  pedrolib::Latch latch(n);
-  int last = 0;
-  for (int i = 0; i < n; ++i) {
-    int s = last;
-    int t = last + blk + (len > 0);
-    --len;
-    last = t;
-    executor.Schedule([&, s, t] {
-      for (int i = s; i <= t; ++i) {
-        caller(i);
-      }
-      latch.CountDown();
-    });
-  }
-  latch.Await();
-}
-
 int main() {
   std::shared_ptr<DB> db;
   Options options{};
-  options.read_cache_bytes = 0;
+
+  options.executor = std::make_shared<pedrodb::DefaultExecutor>(1);
+  // options.read_cache_bytes = 0;
 
   Logger logger("test");
 
-  pedrodb::logger::SetLevel(Logger::Level::kWarn);
+  pedrodb::logger::SetLevel(Logger::Level::kError);
 
   auto status = pedrodb::DB::Open(options, "/home/zhihaop/db/test.db", &db);
   if (status != Status::kOk) {
@@ -73,21 +50,38 @@ int main() {
   pedrolib::ThreadPoolExecutor executor(1);
 
   // put
-  //  parallel_for(executor, 0, n_puts, [&](int i) {
-  //    std::string key = fmt::format("key{}", i);
-  //    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
-  //    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
-  //    if (stat != Status::kOk) {
-  //      logger.Fatal("failed to write {}, {}", key, value);
-  //    }
-  //  });
+//  for (int i = 0; i < n_puts; ++i) {
+//    std::string key = fmt::format("key{}", i);
+//    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+//    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+//    if (stat != Status::kOk) {
+//      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+//    }
+//  }
 
   std::normal_distribution<double> d(5.0, 2.0);
   std::mt19937_64 g;
+  std::vector<int> all(n_puts);
+  std::iota(all.begin(), all.end(), 0);
+  std::shuffle(all.begin(), all.end(), std::mt19937(std::random_device()()));
 
-  logger.Info("benchmark get");
+  logger.Info("benchmark get all");
+  for (int i : all) {
+    std::string key = fmt::format("key{}", i);
+    std::string value;
+    auto stat = db->Get(ReadOptions{}, key, &value);
+    if (stat != Status::kOk) {
+      logger.Fatal("failed to read {}: {}", key, stat);
+    }
+
+    if (value.find(fmt::format("value{}", i)) != 0) {
+      logger.Fatal("value is not correct: {}", value);
+    }
+  }
+  logger.Info("hit ratio: {}", ((pedrodb::DBImpl *)db.get())->CacheHitRatio());
+  logger.Info("benchmark get random");
   // get
-  parallel_for(executor, 0, n_reads, [&](int i) {
+  for (int i = 0; i < n_reads; ++i) {
     int x = d(g) + n_puts / 2;
     x = std::clamp(x, 0, (int)n_puts - 1);
     std::string key = fmt::format("key{}", x);
@@ -100,10 +94,9 @@ int main() {
     if (value.find(fmt::format("value{}", x)) != 0) {
       logger.Fatal("value is not correct: {}", value);
     }
-  });
+  }
 
-  // logger.Info("hit ratio: {}", ((pedrodb::DBImpl
-  // *)db.get())->CacheHitRatio());
+  logger.Info("hit ratio: {}", ((pedrodb::DBImpl *)db.get())->CacheHitRatio());
 
   logger.Info("test delete");
   // delete

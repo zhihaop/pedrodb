@@ -104,6 +104,9 @@ File File::Open(const char *name, File::OpenOption option) {
     if (option.create) {
       flag |= O_CREAT;
     }
+    if (option.direct) {
+      flag |= O_DIRECT;
+    }
     switch (option.mode) {
     case OpenMode::kRead:
       return flag | O_RDONLY;
@@ -162,6 +165,7 @@ int64_t File::Size(File &file) {
 }
 
 Error File::Remove(const char *name) {
+  printf("remove %s\n", name);
   if (::remove(name)) {
     return Error{errno};
   }

@@ -1,33 +1,36 @@
-#ifndef PEDRODB_HEADER_H
-#define PEDRODB_HEADER_H
+#ifndef PEDRODB_RECORD_FORMAT_H
+#define PEDRODB_RECORD_FORMAT_H
 
 #include "pedrodb/defines.h"
 #include "pedrodb/status.h"
 
 namespace pedrodb {
 struct RecordHeader {
-  enum HeaderType { kEmpty = 0, kSet = 1, kDelete = 2 };
+  enum class Type { kEmpty = 0, kSet = 1, kDelete = 2 };
 
-  uint16_t type;
+  uint32_t crc32;
+  Type type;
   uint16_t key_size;
   uint32_t value_size;
-  uint32_t crc32;
   uint32_t timestamp;
 
   constexpr static size_t SizeOf() noexcept {
-    return sizeof(crc32) + sizeof(type) + sizeof(key_size) +
+    return sizeof(crc32) + sizeof(uint16_t) + sizeof(key_size) +
            sizeof(value_size) + sizeof(timestamp);
   }
 
-  static bool Unpack(RecordHeader *header, Buffer *buffer) {
+  bool UnPack(Buffer *buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
-    buffer->RetrieveInt(&header->crc32);
-    buffer->RetrieveInt(&header->type);
-    buffer->RetrieveInt(&header->key_size);
-    buffer->RetrieveInt(&header->value_size);
-    buffer->RetrieveInt(&header->timestamp);
+    uint16_t u16type;
+    buffer->RetrieveInt(&crc32);
+    buffer->RetrieveInt(&u16type);
+    buffer->RetrieveInt(&key_size);
+    buffer->RetrieveInt(&value_size);
+    buffer->RetrieveInt(&timestamp);
+    
+    type = static_cast<Type>(u16type);
     return true;
   }
 
@@ -36,7 +39,7 @@ struct RecordHeader {
       return false;
     }
     buffer->AppendInt(crc32);
-    buffer->AppendInt(type);
+    buffer->AppendInt(static_cast<uint16_t>(type));
     buffer->AppendInt(key_size);
     buffer->AppendInt(value_size);
     buffer->AppendInt(timestamp);
@@ -45,4 +48,4 @@ struct RecordHeader {
 };
 } // namespace pedrodb
 
-#endif // PEDRODB_HEADER_H
+#endif // PEDRODB_RECORD_FORMAT_H

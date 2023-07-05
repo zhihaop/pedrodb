@@ -8,6 +8,7 @@ class WritableFile : noncopyable {
   ArrayBuffer buffer_{};
   uint64_t offset_{};
   File file_{};
+  mutable std::mutex mu_;
 
 public:
   ~WritableFile() {
@@ -48,22 +49,21 @@ public:
     return Error::Success();
   }
 
-  uint64_t GetOffSet() const noexcept {
-    return offset_; 
-  }
+  uint64_t GetOffset() const noexcept { return offset_; }
 
   Error Write(pedrolib::Buffer *buffer) {
     if (buffer_.ReadableBytes() + buffer->ReadableBytes() > kBlockSize) {
       std::string_view sv[2]{{buffer_.ReadIndex(), buffer_.ReadableBytes()},
                              {buffer->ReadIndex(), buffer->ReadableBytes()}};
       ssize_t w = file_.Writev(sv, 2);
-      if (w < 0) {
+      if (w != sv[0].size() + sv[1].size()) {
         return file_.GetError();
       }
+
       offset_ += buffer->ReadableBytes();
       buffer_.Retrieve(buffer_.ReadableBytes());
       buffer->Retrieve(buffer->ReadableBytes());
-      return Error::Success(); return Error::Success();
+      return Error::Success();
     }
 
     offset_ += buffer->ReadableBytes();
@@ -71,9 +71,13 @@ public:
     return Error::Success();
   }
 
-  Error Sync() { return file_.Sync(); }
+  Error Sync() {
+    return Error::Success();
+    return file_.Sync();
+  }
 
   Error Flush() {
+    PEDRODB_TRACE("file flush");
     if (buffer_.ReadableBytes()) {
       if (buffer_.Retrieve(&file_) < 0) {
         return file_.GetError();

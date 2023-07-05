@@ -113,6 +113,9 @@ class ThreadPoolExecutor : public Executor {
   }
 
 public:
+  explicit ThreadPoolExecutor()
+      : ThreadPoolExecutor(std::thread::hardware_concurrency()) {}
+  
   explicit ThreadPoolExecutor(size_t threads) : workers_(threads) {
     for (size_t i = 0; i < threads; ++i) {
       workers_.emplace_back([this] { worker(); });
