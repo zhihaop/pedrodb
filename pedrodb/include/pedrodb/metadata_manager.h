@@ -12,7 +12,6 @@ namespace pedrodb {
 
 class MetadataManager {
   mutable std::mutex mu_;
-  uint32_t version_{};
   std::string name_;
   std::unordered_set<uint32_t> files_;
 
@@ -30,7 +29,6 @@ class MetadataManager {
     if (!header.UnPack(&buffer)) {
       PEDRODB_FATAL("failed to read header");
     }
-    version_ = header.version;
     name_ = header.name;
 
     PEDRODB_INFO("read database {}", name_);
@@ -54,7 +52,6 @@ class MetadataManager {
   Status CreateDatabase() {
     MetadataHeader header;
     header.name = name_;
-    header.version = version_ = 0;
 
     ArrayBuffer buffer(MetadataHeader::SizeOf(name_.size()));
     header.Pack(&buffer);
@@ -98,18 +95,7 @@ public:
   }
 
   auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
-
-  uint32_t AcquireVersion() {
-    PEDRODB_INFO("acquire timestamp");
-    version_ += kBatchVersions;
-    auto v = htobe(version_);
-    file_.Pwrite(0, &v, sizeof(v));
-    PEDRODB_IGNORE_ERROR(file_.Sync());
-    return version_;
-  }
-
-  uint32_t GetCurrentVersion() const noexcept { return version_; }
-
+  
   const auto &GetFiles() const noexcept { return files_; }
 
   Status CreateFile(uint32_t id) {

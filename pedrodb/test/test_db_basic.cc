@@ -50,14 +50,14 @@ int main() {
   pedrolib::ThreadPoolExecutor executor(1);
 
   // put
-//  for (int i = 0; i < n_puts; ++i) {
-//    std::string key = fmt::format("key{}", i);
-//    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
-//    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
-//    if (stat != Status::kOk) {
-//      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
-//    }
-//  }
+  for (int i = 0; i < n_puts; ++i) {
+    std::string key = fmt::format("key{}", i);
+    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+    if (stat != Status::kOk) {
+      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+    }
+  }
 
   std::normal_distribution<double> d(5.0, 2.0);
   std::mt19937_64 g;

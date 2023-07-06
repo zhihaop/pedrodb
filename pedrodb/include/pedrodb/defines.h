@@ -42,7 +42,7 @@ const uint32_t kBlockSize = 512 << 10;
 // the page size of SSD is 4KB.
 const uint32_t kPageSize = 4 << 10;
 
-struct ValueLocation {
+struct ValueLocation : public pedrolib::Comparable<ValueLocation> {
   uint32_t id{};
   uint32_t offset{};
 
@@ -50,8 +50,14 @@ struct ValueLocation {
   ValueLocation(const ValueLocation &) = default;
   ValueLocation &operator=(const ValueLocation &) = default;
 
-  bool operator==(const ValueLocation &other) const noexcept {
-    return id == other.id && offset == other.offset;
+  static int Compare(const ValueLocation &x, const ValueLocation &y) noexcept {
+    if (x.id != y.id) {
+      return x.id < y.id ? -1 : 1;
+    }
+    if (x.offset != y.offset) {
+      return x.offset < y.offset ? -1 : 1;
+    }
+    return 0;
   }
 };
 

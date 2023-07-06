@@ -10,7 +10,6 @@
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
 #include "pedrodb/record_format.h"
-#include "pedrodb/versionset.h"
 #include <pedrolib/concurrent/latch.h>
 
 #include <map>
@@ -33,8 +32,7 @@ struct KeyValueRecord {
   uint32_t h;
   std::string key;
   std::string value;
-  uint32_t id{};
-  uint32_t offset{};
+  ValueLocation location{};
   uint32_t timestamp{};
 };
 
@@ -49,7 +47,6 @@ class DBImpl : public DB {
   Options options_;
   ArrayBuffer buffer_;
   uint64_t sync_worker_{};
-  std::unique_ptr<VersionSet> version_set_;
   std::unique_ptr<ReadCache> read_cache_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
@@ -71,8 +68,8 @@ public:
 
   explicit DBImpl(const Options &options, const std::string &name);
 
-  Status HandlePut(const WriteOptions &options, uint32_t h, std::string_view key,
-                   std::string_view value);
+  Status HandlePut(const WriteOptions &options, uint32_t h,
+                   std::string_view key, std::string_view value);
 
   Status HandleGet(const ReadOptions &options, uint32_t h, std::string_view key,
                    std::string *value);

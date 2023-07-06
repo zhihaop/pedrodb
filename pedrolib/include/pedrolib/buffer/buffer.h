@@ -8,15 +8,29 @@
 
 namespace pedrolib {
 
-template <typename T> T htobe(T value) {
-  if constexpr (sizeof(T) == 64) {
+template <typename T, typename E = std::enable_if<std::is_arithmetic_v<T>>>
+T htobe(T value) {
+  if constexpr (sizeof(T) == sizeof(uint64_t)) {
     return htobe64(value);
   }
-  if constexpr (sizeof(T) == 32) {
+  if constexpr (sizeof(T) == sizeof(uint32_t)) {
     return htobe32(value);
   }
-  if constexpr (sizeof(T) == 16) {
+  if constexpr (sizeof(T) == sizeof(uint16_t)) {
     return htobe16(value);
+  }
+  return value;
+}
+
+template <typename T> T betoh(T value) {
+  if constexpr (sizeof(T) == sizeof(uint64_t)) {
+    return be64toh(value);
+  }
+  if constexpr (sizeof(T) == sizeof(uint32_t)) {
+    return be32toh(value);
+  }
+  if constexpr (sizeof(T) == sizeof(uint16_t)) {
+    return be16toh(value);
   }
   return value;
 }
@@ -41,22 +55,14 @@ struct Buffer {
   virtual size_t Append(Buffer *buffer) = 0;
   virtual size_t Retrieve(Buffer *buffer) = 0;
 
-  template <typename Int> bool RetrieveInt(Int *value) {
-    if (ReadableBytes() < sizeof(Int)) {
-      return false;
-    }
+  template <typename Int> void RetrieveInt(Int *value) {
     Retrieve(reinterpret_cast<char *>(value), sizeof(Int));
-    *value = htobe(*value);
-    return true;
+    *value = betoh(*value);
   }
 
-  template <typename Int> bool AppendInt(Int value) {
-    if (WritableBytes() < sizeof(Int)) {
-      return false;
-    }
+  template <typename Int> void AppendInt(Int value) {
     value = htobe(value);
     Append(reinterpret_cast<const char *>(&value), sizeof(Int));
-    return true;
   }
 };
 

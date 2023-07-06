@@ -44,11 +44,6 @@ Status DBImpl::Init() {
     return status;
   }
 
-  status = version_set_->Init();
-  if (status != Status::kOk) {
-    return status;
-  }
-
   status = Recovery();
   if (status != Status::kOk) {
     return status;
@@ -86,7 +81,6 @@ DBImpl::DBImpl(const Options &options, const std::string &name)
   metadata_manager_ = std::make_unique<MetadataManager>(name);
   file_manager_ = std::make_unique<FileManager>(
       metadata_manager_.get(), read_cache_.get(), options.max_open_files);
-  version_set_ = std::make_unique<VersionSet>(metadata_manager_.get());
 }
 
 DBImpl::~DBImpl() {
@@ -124,28 +118,40 @@ Status DBImpl::Recovery(uint32_t id) {
       }
 
       auto &meta = it->second;
-      if (meta.timestamp >= next.timestamp) {
+      // indices has the newer version data.
+      if (meta.location > location) {
         compaction_state_[location.id].unused += next.length;
         continue;
       }
 
+      // never happen.
+      if (meta.location == location) {
+        PEDRODB_FATAL("meta.location == location should never happened");
+      }
+
+      // indices has the elder version data.
       compaction_state_[meta.location.id].unused += meta.length;
       read_cache_->Remove(meta.location);
       read_cache_->UpdateCache(location, next.value);
       meta = std::move(metadata);
     }
 
+    // a tombstone of deletion.
     if (next.type == RecordHeader::Type::kDelete) {
       compaction_state_[location.id].unused += next.length;
       if (it == indices_.end()) {
         continue;
       }
 
+      // Recover(uint32_t) should be called monotonously,
+      // therefore next.location is always monotonously increased.
       auto &meta = it->second;
-      if (meta.timestamp >= next.timestamp) {
+
+      // should not delete the latest version data.
+      if (meta.location > location) {
         continue;
       }
-
+      
       compaction_state_[meta.location.id].unused += meta.length;
       read_cache_->Remove(meta.location);
       indices_.erase(it);
@@ -169,12 +175,8 @@ Status DBImpl::CompactBatch(const std::vector<KeyValueRecord> &records) {
     }
 
     auto &meta = it->second;
-    if (meta.timestamp > r.timestamp) {
-      continue;
-    }
-
-    // there must be another file have this record.
-    if (meta.timestamp == r.timestamp && meta.location.id != r.id) {
+    // steal record.
+    if (meta.location != r.location) {
       continue;
     }
 
@@ -246,8 +248,7 @@ void DBImpl::Compact(uint32_t id) {
         .h = Hash(next.key),
         .key = std::string{next.key},
         .value = std::string{next.value},
-        .id = id,
-        .offset = next.offset,
+        .location = {.id = id, .offset = next.offset},
         .timestamp = next.timestamp,
     });
 
@@ -294,14 +295,13 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
     return Status::kNotFound;
   }
 
-  uint32_t timestamp = version_set_->IncreaseVersion();
-
+  uint32_t timestamp = 0;
   RecordHeader header{.crc32 = 0,
                       .type = value.empty() ? RecordHeader::Type::kDelete
                                             : RecordHeader::Type::kSet,
                       .key_size = (uint16_t)key.size(),
                       .value_size = (uint16_t)value.size(),
-                      .timestamp = version_set_->IncreaseVersion()};
+                      .timestamp = timestamp};
 
   buffer_.Reset();
   header.Pack(&buffer_);
