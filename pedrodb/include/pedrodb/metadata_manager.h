@@ -13,7 +13,7 @@ namespace pedrodb {
 class MetadataManager {
   mutable std::mutex mu_;
   std::string name_;
-  std::unordered_set<uint32_t> files_;
+  std::unordered_set<file_t> files_;
 
   File file_;
 
@@ -25,7 +25,7 @@ class MetadataManager {
       PEDRODB_FATAL("failed to read file: {}", file_.GetError());
     }
 
-    MetadataHeader header;
+    metadata::Header header;
     if (!header.UnPack(&buffer)) {
       PEDRODB_FATAL("failed to read header");
     }
@@ -34,12 +34,12 @@ class MetadataManager {
     PEDRODB_INFO("read database {}", name_);
 
     while (buffer.ReadableBytes()) {
-      MetadataChangeLogEntry logEntry;
+      metadata::LogEntry logEntry;
       if (!logEntry.UnPack(&buffer)) {
         PEDRODB_FATAL("failed to open db");
       }
 
-      if (logEntry.type == kCreateFile) {
+      if (logEntry.type == metadata::LogType::kCreateFile) {
         files_.emplace(logEntry.id);
       } else {
         files_.erase(logEntry.id);
@@ -50,10 +50,10 @@ class MetadataManager {
   }
 
   Status CreateDatabase() {
-    MetadataHeader header;
+    metadata::Header header;
     header.name = name_;
 
-    ArrayBuffer buffer(MetadataHeader::SizeOf(name_.size()));
+    ArrayBuffer buffer(metadata::Header::SizeOf(name_.size()));
     header.Pack(&buffer);
     buffer.Retrieve(&file_);
     file_.Sync();
@@ -95,20 +95,20 @@ public:
   }
 
   auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
-  
+
   const auto &GetFiles() const noexcept { return files_; }
 
-  Status CreateFile(uint32_t id) {
+  Status CreateFile(file_t id) {
     if (files_.count(id)) {
       return Status::kOk;
     }
     files_.emplace(id);
 
-    MetadataChangeLogEntry entry;
-    entry.type = kCreateFile;
+    metadata::LogEntry entry;
+    entry.type = metadata::LogType::kCreateFile;
     entry.id = id;
 
-    ArrayBuffer slice(MetadataChangeLogEntry::SizeOf());
+    ArrayBuffer slice(metadata::LogEntry::SizeOf());
     entry.Pack(&slice);
     slice.Retrieve(&file_);
 
@@ -116,18 +116,18 @@ public:
     return Status::kOk;
   }
 
-  Status DeleteFile(uint32_t id) {
+  Status DeleteFile(file_t id) {
     auto it = files_.find(id);
     if (it == files_.end()) {
       return Status::kOk;
     }
     files_.erase(it);
 
-    MetadataChangeLogEntry entry;
-    entry.type = kDeleteFile;
+    metadata::LogEntry entry;
+    entry.type = metadata::LogType::kDeleteFile;
     entry.id = id;
 
-    ArrayBuffer slice(MetadataChangeLogEntry::SizeOf());
+    ArrayBuffer slice(metadata::LogEntry::SizeOf());
     entry.Pack(&slice);
     slice.Retrieve(&file_);
 
@@ -135,7 +135,7 @@ public:
     return Status::kOk;
   }
 
-  std::string GetDataFilePath(uint32_t id) const noexcept {
+  std::string GetDataFilePath(file_t id) const noexcept {
     return fmt::format("{}_{}.data", name_, id);
   }
 };

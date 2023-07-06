@@ -9,7 +9,7 @@ namespace pedrodb {
 struct Options {
   int8_t max_open_files = 16;
   size_t read_cache_bytes = kMaxFileBytes;
-  size_t compaction_threshold_bytes = kMaxFileBytes / 2;
+  size_t compaction_threshold_bytes = kMaxFileBytes / 3;
   size_t compaction_batch_bytes = 4 << 20;
   Duration sync_interval = Duration::Seconds(10);
 

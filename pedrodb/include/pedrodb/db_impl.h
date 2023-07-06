@@ -21,22 +21,21 @@
 
 namespace pedrodb {
 
-struct KeyValueMetadata {
+struct RecordInfo {
   std::string key;
-  ValueLocation location;
-  uint32_t length{};
-  uint32_t timestamp{};
+  record::Location loc;
+  uint32_t size{};
 };
 
 struct KeyValueRecord {
   uint32_t h;
   std::string key;
   std::string value;
-  ValueLocation location{};
+  record::Location location{};
   uint32_t timestamp{};
 };
 
-struct CompactionState {
+struct CompactHint {
   size_t unused{};
   bool compacting{};
 };
@@ -51,17 +50,20 @@ class DBImpl : public DB {
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
-  std::unordered_multimap<uint32_t, KeyValueMetadata> indices_;
-  std::unordered_map<uint32_t, CompactionState> compaction_state_;
+  std::unordered_multimap<uint32_t, RecordInfo> indices_;
+
+  std::unordered_map<file_t, CompactHint> compact_hints_;
 
   Status CompactBatch(const std::vector<KeyValueRecord> &records);
 
-  Status Recovery(uint32_t id);
+  Status Recovery(file_t id);
 
-  void Compact(uint32_t id);
+  void Compact(file_t id);
 
   auto GetMetadataIterator(uint32_t h, std::string_view key)
       -> decltype(indices_.begin());
+
+  Status Recovery(file_t id, RecordEntry entry);
 
 public:
   ~DBImpl() override;
@@ -76,7 +78,7 @@ public:
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
 
-  Status FetchRecord(ReadableFile *file, const KeyValueMetadata &metadata,
+  Status FetchRecord(ReadableFile *file, const RecordInfo &metadata,
                      std::string *value);
 
   Status Recovery();
@@ -91,8 +93,6 @@ public:
 
   Status Get(const ReadOptions &options, std::string_view key,
              std::string *value) override;
-
-  void UpdateCompactionHint(const KeyValueMetadata &metadata);
 
   Status Put(const WriteOptions &options, std::string_view key,
              std::string_view value) override;

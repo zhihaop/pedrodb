@@ -2,6 +2,7 @@
 #define PEDRODB_CACHE_READ_CACHE_H
 
 #include "pedrodb/defines.h"
+#include "pedrodb/record_format.h"
 #include <pedrolib/collection/lru_unordered_map.h>
 
 namespace pedrodb {
@@ -9,11 +10,11 @@ template <typename K, typename V, typename Hash = std::hash<K>>
 using lru_hash_map = pedrolib::lru::unordered_map<K, V, Hash>;
 
 class ReadCache {
-  using Hash = ValueLocationHash;
+  using Hash = record::Location::Hash;
 
-  lru_hash_map<ValueLocation, std::string, Hash> read_cache_;
+  lru_hash_map<record::Location, std::string, Hash> read_cache_;
   std::unordered_map<uint32_t, std::string> active_cache_;
-  uint32_t active_id_{};
+  file_t active_id_{};
 
   size_t size_{};
   const size_t capacity_;
@@ -31,7 +32,7 @@ public:
     return static_cast<double>(hits_) / static_cast<double>(total_);
   }
 
-  void UpdateCache(ValueLocation location, std::string_view value) {
+  void UpdateCache(record::Location location, std::string_view value) {
     std::unique_lock lock{mu_};
     if (location.id == active_id_) {
       active_cache_[location.offset].assign(value.begin(), value.end());
@@ -47,7 +48,7 @@ public:
     }
   }
 
-  void Remove(ValueLocation location) {
+  void Remove(record::Location location) {
     std::unique_lock lock{mu_};
     if (location.id == active_id_) {
       active_cache_.erase(location.offset);
@@ -58,7 +59,7 @@ public:
     }
   }
 
-  bool Read(ValueLocation location, std::string *value) {
+  bool Read(record::Location location, std::string *value) {
     std::unique_lock lock{mu_};
     ++total_;
     if (location.id == active_id_) {
@@ -80,10 +81,10 @@ public:
     return true;
   }
 
-  void UpdateActiveID(uint32_t active_id) {
+  void UpdateActiveID(file_t active_id) {
     std::unique_lock lock{mu_};
     for (auto &[k, v] : active_cache_) {
-      ValueLocation location{
+      record::Location location{
           .id = active_id,
           .offset = k,
       };

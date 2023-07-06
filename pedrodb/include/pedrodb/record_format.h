@@ -4,33 +4,35 @@
 #include "pedrodb/defines.h"
 #include "pedrodb/status.h"
 
-namespace pedrodb {
-struct RecordHeader {
-  enum class Type { kEmpty = 0, kSet = 1, kDelete = 2 };
+namespace pedrodb::record {
+enum class Type { kEmpty = 0, kSet = 1, kDelete = 2 };
 
+struct Header {
   uint32_t crc32;
   Type type;
-  uint16_t key_size;
+  uint8_t key_size;
   uint32_t value_size;
   uint32_t timestamp;
 
   constexpr static size_t SizeOf() noexcept {
-    return sizeof(crc32) + sizeof(uint16_t) + sizeof(key_size) +
-           sizeof(value_size) + sizeof(timestamp);
+    return sizeof(uint32_t) + // crc32
+           sizeof(uint8_t) +  // type
+           sizeof(uint8_t) +  // key_size
+           sizeof(uint32_t) + // value_size
+           sizeof(uint32_t);  // timestamp
   }
 
   bool UnPack(Buffer *buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
-    uint16_t u16type;
+    uint8_t u8_type;
     buffer->RetrieveInt(&crc32);
-    buffer->RetrieveInt(&u16type);
+    buffer->RetrieveInt(&u8_type);
     buffer->RetrieveInt(&key_size);
     buffer->RetrieveInt(&value_size);
     buffer->RetrieveInt(&timestamp);
-    
-    type = static_cast<Type>(u16type);
+    type = static_cast<Type>(u8_type);
     return true;
   }
 
@@ -39,13 +41,39 @@ struct RecordHeader {
       return false;
     }
     buffer->AppendInt(crc32);
-    buffer->AppendInt(static_cast<uint16_t>(type));
+    buffer->AppendInt((uint8_t)type);
     buffer->AppendInt(key_size);
     buffer->AppendInt(value_size);
     buffer->AppendInt(timestamp);
     return true;
   }
 };
-} // namespace pedrodb
+
+constexpr static size_t SizeOf(uint8_t key_size, uint32_t value_size) {
+  return Header::SizeOf() + key_size + value_size;
+}
+
+struct Location : public pedrolib::Comparable<Location> {
+
+  struct Hash {
+    size_t operator()(const Location &v) const noexcept {
+      return std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(&v));
+    }
+  };
+
+  file_t id{};
+  uint32_t offset{};
+
+  static int Compare(const Location &x, const Location &y) noexcept {
+    if (x.id != y.id) {
+      return x.id < y.id ? -1 : 1;
+    }
+    if (x.offset != y.offset) {
+      return x.offset < y.offset ? -1 : 1;
+    }
+    return 0;
+  }
+};
+} // namespace pedrodb::record
 
 #endif // PEDRODB_RECORD_FORMAT_H

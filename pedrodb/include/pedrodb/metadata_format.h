@@ -3,11 +3,10 @@
 
 #include <pedrolib/buffer/buffer.h>
 
-namespace pedrodb {
-
+namespace pedrodb::metadata {
 using pedrolib::htobe;
 
-struct MetadataHeader {
+struct Header {
   std::string name;
 
   static size_t SizeOf(size_t name_length) {
@@ -38,26 +37,26 @@ struct MetadataHeader {
   }
 };
 
-enum MetadataChangeLogType {
+enum class LogType {
   kCreateFile,
   kDeleteFile,
 };
 
-struct MetadataChangeLogEntry {
-  MetadataChangeLogType type{};
-  uint32_t id{};
+struct LogEntry {
+  LogType type{};
+  file_t id{};
 
-  static size_t SizeOf() noexcept { return sizeof(uint32_t) + sizeof(uint8_t); }
+  static size_t SizeOf() noexcept { return sizeof(uint8_t) + sizeof(file_t); }
 
   bool UnPack(Buffer *buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
 
-    uint8_t t;
-    buffer->RetrieveInt(&t);
+    uint8_t u8_type;
+    buffer->RetrieveInt(&u8_type);
     buffer->RetrieveInt(&id);
-    type = static_cast<MetadataChangeLogType>(t);
+    type = static_cast<LogType>(u8_type);
     return true;
   }
 
@@ -71,6 +70,6 @@ struct MetadataChangeLogEntry {
     return true;
   }
 };
-} // namespace pedrodb
+} // namespace pedrodb::metadata
 
 #endif // PEDRODB_METADATA_FORMAT_H

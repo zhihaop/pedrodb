@@ -20,7 +20,7 @@ class FileManager {
   MetadataManager *metadata_manager_;
 
   struct OpenFile {
-    uint32_t id{};
+    file_t id{};
     std::shared_ptr<ReadableFile> file;
   };
 
@@ -30,11 +30,11 @@ class FileManager {
 
   // always in use.
   std::unique_ptr<WritableFile> active_;
-  uint32_t active_id_{};
+  file_t active_id_{};
 
   ReadCache *read_cache_;
 
-  Status OpenActiveFile(WritableFile **file, uint32_t id);
+  Status OpenActiveFile(WritableFile **file, file_t id);
 
   Status CreateActiveFile();
 
@@ -60,7 +60,7 @@ public:
     return Status::kOk;
   }
 
-  Status WriteActiveFile(Buffer *buffer, uint32_t *id, uint32_t *offset) {
+  Status WriteActiveFile(Buffer *buffer, file_t *id, uint32_t *offset) {
     if (active_->GetOffset() + buffer->ReadableBytes() > kMaxFileBytes) {
       auto status = CreateActiveFile();
       if (status != Status::kOk) {
@@ -79,11 +79,11 @@ public:
     return Status::kOk;
   }
 
-  Status ReleaseDataFile(uint32_t id);
+  Status ReleaseDataFile(file_t id);
 
-  Status AcquireDataFile(uint32_t id, ReadableFileGuard *file);
+  Status AcquireDataFile(file_t id, ReadableFileGuard *file);
 
-  Error RemoveDataFile(uint32_t id) {
+  Error RemoveDataFile(file_t id) {
     ReleaseDataFile(id);
     {
       auto _ = metadata_manager_->AcquireLock();

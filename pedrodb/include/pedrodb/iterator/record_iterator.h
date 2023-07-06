@@ -6,17 +6,20 @@
 namespace pedrodb {
 using pedrolib::htobe;
 
-struct RecordView : public RecordHeader {
+struct RecordEntry {
   std::string_view key;
   std::string_view value;
 
-  uint32_t offset;
-  uint32_t length;
+  record::Type type{};
+  uint32_t timestamp{};
+  uint32_t offset{};
 };
 
 class RecordIterator {
   ReadableFile *file_;
-  RecordView view{};
+
+  record::Header view_{};
+
   size_t offset_{};
   size_t size_{};
   size_t buffer_offset_{};
@@ -26,7 +29,7 @@ class RecordIterator {
     if (buffer_->ReadableBytes() >= fetch) {
       return;
     }
-    
+
     fetch = std::max((size_t)kBlockSize, fetch);
     fetch = std::min(fetch, size_ - buffer_offset_);
 
@@ -46,37 +49,38 @@ public:
       return false;
     }
 
-    FetchBuffer(RecordHeader::SizeOf());
-    if (!view.UnPack(buffer_)) {
+    FetchBuffer(record::Header::SizeOf());
+    if (!view_.UnPack(buffer_)) {
       PEDRODB_ERROR("file corrupt, cannot unpack header");
       return false;
     }
 
-    if (view.type == RecordHeader::Type::kEmpty) {
+    if (view_.type == record::Type::kEmpty) {
       PEDRODB_ERROR("file corrupt, type is empty");
       return false;
     }
 
-    FetchBuffer(view.key_size + view.value_size);
-    if (buffer_->ReadableBytes() < view.key_size + view.value_size) {
+    FetchBuffer(view_.key_size + view_.value_size);
+    if (buffer_->ReadableBytes() < view_.key_size + view_.value_size) {
       PEDRODB_ERROR("file corrupt");
       return false;
     }
     return true;
   }
 
-  RecordView Next() noexcept {
-    view.key = {buffer_->ReadIndex(), view.key_size};
-    buffer_->Retrieve(view.key_size);
+  RecordEntry Next() noexcept {
+    RecordEntry entry;
+    entry.key = {buffer_->ReadIndex(), view_.key_size};
+    buffer_->Retrieve(view_.key_size);
 
-    view.value = {buffer_->ReadIndex(), view.value_size};
-    buffer_->Retrieve(view.value_size);
+    entry.value = {buffer_->ReadIndex(), view_.value_size};
+    buffer_->Retrieve(view_.value_size);
 
-    view.offset = offset_;
-    view.length = RecordHeader::SizeOf() + view.key_size + view.value_size;
-
-    offset_ += view.length;
-    return view;
+    entry.offset = offset_;
+    entry.type = view_.type;
+    entry.timestamp = view_.timestamp;
+    offset_ += record::SizeOf(view_.key_size, view_.value_size);
+    return entry;
   }
 };
 } // namespace pedrodb

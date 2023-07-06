@@ -39,16 +39,7 @@ public:
     *file = f.release();
     return Status::kOk;
   }
-
-  Error Fill(size_t bytes) {
-    if (file_.Valid()) {
-      if (File::Fill(file_, 0, bytes) < 0) {
-        return file_.GetError();
-      }
-    }
-    return Error::Success();
-  }
-
+  
   uint64_t GetOffset() const noexcept { return offset_; }
 
   Error Write(pedrolib::Buffer *buffer) {
@@ -72,7 +63,6 @@ public:
   }
 
   Error Sync() {
-    return Error::Success();
     return file_.Sync();
   }
 

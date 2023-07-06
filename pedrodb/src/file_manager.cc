@@ -2,7 +2,7 @@
 
 namespace pedrodb {
 
-Status FileManager::OpenActiveFile(WritableFile **file, uint32_t id) {
+Status FileManager::OpenActiveFile(WritableFile **file, file_t id) {
   PEDRODB_INFO("create active file {}", id);
   auto status =
       WritableFile::OpenOrCreate(metadata_manager_->GetDataFilePath(id), file);
@@ -31,20 +31,20 @@ Status FileManager::Init() {
 
   active_id_ = *std::max_element(files.begin(), files.end());
   read_cache_->UpdateActiveID(active_id_);
-  
+
   WritableFile *file;
   auto status = OpenActiveFile(&file, active_id_);
   if (status != Status::kOk) {
     return status;
   }
   active_.reset(file);
-  
+
   return Status::kOk;
 }
 
 Status FileManager::CreateActiveFile() {
   WritableFile *active = nullptr;
-  uint32_t id = active_id_ + 1;
+  file_t id = active_id_ + 1;
 
   auto stat = OpenActiveFile(&active, id);
   if (stat != Status::kOk) {
@@ -59,14 +59,14 @@ Status FileManager::CreateActiveFile() {
   return Status::kOk;
 }
 
-Status FileManager::ReleaseDataFile(uint32_t id) {
+Status FileManager::ReleaseDataFile(file_t id) {
   auto pred = [id](const OpenFile &file) { return file.id == id; };
   auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
   open_files_.erase(it, open_files_.end());
   return Status::kOk;
 }
 
-Status FileManager::AcquireDataFile(uint32_t id, ReadableFileGuard *file) {
+Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
   auto pred = [id](const OpenFile &file) { return file.id == id; };
   auto it = std::find_if(open_files_.begin(), open_files_.end(), pred);
   if (it != open_files_.end()) {
