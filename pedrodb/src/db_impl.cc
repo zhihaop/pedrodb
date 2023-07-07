@@ -19,6 +19,16 @@ Status DBImpl::Delete(const WriteOptions &options, std::string_view key) {
   return HandlePut(options, Hash(key), key, {});
 }
 
+void DBImpl::UpdateUnused(file_t id, size_t unused) {
+  auto &hint = compact_hints_[id];
+  hint.unused += unused;
+  if (hint.unused >= options_.compaction_threshold_bytes) {
+    if (hint.state == CompactState::kNop) {
+      compact_tasks_.emplace(id);
+    }
+  }
+}
+
 Status DBImpl::Init() {
   Status status = metadata_manager_->Init();
   if (status != Status::kOk) {
@@ -38,10 +48,21 @@ Status DBImpl::Init() {
   sync_worker_ = executor_->ScheduleEvery(
       options_.sync_interval, options_.sync_interval, [this] { Flush(); });
 
+  compact_worker_ = executor_->ScheduleEvery(
+      options_.compact_interval, options_.compact_interval, [this] {
+        auto lock = AcquireLock();
+        auto task = PollCompactTask();
+        lock.unlock();
+
+        std::for_each(task.begin(), task.end(), [=](auto task) {
+          executor_->Schedule([=] { Compact(task); });
+        });
+      });
+
   return Status::kOk;
 }
 
-Status DBImpl::Compact() {
+std::vector<file_t> DBImpl::GetFiles() {
   std::vector<file_t> files;
   {
     auto _ = metadata_manager_->AcquireLock();
@@ -50,13 +71,28 @@ Status DBImpl::Compact() {
   }
 
   std::sort(files.begin(), files.end());
-  if (!files.empty()) {
-    files.pop_back();
+  return files;
+}
+
+std::vector<file_t> DBImpl::PollCompactTask() {
+  auto tasks = compact_tasks_;
+  compact_tasks_.clear();
+  for (auto file : tasks) {
+    compact_hints_[file].state = CompactState::kScheduling;
+  }
+  return {tasks.begin(), tasks.end()};
+}
+
+Status DBImpl::Compact() {
+  auto lock = AcquireLock();
+  auto tasks = PollCompactTask();
+  lock.unlock();
+
+  std::sort(tasks.begin(), tasks.end());
+  for (auto file : tasks) {
+    Compact(file);
   }
 
-  for (auto f : files) {
-    Compact(f);
-  }
   return Status::kOk;
 }
 
@@ -65,15 +101,14 @@ DBImpl::DBImpl(const Options &options, const std::string &name)
   read_cache_ = std::make_unique<ReadCache>(options_.read_cache_bytes);
   executor_ = options_.executor;
   metadata_manager_ = std::make_unique<MetadataManager>(name);
-  file_manager_ = std::make_unique<FileManager>(
-      metadata_manager_.get(), read_cache_.get(), options.max_open_files);
+  file_manager_ = std::make_unique<FileManager>(metadata_manager_.get(),
+                                                options.max_open_files);
 }
 
 DBImpl::~DBImpl() {
   executor_->ScheduleCancel(sync_worker_);
-  if (executor_.unique()) {
-    executor_->Close();
-  }
+  executor_->ScheduleCancel(compact_worker_);
+  Flush();
 }
 
 Status DBImpl::Recovery(file_t id) {
@@ -95,9 +130,11 @@ Status DBImpl::Recovery(file_t id) {
   return Status::kOk;
 }
 
-Status DBImpl::CompactBatch(const std::vector<Record> &records) {
+Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
   ArrayBuffer buffer;
   auto lock = AcquireLock();
+
+  compact_hints_[id].state = CompactState::kCompacting;
 
   for (auto &r : records) {
     auto it = GetMetadataIterator(r.h, r.key);
@@ -124,21 +161,23 @@ Status DBImpl::CompactBatch(const std::vector<Record> &records) {
     buffer.Append(r.key.data(), r.key.size());
     buffer.Append(r.value.data(), r.value.size());
 
+    // remove cache.
+    read_cache_->Remove(it->loc);
+
     record::Location loc;
     auto _ = file_manager_->AcquireLock();
-    auto status = file_manager_->WriteActiveFile(&buffer, &loc.id, &loc.offset);
+    auto status = file_manager_->WriteActiveFile(&buffer, &loc);
     if (status != Status::kOk) {
       return status;
     }
 
     it->loc = loc;
     it->size = record::SizeOf(r.key.size(), r.value.size());
-    read_cache_->UpdateCache(loc, r.value);
   }
 
   {
     auto _ = file_manager_->AcquireLock();
-    file_manager_->SyncActiveFile();
+    file_manager_->Sync();
   }
   return Status::kOk;
 }
@@ -151,17 +190,6 @@ void DBImpl::Compact(file_t id) {
     if (stat != Status::kOk) {
       return;
     }
-  }
-
-  // check compaction state.
-  {
-    auto lock = AcquireLock();
-    auto it = compact_hints_.find(id);
-    if (it == compact_hints_.end()) {
-      return;
-    }
-
-    it->second.compacting = true;
   }
 
   PEDRODB_INFO("start compacting {}", id);
@@ -184,14 +212,14 @@ void DBImpl::Compact(file_t id) {
     });
 
     if (batch_bytes >= options_.compaction_batch_bytes) {
-      CompactBatch(batch);
+      CompactBatch(id, batch);
       batch.clear();
       batch_bytes = 0;
     }
   }
 
   if (batch_bytes > 0) {
-    CompactBatch(batch);
+    CompactBatch(id, batch);
     batch.clear();
   }
 
@@ -199,6 +227,7 @@ void DBImpl::Compact(file_t id) {
   {
     auto lock = AcquireLock();
     compact_hints_.erase(id);
+    compact_tasks_.erase(id);
   }
 
   // remove file.
@@ -240,34 +269,26 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   buffer_.Append(value.data(), value.size());
 
   record::Location loc{};
-  auto status = file_manager_->WriteActiveFile(&buffer_, &loc.id, &loc.offset);
+  auto status = file_manager_->WriteActiveFile(&buffer_, &loc);
   if (status != Status::kOk) {
     return status;
   }
 
   // replace or delete.
   if (it != indices_.end()) {
+    // remove cache.
+    read_cache_->Remove(it->loc);
 
     // update compact hints.
-    auto &state = compact_hints_[it->loc.id];
-    if (!state.compacting) {
-      state.unused += it->size;
-      if (state.unused > options_.compaction_threshold_bytes) {
-        state.compacting = true;
-        executor_->Schedule([=] { Compact(it->loc.id); });
-        PEDRODB_INFO("schedule compact {} {}", it->loc.id, state.unused);
-      }
-    }
+    UpdateUnused(it->loc.id, it->size);
 
     if (value.empty()) {
       // delete.
-      read_cache_->Remove(it->loc);
       indices_.erase(it);
     } else {
       // replace.
       it->loc = loc;
       it->size = record_size;
-      read_cache_->UpdateCache(loc, value);
     }
     return Status::kOk;
   }
@@ -275,13 +296,12 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   // insert.
   indices_.emplace(RecordDir{
       .h = h, .key = std::string{key}, .loc = loc, .size = record_size});
-  read_cache_->UpdateCache(loc, value);
   return Status::kOk;
 }
 
 Status DBImpl::Flush() {
   auto lock = file_manager_->AcquireLock();
-  file_manager_->SyncActiveFile();
+  file_manager_->Sync();
   return Status::kOk;
 }
 
@@ -316,18 +336,13 @@ Status DBImpl::FetchRecord(ReadableFile *file, const RecordDir &metadata,
 }
 
 Status DBImpl::Recovery() {
-  auto all_files = metadata_manager_->GetFiles();
-  std::vector<file_t> files(all_files.begin(), all_files.end());
-  std::sort(files.begin(), files.end());
-
-  for (auto file : files) {
+  for (auto file : GetFiles()) {
     PEDRODB_TRACE("crash recover: file {}", file);
     auto status = Recovery(file);
     if (status != Status::kOk) {
       return status;
     }
   }
-  file_manager_->ReleaseDataFile(files.back());
   return Status::kOk;
 }
 
@@ -373,14 +388,12 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
     if (it == indices_.end()) {
       indices_.emplace(RecordDir{
           .h = h, .key = std::string{entry.key}, .loc = loc, .size = size});
-      read_cache_->UpdateCache(loc, entry.value);
       return Status::kOk;
     }
 
     // indices has the newer version data.
     if (it->loc > loc) {
-      auto &state = compact_hints_[id];
-      state.unused += record::SizeOf(entry.key.size(), entry.value.size());
+      UpdateUnused(id, record::SizeOf(entry.key.size(), entry.value.size()));
       return Status::kOk;
     }
 
@@ -390,9 +403,7 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
     }
 
     // indices has the elder version data.
-    compact_hints_[it->loc.id].unused += it->size;
-    read_cache_->Remove(it->loc);
-    read_cache_->UpdateCache(loc, entry.value);
+    UpdateUnused(it->loc.id, it->size);
 
     // update indices.
     it->loc = loc;
@@ -401,8 +412,7 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
   // a tombstone of deletion.
   if (entry.type == record::Type::kDelete) {
-    auto &state = compact_hints_[id];
-    state.unused += record::SizeOf(entry.key.size(), entry.value.size());
+    UpdateUnused(id, record::SizeOf(entry.key.size(), entry.value.size()));
     if (it == indices_.end()) {
       return Status::kOk;
     }
@@ -414,8 +424,7 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
       return Status::kOk;
     }
 
-    compact_hints_[it->loc.id].unused += it->size;
-    read_cache_->Remove(it->loc);
+    UpdateUnused(it->loc.id, it->size);
     indices_.erase(it);
   }
 

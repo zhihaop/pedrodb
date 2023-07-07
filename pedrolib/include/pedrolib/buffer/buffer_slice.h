@@ -19,8 +19,12 @@ public:
         write_index_(size) {}
   explicit BufferSlice(char *data) : BufferSlice(data, ::strlen(data)) {}
   explicit BufferSlice(std::string &s) : BufferSlice(s.data(), s.size()) {}
-  size_t ReadableBytes() override { return write_index_ - read_index_; }
-  size_t WritableBytes() override { return size_ - write_index_; }
+  [[nodiscard]] size_t ReadableBytes() const noexcept override {
+    return write_index_ - read_index_;
+  }
+  [[nodiscard]] size_t WritableBytes() const noexcept override {
+    return size_ - write_index_;
+  }
   void EnsureWriteable(size_t n) override {
     if (read_index_ + WritableBytes() < n) {
       return;
@@ -32,23 +36,21 @@ public:
     write_index_ = r;
   }
 
-  size_t Capacity() override { return size_; }
+  [[nodiscard]] size_t Capacity() const noexcept override { return size_; }
 
-  size_t Append(const char *data, size_t n) {
+  size_t Append(const char *data, size_t n) override {
     n = std::min(n, WritableBytes());
     memcpy(data_ + write_index_, data, n);
     Append(n);
     return n;
   }
 
-  size_t Retrieve(char *data, size_t n) {
+  size_t Retrieve(char *data, size_t n) override {
     n = std::min(n, ReadableBytes());
     memcpy(data, data_ + read_index_, n);
     Retrieve(n);
     return n;
   }
-
-  char *Data() noexcept { return data_; }
 
   void Retrieve(size_t n) override { read_index_ += n; }
   void Append(size_t n) override { write_index_ += n; }

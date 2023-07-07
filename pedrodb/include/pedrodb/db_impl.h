@@ -45,9 +45,15 @@ struct Record {
   uint32_t timestamp{};
 };
 
+enum class CompactState {
+  kNop,
+  kScheduling,
+  kCompacting,
+};
+
 struct CompactHint {
   size_t unused{};
-  bool compacting{};
+  CompactState state;
 };
 
 class DBImpl : public DB {
@@ -56,15 +62,16 @@ class DBImpl : public DB {
   Options options_;
   ArrayBuffer buffer_;
   uint64_t sync_worker_{};
+  uint64_t compact_worker_{};
   std::unique_ptr<ReadCache> read_cache_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
   std::unordered_multiset<RecordDir, RecordDir::Hash> indices_;
 
+  // for compaction.
+  std::unordered_set<file_t> compact_tasks_;
   std::unordered_map<file_t, CompactHint> compact_hints_;
-
-  Status CompactBatch(const std::vector<Record> &records);
 
   Status Recovery(file_t id);
 
@@ -108,6 +115,14 @@ public:
              std::string_view value) override;
 
   Status Delete(const WriteOptions &options, std::string_view key) override;
+  
+  std::vector<file_t> GetFiles();
+  
+  void UpdateUnused(file_t id, size_t unused);
+  
+  std::vector<file_t> PollCompactTask();
+  
+  Status CompactBatch(file_t id, const std::vector<Record> &records);
 };
 } // namespace pedrodb
 

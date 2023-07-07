@@ -5,76 +5,56 @@
 
 namespace pedrodb {
 class WritableFile : noncopyable {
-  ArrayBuffer buffer_{};
-  uint64_t offset_{};
   File file_{};
-  mutable std::mutex mu_;
+  uint64_t write_offset_{};
 
 public:
-  ~WritableFile() {
-    if (file_.Valid()) {
-      Flush();
-      file_.Sync();
-    }
-  }
+  ~WritableFile() = default;
 
-  static Status OpenOrCreate(const std::string &filename, WritableFile **file) {
+  static Status OpenOrCreate(const std::string &filename,
+                             std::unique_ptr<WritableFile> *file) {
     auto f = std::make_unique<WritableFile>();
-    File::OpenOption option{.mode = File ::OpenMode::kWrite, .create = 0777};
+    File::OpenOption option{.mode = File ::OpenMode::kReadWrite,
+                            .create = 0777};
     f->file_ = File::Open(filename.c_str(), option);
     if (!f->file_.Valid()) {
       PEDRODB_ERROR("failed to create active file {}: {}", filename,
                     f->file_.GetError());
       return Status::kIOError;
     }
-
-    int64_t offset = f->file_.Seek(0, File::Whence::kSeekEnd);
-    if (offset < 0) {
-      PEDRODB_ERROR("failed to seek tail {}: {}", filename,
-                    f->file_.GetError());
-      return Status::kIOError;
-    }
-
-    f->offset_ = offset;
-    *file = f.release();
+    *file = std::move(f);
     return Status::kOk;
   }
-  
-  uint64_t GetOffset() const noexcept { return offset_; }
 
-  Error Write(pedrolib::Buffer *buffer) {
-    if (buffer_.ReadableBytes() + buffer->ReadableBytes() > kBlockSize) {
-      std::string_view sv[2]{{buffer_.ReadIndex(), buffer_.ReadableBytes()},
-                             {buffer->ReadIndex(), buffer->ReadableBytes()}};
-      ssize_t w = file_.Writev(sv, 2);
-      if (w != sv[0].size() + sv[1].size()) {
-        return file_.GetError();
-      }
-
-      offset_ += buffer->ReadableBytes();
-      buffer_.Retrieve(buffer_.ReadableBytes());
-      buffer->Retrieve(buffer->ReadableBytes());
-      return Error::Success();
+  Error ReadAll(std::string *value) {
+    int64_t size = File::Size(file_);
+    if (size < 0) {
+      return file_.GetError();
     }
 
-    offset_ += buffer->ReadableBytes();
-    buffer_.Append(buffer);
+    value->resize(size);
+
+    ssize_t r = file_.Read(value->data(), size);
+    if (r != size) {
+      return file_.GetError();
+    }
+
+    write_offset_ += r;
     return Error::Success();
   }
 
-  Error Sync() {
-    return file_.Sync();
+  [[nodiscard]] uint64_t GetOffset() const noexcept { return write_offset_; }
+
+  Error Write(const char *buffer, size_t n) {
+    ssize_t w = file_.Write(buffer, n);
+    if (w != n) {
+      return file_.GetError();
+    }
+    write_offset_ += w;
+    return Error ::Success();
   }
 
-  Error Flush() {
-    PEDRODB_TRACE("file flush");
-    if (buffer_.ReadableBytes()) {
-      if (buffer_.Retrieve(&file_) < 0) {
-        return file_.GetError();
-      }
-    }
-    return Error::Success();
-  }
+  Error Sync() { return file_.Sync(); }
 };
 
 } // namespace pedrodb

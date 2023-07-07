@@ -70,8 +70,9 @@ class LRUCache {
 public:
   explicit LRUCache(size_t capacity)
       : capacity_(capacity),
-        buckets_(std::clamp((size_t)(capacity / sizeof(HashEntry) * 1.25),
-                            kMinimumBuckets, kMaximumBuckets)) {
+        buckets_(
+            std::clamp((size_t)((double)capacity / sizeof(HashEntry) * 1.25),
+                       kMinimumBuckets, kMaximumBuckets)) {
 
     spdlog::info("create buckets {}", buckets_.size());
     lru_.next = &lru_;
@@ -169,9 +170,6 @@ public:
 class ReadCache {
   LRUCache cache_;
 
-  std::unordered_map<uint32_t, std::string> active_cache_;
-  file_t active_id_{};
-
   uint64_t hits_{1};
   uint64_t total_{1};
 
@@ -187,29 +185,17 @@ public:
 
   void UpdateCache(record::Location location, std::string_view value) {
     std::unique_lock lock{mu_};
-    if (location.id == active_id_) {
-      active_cache_.emplace(location.offset, std::string{value});
-    } else {
-      cache_.Put(location, std::string{value});
-    }
+    cache_.Put(location, std::string{value});
   }
 
   void Remove(record::Location location) {
     std::unique_lock lock{mu_};
-    if (location.id != active_id_) {
-      cache_.Remove(location);
-    }
+    cache_.Remove(location);
   }
 
   bool Read(record::Location location, std::string *value) {
     std::unique_lock lock{mu_};
     ++total_;
-    if (location.id == active_id_) {
-      *value = active_cache_[location.offset];
-      ++hits_;
-      return true;
-    }
-
     auto v = cache_.Get(location);
     if (v.empty()) {
       return false;
@@ -218,14 +204,6 @@ public:
     hits_++;
     value->assign(v);
     return true;
-  }
-
-  void UpdateActiveID(file_t active_id) {
-    std::unique_lock lock{mu_};
-    if (active_id > active_id_) {
-      active_id_ = active_id;
-      active_cache_.clear();
-    }
   }
 };
 } // namespace pedrodb

@@ -36,11 +36,11 @@ template <typename T> T betoh(T value) {
 }
 
 struct Buffer {
-  virtual size_t ReadableBytes() = 0;
-  virtual size_t WritableBytes() = 0;
+  [[nodiscard]] virtual size_t ReadableBytes() const noexcept = 0;
+  [[nodiscard]] virtual size_t WritableBytes() const noexcept = 0;
   virtual void EnsureWriteable(size_t) = 0;
 
-  virtual size_t Capacity() = 0;
+  [[nodiscard]] virtual size_t Capacity() const noexcept = 0;
   virtual void Retrieve(size_t) = 0;
   virtual void Append(size_t) = 0;
   virtual void Reset() = 0;

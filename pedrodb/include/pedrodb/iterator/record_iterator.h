@@ -1,6 +1,6 @@
 #ifndef PEDRODB_ITERATOR_RECORDITERATOR_H
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
-#include "pedrodb/file/readable_file.h"
+#include "pedrodb/file/readable_file_impl.h"
 #include "pedrodb/record_format.h"
 
 namespace pedrodb {
@@ -32,7 +32,7 @@ class RecordIterator {
 
     fetch = std::max((size_t)kBlockSize, fetch);
     fetch = std::min(fetch, size_ - buffer_offset_);
-    
+
     buffer_->EnsureWriteable(fetch);
     file_->Read(buffer_offset_, buffer_->WriteIndex(), fetch);
     buffer_offset_ += fetch;

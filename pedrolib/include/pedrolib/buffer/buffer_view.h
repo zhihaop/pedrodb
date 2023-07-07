@@ -15,10 +15,12 @@ public:
   explicit BufferView(const char *data) : data_(data), size_(::strlen(data)) {}
   explicit BufferView(const std::string &s)
       : data_(s.data()), size_(s.size()) {}
-  size_t ReadableBytes() override { return size_ - read_index_; }
-  size_t WritableBytes() override { return 0; }
+  [[nodiscard]] size_t ReadableBytes() const noexcept override {
+    return size_ - read_index_;
+  }
+  [[nodiscard]] size_t WritableBytes() const noexcept override { return 0; }
   void EnsureWriteable(size_t) override {}
-  size_t Capacity() override { return size_; }
+  [[nodiscard]] size_t Capacity() const noexcept override { return size_; }
   size_t Append(const char *data, size_t n) override { return 0; }
   size_t Retrieve(char *data, size_t n) override;
   void Retrieve(size_t size) override {

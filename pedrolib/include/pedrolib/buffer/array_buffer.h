@@ -19,15 +19,15 @@ public:
 
   ArrayBuffer() : ArrayBuffer(kInitialSize) {}
 
-  size_t Capacity() override { return buf_.size(); }
+  [[nodiscard]] size_t Capacity() const noexcept override { return buf_.size(); }
 
-  size_t ReadableBytes() override { return write_index_ - read_index_; }
+  [[nodiscard]] size_t ReadableBytes() const noexcept override { return write_index_ - read_index_; }
 
   void Append(size_t n) override {
     write_index_ = std::min(write_index_ + n, buf_.size());
   }
 
-  size_t WritableBytes() override { return buf_.size() - write_index_; }
+  [[nodiscard]] size_t WritableBytes() const noexcept override { return buf_.size() - write_index_; }
 
   void Retrieve(size_t n) override;
 

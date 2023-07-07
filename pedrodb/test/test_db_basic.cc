@@ -31,7 +31,7 @@ int main() {
   pedrodb::logger::SetLevel(Logger::Level::kTrace);
 
   Options options{};
-  options.read_cache_bytes = -1;
+  // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
 
   std::string path = "/home/zhihaop/db/test.db";
@@ -53,34 +53,33 @@ int main() {
   auto mt = std::mt19937(std::random_device()());
   std::vector<int> all(n_puts);
   std::iota(all.begin(), all.end(), 0);
-  std::shuffle(all.begin(), all.end(), mt);
   // put
-  //  for (int i : all) {
-  //    std::string key = fmt::format("key{}", i);
-  //    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
-  //    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
-  //    if (stat != Status::kOk) {
-  //      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
-  //    }
-  //  }
+  for (int i : all) {
+    std::string key = fmt::format("key{}", i);
+    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+    if (stat != Status::kOk) {
+      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+    }
+  }
 
-  //  logger.Info("benchmark get all");
-  //  for (int i : all) {
-  //    std::string key = fmt::format("key{}", i);
-  //    std::string value;
-  //    auto stat = db->Get(ReadOptions{}, key, &value);
-  //    if (stat != Status::kOk) {
-  //      logger.Fatal("failed to read {}: {}", key, stat);
-  //    }
-  //
-  //    if (value.find(fmt::format("value{}", i)) != 0) {
-  //      logger.Fatal("value is not correct: {}", value);
-  //    }
-  //  }
+  // std::shuffle(all.begin(), all.end(), mt);
+  logger.Info("benchmark get all");
+  for (int i : all) {
+    std::string key = fmt::format("key{}", i);
+    std::string value;
+    auto stat = db->Get(ReadOptions{}, key, &value);
+    if (stat != Status::kOk) {
+      logger.Fatal("failed to read {}: {}", key, stat);
+    }
+
+    if (value.find(fmt::format("value{}", i)) != 0) {
+      logger.Fatal("value is not correct: {}", value);
+    }
+  }
   logger.Info("benchmark get random");
 
-  std::normal_distribution<double> d((double)n_puts / 2.0,
-                                     (double)n_puts / 10.0);
+  std::normal_distribution<double> d((double)n_puts / 2.0, 10.0);
   // get
   for (int i = 0; i < n_reads; ++i) {
     int x = std::clamp((int)d(mt), 0, (int)n_puts - 1);
@@ -92,7 +91,7 @@ int main() {
     }
 
     if (value.find(fmt::format("value{}", x)) != 0) {
-      logger.Fatal("value is not correct: {}", value);
+      logger.Fatal("value is not correct: key {} value{}", key, value);
     }
   }
   fmt::print("cache hit: {}\n", db->CacheHitRatio());
