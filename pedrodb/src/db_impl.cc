@@ -126,7 +126,7 @@ Status DBImpl::Recovery(file_t id) {
 
   PEDRODB_TRACE("crash recover success: file[{}], record[{}]", id,
                 indices_.size());
-  PEDRODB_IGNORE_ERROR(file_manager_->ReleaseDataFile(id));
+  file_manager_->ReleaseDataFile(id);
   return Status::kOk;
 }
 
@@ -233,7 +233,7 @@ void DBImpl::Compact(file_t id) {
   // remove file.
   {
     auto _ = file_manager_->AcquireLock();
-    PEDRODB_IGNORE_ERROR(file_manager_->ReleaseDataFile(id));
+    file_manager_->ReleaseDataFile(id);
     PEDRODB_IGNORE_ERROR(file_manager_->RemoveDataFile(id));
   }
 
@@ -294,7 +294,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   }
 
   // insert.
-  indices_.emplace(RecordDir{
+  indices_.emplace(record::Dir{
       .h = h, .key = std::string{key}, .loc = loc, .size = record_size});
   return Status::kOk;
 }
@@ -305,19 +305,19 @@ Status DBImpl::Flush() {
   return Status::kOk;
 }
 
-Status DBImpl::FetchRecord(ReadableFile *file, const RecordDir &metadata,
+Status DBImpl::FetchRecord(ReadableFile *file, const record::Dir &dir,
                            std::string *value) {
-  record::Location l = metadata.loc;
+  record::Location l = dir.loc;
 
   buffer_.Reset();
-  buffer_.EnsureWriteable(metadata.size);
-  ssize_t r = file->Read(l.offset, buffer_.WriteIndex(), metadata.size);
-  if (r != metadata.size) {
+  buffer_.EnsureWriteable(dir.size);
+  ssize_t r = file->Read(l.offset, buffer_.WriteIndex(), dir.size);
+  if (r != dir.size) {
     PEDRODB_ERROR("failed to read from file {}, returns {}: {}", l.id, r,
                   file->GetError());
     return Status::kIOError;
   }
-  buffer_.Append(metadata.size);
+  buffer_.Append(dir.size);
 
   record::Header header{};
   if (!header.UnPack(&buffer_)) {
@@ -348,7 +348,7 @@ Status DBImpl::Recovery() {
 
 auto DBImpl::GetMetadataIterator(uint32_t h, std::string_view key)
     -> decltype(indices_.begin()) {
-  auto [s, t] = indices_.equal_range(RecordDir{.h = h});
+  auto [s, t] = indices_.equal_range(record::Dir{.h = h});
   auto it = std::find_if(s, t, [=](auto &k) { return k.key == key; });
   return it == t ? indices_.end() : it;
 }
@@ -386,7 +386,7 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
   if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      indices_.emplace(RecordDir{
+      indices_.emplace(record::Dir{
           .h = h, .key = std::string{entry.key}, .loc = loc, .size = size});
       return Status::kOk;
     }

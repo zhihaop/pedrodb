@@ -21,22 +21,6 @@
 
 namespace pedrodb {
 
-struct RecordDir {
-
-  struct Hash {
-    size_t operator()(const RecordDir &other) const noexcept { return other.h; }
-  };
-
-  uint32_t h{};
-  std::string key;
-  mutable record::Location loc;
-  mutable uint32_t size{};
-
-  bool operator==(const RecordDir &other) const noexcept {
-    return h == other.h;
-  }
-};
-
 struct Record {
   uint32_t h;
   std::string key;
@@ -67,7 +51,7 @@ class DBImpl : public DB {
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
-  std::unordered_multiset<RecordDir, RecordDir::Hash> indices_;
+  std::unordered_multiset<record::Dir, record::Dir::Hash> indices_;
 
   // for compaction.
   std::unordered_set<file_t> compact_tasks_;
@@ -95,7 +79,7 @@ public:
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
 
-  Status FetchRecord(ReadableFile *file, const RecordDir &metadata,
+  Status FetchRecord(ReadableFile *file, const record::Dir &dir,
                      std::string *value);
 
   Status Recovery();
@@ -115,13 +99,13 @@ public:
              std::string_view value) override;
 
   Status Delete(const WriteOptions &options, std::string_view key) override;
-  
+
   std::vector<file_t> GetFiles();
-  
+
   void UpdateUnused(file_t id, size_t unused);
-  
+
   std::vector<file_t> PollCompactTask();
-  
+
   Status CompactBatch(file_t id, const std::vector<Record> &records);
 };
 } // namespace pedrodb

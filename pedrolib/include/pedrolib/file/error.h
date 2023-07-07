@@ -9,6 +9,9 @@ class Error {
   int code_{};
 
 public:
+  const static Error kOk;
+
+public:
   explicit Error(int code) : code_(code) {}
 
   static Error Success() { return {}; }
@@ -18,19 +21,22 @@ public:
   Error(const Error &) = default;
   Error &operator=(const Error &) = default;
 
-  bool Empty() const noexcept { return code_ == 0; }
+  [[nodiscard]] bool Empty() const noexcept { return code_ == 0; }
   bool operator==(const Error &err) const noexcept {
     return code_ == err.code_;
   }
-  int GetCode() const noexcept { return code_; }
-  const char *GetReason() const noexcept;
+  bool operator!=(const Error &err) const noexcept {
+    return code_ != err.code_;
+  }
+  [[nodiscard]] int GetCode() const noexcept { return code_; }
+  [[nodiscard]] const char *GetReason() const noexcept;
   void Clear() { code_ = 0; }
 
-  std::string String() const {
+  [[nodiscard]] std::string String() const {
     return fmt::format("Error[code:{}, reason:{}]", code_, GetReason());
   }
 };
 } // namespace pedrolib
 
 PEDROLIB_CLASS_FORMATTER(pedrolib::Error);
-#endif // PEDRONET_CORE_ERROR_H
+#endif // PEDROLIB_FILE_ERROR_H

@@ -75,6 +75,19 @@ struct Location : public pedrolib::Comparable<Location> {
     return (((uint64_t)id) << 32) | offset;
   }
 };
+
+struct Dir {
+  struct Hash {
+    size_t operator()(const Dir &other) const noexcept { return other.h; }
+  };
+
+  uint32_t h{};
+  std::string key;
+  mutable Location loc;
+  mutable uint32_t size{};
+
+  bool operator==(const Dir &other) const noexcept { return h == other.h; }
+};
 } // namespace pedrodb::record
 
 #endif // PEDRODB_RECORD_FORMAT_H

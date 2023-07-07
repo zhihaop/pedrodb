@@ -1,7 +1,7 @@
 #ifndef PEDRODB_METADATA_FORMAT_H
 #define PEDRODB_METADATA_FORMAT_H
 
-#include <pedrolib/buffer/buffer.h>
+#include "pedrodb/defines.h"
 
 namespace pedrodb::metadata {
 using pedrolib::htobe;

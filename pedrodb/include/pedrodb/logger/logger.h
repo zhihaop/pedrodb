@@ -22,9 +22,11 @@ void SetLevel(Level level);
 #define PEDRODB_FATAL(fmt, args...)                                            \
   pedrodb::logger::GetLogger().Fatal(fmt, ##args)
 
+template <typename T> bool StatusOk(T stat) { return stat == T::kOk; }
+
 #define PEDRODB_IGNORE_ERROR(err)                                              \
   do {                                                                         \
-    if (!err.Empty()) {                                                        \
+    if (!StatusOk(err)) {                                                      \
       PEDRODB_ERROR("ignore error: {}", err);                                  \
     }                                                                          \
   } while (0)

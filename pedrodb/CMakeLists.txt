@@ -6,7 +6,7 @@ file(GLOB_RECURSE srcs src/*.cc)
 
 #add_subdirectory(../pedrolib pedrolib)
 add_subdirectory(../pedronet pedronet)
-add_library(pedrodb ${srcs} include/pedrodb/file/readable_file.h)
+add_library(pedrodb ${srcs} src/segment_db.cc include/pedrodb/cache/lru_cache.h)
 target_include_directories(pedrodb PUBLIC include ../pedrolib/include)
 target_link_libraries(pedrodb PRIVATE pedrolib)
 

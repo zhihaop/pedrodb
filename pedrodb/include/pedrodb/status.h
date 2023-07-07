@@ -5,50 +5,29 @@
 #include <string_view>
 
 namespace pedrodb {
-class Status {
-  uint32_t code_;
 
-public:
-  const static Status kOk;
-  const static Status kNotFound;
-  const static Status kCorruption;
-  const static Status kNotSupported;
-  const static Status kInvalidArgument;
-  const static Status kIOError;
-
-public:
-  explicit Status(uint32_t code) : code_(code) {}
-  ~Status() = default;
-  Status(const Status &s) = default;
-  Status &operator=(const Status &) = default;
-
-  bool Empty() const noexcept { return code_ == 0; }
-
-  bool operator==(const Status &status) const noexcept {
-    return code_ == status.code_;
-  }
-
-  bool operator!=(const Status &status) const noexcept {
-    return code_ != status.code_;
-  }
-
-  [[nodiscard]] std::string_view String() const noexcept {
-    std::string_view msg[6] = {"ok",          "not found",        "corruption",
-                               "not support", "invalid argument", "io error"};
-    Status stats[6] = {kOk,           kNotFound,        kCorruption,
-                       kNotSupported, kInvalidArgument, kIOError};
-
-    for (size_t i = 0; i < std::size(stats); ++i) {
-      if (code_ == stats[i].code_) {
-        return msg[i];
-      }
-    }
-
-    return "unknown";
-  }
+enum class Status {
+  kOk,
+  kNotFound,
+  kCorruption,
+  kNotSupported,
+  kInvalidArgument,
+  kIOError
 };
+
 } // namespace pedrodb
 
-PEDROLIB_CLASS_FORMATTER(pedrodb::Status);
+template <> struct fmt::formatter<pedrodb::Status> {
+  static constexpr auto parse(format_parse_context &ctx)
+      -> format_parse_context::iterator {
+    return ctx.end();
+  }
+  static auto format(const pedrodb::Status &status, format_context &ctx) {
+    using namespace pedrodb;
+    std::string_view msg[6] = {"ok",          "not found",        "corruption",
+                               "not support", "invalid argument", "io error"};
+    return fmt::format_to(ctx.out(), "{}", msg[static_cast<size_t>(status)]);
+  }
+};
 
 #endif // PEDRODB_STATUS_H

@@ -30,10 +30,10 @@ Status FileManager::Recovery(file_t active) {
   }
 
   active_ = std::move(file);
-  memtable_.Update(active, std::move(value));
+  memtable_ = std::move(value);
   latest_ = {
       .id = active,
-      .offset = (uint32_t)memtable_.Size(),
+      .offset = (uint32_t)memtable_.size(),
   };
 
   return Status::kOk;
@@ -66,20 +66,19 @@ Status FileManager::CreateActiveFile() {
   active_ = std::move(active);
   latest_.id = id;
   latest_.offset = 0;
-  memtable_.Update(id);
+  memtable_.clear();
 
   return Status::kOk;
 }
 
-Status FileManager::ReleaseDataFile(file_t id) {
+void FileManager::ReleaseDataFile(file_t id) {
   if (id == latest_.id) {
-    return Status::kOk;
+    return;
   }
-  
+
   auto pred = [id](const OpenFile &file) { return file.id == id; };
   auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
   open_files_.erase(it, open_files_.end());
-  return Status::kOk;
 }
 
 Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
@@ -117,16 +116,135 @@ Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
   return stat;
 }
 
+Error FileManager::RemoveDataFile(file_t id) {
+  if (id == latest_.id) {
+    return Error::Success();
+  }
+
+  ReleaseDataFile(id);
+  {
+    auto _ = metadata_manager_->AcquireLock();
+    PEDRODB_IGNORE_ERROR(metadata_manager_->DeleteFile(id));
+  }
+  return File::Remove(metadata_manager_->GetDataFilePath(id).c_str());
+}
+
+Status FileManager::WriteActiveFile(Buffer *buffer, record::Location *loc) {
+  if (latest_.offset + buffer->ReadableBytes() > kMaxFileBytes) {
+    auto status = Flush(true);
+    if (status != Status::kOk) {
+      return status;
+    }
+
+    status = CreateActiveFile();
+    if (status != Status::kOk) {
+      return status;
+    }
+  }
+
+  loc->offset = latest_.offset;
+  loc->id = latest_.id;
+
+  size_t w = buffer->ReadableBytes();
+  memtable_.insert(memtable_.end(), buffer->ReadIndex(),
+                   buffer->ReadIndex() + w);
+  buffer->Retrieve(w);
+  latest_.offset += w;
+
+  PEDRODB_IGNORE_ERROR(Flush(false));
+  return Status::kOk;
+}
+
+Status FileManager::Flush(bool force) {
+  if (memtable_.size() == active_->GetOffset()) {
+    return Status::kOk;
+  }
+
+  if (memtable_.size() - active_->GetOffset() < kBlockSize) {
+    if (!force) {
+      return Status::kOk;
+    }
+  }
+
+  if (memtable_.size() < active_->GetOffset()) {
+    PEDRODB_FATAL("should not happened: {} {}", memtable_.size(),
+                  active_->GetOffset());
+  }
+
+  uint64_t w = memtable_.size() - active_->GetOffset();
+  auto err = active_->Write(memtable_.data() + active_->GetOffset(), w);
+  if (!err.Empty()) {
+    PEDRODB_ERROR("failed to write active file: {}", err);
+    return Status::kIOError;
+  }
+  return Status::kOk;
+}
+
+Status FileManager::Sync() {
+  auto status = Flush(true);
+  if (status != Status::kOk) {
+    return status;
+  }
+
+  auto err = active_->Sync();
+  if (!err.Empty()) {
+    return Status::kIOError;
+  }
+  return Status::kOk;
+}
+
 void MemoryTableView::UpdateFile() const noexcept {
-  if (view_->GetID() == id_) {
+  if (parent_->GetActiveFile() == id_) {
     return;
   }
-  view_ = nullptr;
+  memtable_ = nullptr;
 
-  auto lock = parent_->AcquireLock();
   auto status = parent_->AcquireDataFile(id_, &file_);
   if (status != Status::kOk) {
     return;
   }
 }
+
+uint64_t MemoryTableView::Size() const noexcept {
+  auto lock = parent_->AcquireLock();
+  UpdateFile();
+
+  if (memtable_) {
+    return memtable_->size();
+  }
+  lock.unlock();
+
+  if (file_) {
+    return file_->Size();
+  }
+  return -1;
+}
+
+Error MemoryTableView::GetError() const noexcept {
+  if (memtable_) {
+    return Error::kOk;
+  }
+  if (file_) {
+    return file_->GetError();
+  }
+  return Error{EBADFD};
+}
+
+ssize_t MemoryTableView::Read(uint64_t offset, char *buf, size_t n) {
+  auto lock = parent_->AcquireLock();
+  UpdateFile();
+
+  if (memtable_ != nullptr) {
+    uint64_t sentry = std::min(offset + n, (uint64_t)memtable_->size());
+    std::copy(memtable_->data() + offset, memtable_->data() + sentry, buf);
+    return static_cast<ssize_t>(sentry - offset);
+  }
+  lock.unlock();
+
+  if (file_) {
+    file_->Read(offset, buf, n);
+  }
+  return -1;
+}
+
 } // namespace pedrodb
