@@ -4,9 +4,8 @@ project(pedrodb)
 set(CMAKE_CXX_STANDARD 17)
 file(GLOB_RECURSE srcs src/*.cc)
 
-#add_subdirectory(../pedrolib pedrolib)
-add_subdirectory(../pedronet pedronet)
-add_library(pedrodb ${srcs} src/segment_db.cc include/pedrodb/cache/lru_cache.h)
+add_subdirectory(../pedrolib pedrolib)
+add_library(pedrodb ${srcs})
 target_include_directories(pedrodb PUBLIC include ../pedrolib/include)
 target_link_libraries(pedrodb PRIVATE pedrolib)
 

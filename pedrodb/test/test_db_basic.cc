@@ -1,4 +1,3 @@
-#include <execution>
 #include <iostream>
 #include <pedrodb/db.h>
 #include <pedrodb/db_impl.h>
