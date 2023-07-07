@@ -95,7 +95,7 @@ Status DBImpl::Recovery(file_t id) {
   return Status::kOk;
 }
 
-Status DBImpl::CompactBatch(const std::vector<KeyValueRecord> &records) {
+Status DBImpl::CompactBatch(const std::vector<Record> &records) {
   ArrayBuffer buffer;
   auto lock = AcquireLock();
 
@@ -105,9 +105,8 @@ Status DBImpl::CompactBatch(const std::vector<KeyValueRecord> &records) {
       continue;
     }
 
-    auto &meta = it->second;
     // steal record.
-    if (meta.loc != r.location) {
+    if (it->loc != r.location) {
       continue;
     }
 
@@ -131,7 +130,9 @@ Status DBImpl::CompactBatch(const std::vector<KeyValueRecord> &records) {
     if (status != Status::kOk) {
       return status;
     }
-    meta.loc = loc;
+
+    it->loc = loc;
+    it->size = record::SizeOf(r.key.size(), r.value.size());
     read_cache_->UpdateCache(loc, r.value);
   }
 
@@ -165,7 +166,7 @@ void DBImpl::Compact(file_t id) {
 
   PEDRODB_INFO("start compacting {}", id);
 
-  std::vector<KeyValueRecord> batch;
+  std::vector<Record> batch;
   size_t batch_bytes = 0;
 
   ArrayBuffer buffer;
@@ -175,7 +176,7 @@ void DBImpl::Compact(file_t id) {
       continue;
     }
     batch_bytes += record::SizeOf(next.key.size(), next.value.size());
-    batch.emplace_back(KeyValueRecord{
+    batch.emplace_back(Record{
         .h = Hash(next.key),
         .key = std::string{next.key},
         .value = std::string{next.value},
@@ -246,33 +247,34 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
 
   // replace or delete.
   if (it != indices_.end()) {
-    auto &metadata = it->second;
 
     // update compact hints.
-    auto &state = compact_hints_[metadata.loc.id];
+    auto &state = compact_hints_[it->loc.id];
     if (!state.compacting) {
-      state.unused += metadata.size;
+      state.unused += it->size;
       if (state.unused > options_.compaction_threshold_bytes) {
         state.compacting = true;
-        executor_->Schedule([=] { Compact(metadata.loc.id); });
-        PEDRODB_INFO("schedule compact {} {}", metadata.loc.id, state.unused);
+        executor_->Schedule([=] { Compact(it->loc.id); });
+        PEDRODB_INFO("schedule compact {} {}", it->loc.id, state.unused);
       }
     }
 
-    read_cache_->Remove(metadata.loc);
-
     if (value.empty()) {
+      // delete.
+      read_cache_->Remove(it->loc);
       indices_.erase(it);
     } else {
-      metadata = metadata;
-      read_cache_->UpdateCache(metadata.loc, value);
+      // replace.
+      it->loc = loc;
+      it->size = record_size;
+      read_cache_->UpdateCache(loc, value);
     }
     return Status::kOk;
   }
 
   // insert.
-  indices_.emplace(
-      h, RecordInfo{.key = std::string{key}, .loc = loc, .size = record_size});
+  indices_.emplace(RecordDir{
+      .h = h, .key = std::string{key}, .loc = loc, .size = record_size});
   read_cache_->UpdateCache(loc, value);
   return Status::kOk;
 }
@@ -283,7 +285,7 @@ Status DBImpl::Flush() {
   return Status::kOk;
 }
 
-Status DBImpl::FetchRecord(ReadableFile *file, const RecordInfo &metadata,
+Status DBImpl::FetchRecord(ReadableFile *file, const RecordDir &metadata,
                            std::string *value) {
   record::Location l = metadata.loc;
 
@@ -331,13 +333,9 @@ Status DBImpl::Recovery() {
 
 auto DBImpl::GetMetadataIterator(uint32_t h, std::string_view key)
     -> decltype(indices_.begin()) {
-  auto [s, t] = indices_.equal_range(h);
-  for (auto it = s; it != t; ++it) {
-    if (it->second.key == key) {
-      return it;
-    }
-  }
-  return indices_.end();
+  auto [s, t] = indices_.equal_range(RecordDir{.h = h});
+  auto it = std::find_if(s, t, [=](auto &k) { return k.key == key; });
+  return it == t ? indices_.end() : it;
 }
 
 Status DBImpl::HandleGet(const ReadOptions &options, uint32_t h,
@@ -347,58 +345,58 @@ Status DBImpl::HandleGet(const ReadOptions &options, uint32_t h,
     return Status::kNotFound;
   }
 
-  auto &metadata = it->second;
-  if (read_cache_->Read(metadata.loc, value)) {
+  if (read_cache_->Read(it->loc, value)) {
     return Status::kOk;
   }
 
   ReadableFileGuard file;
   {
     auto lock = file_manager_->AcquireLock();
-    auto stat = file_manager_->AcquireDataFile(metadata.loc.id, &file);
+    auto stat = file_manager_->AcquireDataFile(it->loc.id, &file);
     if (stat != Status::kOk) {
-      PEDRODB_ERROR("cannot get file {}", metadata.loc.id);
+      PEDRODB_ERROR("cannot get file {}", it->loc.id);
       return stat;
     }
   }
 
-  return FetchRecord(file.get(), metadata, value);
+  return FetchRecord(file.get(), *it, value);
 }
 
 Status DBImpl::Recovery(file_t id, RecordEntry entry) {
   record::Location loc{.id = id, .offset = entry.offset};
   uint32_t size = record::SizeOf(entry.key.size(), entry.value.size());
 
-  size_t h = Hash(entry.key);
+  uint32_t h = Hash(entry.key);
   auto it = GetMetadataIterator(h, entry.key);
-  if (entry.type == record::Type::kSet) {
-    RecordInfo metadata{
-        .key = std::string{entry.key}, .loc = loc, .size = size};
 
+  if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      indices_.emplace(h, std::move(metadata));
+      indices_.emplace(RecordDir{
+          .h = h, .key = std::string{entry.key}, .loc = loc, .size = size});
       read_cache_->UpdateCache(loc, entry.value);
       return Status::kOk;
     }
 
-    auto &meta = it->second;
     // indices has the newer version data.
-    if (meta.loc > loc) {
+    if (it->loc > loc) {
       auto &state = compact_hints_[id];
       state.unused += record::SizeOf(entry.key.size(), entry.value.size());
       return Status::kOk;
     }
 
     // never happen.
-    if (meta.loc == loc) {
+    if (it->loc == loc) {
       PEDRODB_FATAL("meta.loc == loc should never happened");
     }
 
     // indices has the elder version data.
-    compact_hints_[meta.loc.id].unused += meta.size;
-    read_cache_->Remove(meta.loc);
+    compact_hints_[it->loc.id].unused += it->size;
+    read_cache_->Remove(it->loc);
     read_cache_->UpdateCache(loc, entry.value);
-    meta = std::move(metadata);
+
+    // update indices.
+    it->loc = loc;
+    it->size = size;
   }
 
   // a tombstone of deletion.
@@ -411,15 +409,13 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
     // Recover(file_t) should be called monotonously,
     // therefore entry.loc is always monotonously increased.
-    auto &meta = it->second;
-
     // should not delete the latest version data.
-    if (meta.loc > loc) {
+    if (it->loc > loc) {
       return Status::kOk;
     }
 
-    compact_hints_[meta.loc.id].unused += meta.size;
-    read_cache_->Remove(meta.loc);
+    compact_hints_[it->loc.id].unused += it->size;
+    read_cache_->Remove(it->loc);
     indices_.erase(it);
   }
 

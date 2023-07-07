@@ -21,13 +21,23 @@
 
 namespace pedrodb {
 
-struct RecordInfo {
+struct RecordDir {
+
+  struct Hash {
+    size_t operator()(const RecordDir &other) const noexcept { return other.h; }
+  };
+
+  uint32_t h{};
   std::string key;
-  record::Location loc;
-  uint32_t size{};
+  mutable record::Location loc;
+  mutable uint32_t size{};
+
+  bool operator==(const RecordDir &other) const noexcept {
+    return h == other.h;
+  }
 };
 
-struct KeyValueRecord {
+struct Record {
   uint32_t h;
   std::string key;
   std::string value;
@@ -50,11 +60,11 @@ class DBImpl : public DB {
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
-  std::unordered_multimap<uint32_t, RecordInfo> indices_;
+  std::unordered_multiset<RecordDir, RecordDir::Hash> indices_;
 
   std::unordered_map<file_t, CompactHint> compact_hints_;
 
-  Status CompactBatch(const std::vector<KeyValueRecord> &records);
+  Status CompactBatch(const std::vector<Record> &records);
 
   Status Recovery(file_t id);
 
@@ -78,7 +88,7 @@ public:
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
 
-  Status FetchRecord(ReadableFile *file, const RecordInfo &metadata,
+  Status FetchRecord(ReadableFile *file, const RecordDir &metadata,
                      std::string *value);
 
   Status Recovery();

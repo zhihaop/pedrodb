@@ -32,8 +32,7 @@ class RecordIterator {
 
     fetch = std::max((size_t)kBlockSize, fetch);
     fetch = std::min(fetch, size_ - buffer_offset_);
-
-    PEDRODB_TRACE("fetch {}", fetch);
+    
     buffer_->EnsureWriteable(fetch);
     file_->Read(buffer_offset_, buffer_->WriteIndex(), fetch);
     buffer_offset_ += fetch;

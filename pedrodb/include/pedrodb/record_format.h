@@ -54,11 +54,8 @@ constexpr static size_t SizeOf(uint8_t key_size, uint32_t value_size) {
 }
 
 struct Location : public pedrolib::Comparable<Location> {
-
   struct Hash {
-    size_t operator()(const Location &v) const noexcept {
-      return std::hash<uint64_t>()(*reinterpret_cast<const uint64_t *>(&v));
-    }
+    size_t operator()(const Location &v) const noexcept { return v.Hash(); }
   };
 
   file_t id{};
@@ -72,6 +69,10 @@ struct Location : public pedrolib::Comparable<Location> {
       return x.offset < y.offset ? -1 : 1;
     }
     return 0;
+  }
+
+  [[nodiscard]] size_t Hash() const noexcept {
+    return (((uint64_t)id) << 32) | offset;
   }
 };
 } // namespace pedrodb::record
