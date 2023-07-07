@@ -1,7 +1,9 @@
 #include "pedrolib/file/file.h"
 #include "pedrolib/logger/logger.h"
+#include <fcntl.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <vector>
 
 namespace pedrolib {
 
@@ -210,12 +212,4 @@ ssize_t File::Pwritev(uint64_t offset, std::string_view *buf, size_t n) {
                      static_cast<__off64_t>(offset));
 }
 
-Error GetFileSize(const char *filename, uint64_t *n) {
-  struct stat buf {};
-  if (stat(filename, &buf)) {
-    return Error{errno};
-  }
-  *n = static_cast<uint64_t>(buf.st_size);
-  return Error::Success();
-}
 } // namespace pedrolib

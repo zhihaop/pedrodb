@@ -31,10 +31,9 @@ Status FileManager::Recovery(file_t active) {
 
   active_ = std::move(file);
   memtable_ = std::move(value);
-  latest_ = {
-      .id = active,
-      .offset = (uint32_t)memtable_.size(),
-  };
+  
+  latest_.id = active;
+  latest_.offset = memtable_.size();
 
   return Status::kOk;
 }

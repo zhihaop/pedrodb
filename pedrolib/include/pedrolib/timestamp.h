@@ -36,7 +36,11 @@ struct Timestamp : public Comparable<Timestamp> {
   Timestamp operator-(const Duration &d) const noexcept {
     return Timestamp{usecs - d.usecs};
   }
+
+  std::string String() const noexcept;
 };
 } // namespace pedrolib
+
+PEDROLIB_CLASS_FORMATTER(pedrolib::Timestamp);
 
 #endif // PEDROLIB_TIMESTAMP_H

@@ -27,6 +27,9 @@ struct Record {
   std::string value;
   record::Location location{};
   uint32_t timestamp{};
+
+  Record(uint32_t h, std::string key, std::string value,
+         const record::Location &location, uint32_t timestamp);
 };
 
 enum class CompactState {
@@ -37,7 +40,7 @@ enum class CompactState {
 
 struct CompactHint {
   size_t unused{};
-  CompactState state;
+  CompactState state{CompactState::kNop};
 };
 
 class DBImpl : public DB {

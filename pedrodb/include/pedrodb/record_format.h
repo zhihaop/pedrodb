@@ -1,6 +1,8 @@
 #ifndef PEDRODB_RECORD_FORMAT_H
 #define PEDRODB_RECORD_FORMAT_H
 
+#include <utility>
+
 #include "pedrodb/defines.h"
 #include "pedrodb/status.h"
 
@@ -8,11 +10,19 @@ namespace pedrodb::record {
 enum class Type { kEmpty = 0, kSet = 1, kDelete = 2 };
 
 struct Header {
-  uint32_t crc32;
-  Type type;
-  uint8_t key_size;
-  uint32_t value_size;
-  uint32_t timestamp;
+  uint32_t crc32{};
+  Type type{};
+  uint8_t key_size{};
+  uint32_t value_size{};
+  uint32_t timestamp{};
+
+  Header() = default;
+  Header(uint32_t crc32, Type type, uint8_t keySize, uint32_t valueSize,
+         uint32_t timestamp)
+      : crc32(crc32), type(type), key_size(keySize), value_size(valueSize),
+        timestamp(timestamp) {}
+
+  ~Header() = default;
 
   constexpr static size_t SizeOf() noexcept {
     return sizeof(uint32_t) + // crc32
@@ -61,6 +71,10 @@ struct Location : public pedrolib::Comparable<Location> {
   file_t id{};
   uint32_t offset{};
 
+  Location() = default;
+  Location(file_t id, uint32_t offset) : id(id), offset(offset) {}
+  ~Location() = default;
+
   static int Compare(const Location &x, const Location &y) noexcept {
     if (x.id != y.id) {
       return x.id < y.id ? -1 : 1;
@@ -85,6 +99,12 @@ struct Dir {
   std::string key;
   mutable Location loc;
   mutable uint32_t size{};
+
+  explicit Dir(uint32_t h) : h(h) {}
+  Dir(uint32_t h, std::string key, const Location &loc, uint32_t size)
+      : h(h), key(std::move(key)), loc(loc), size(size) {}
+
+  ~Dir() = default;
 
   bool operator==(const Dir &other) const noexcept { return h == other.h; }
 };

@@ -80,8 +80,6 @@ public:
   Error Sync() const noexcept;
 };
 
-Error GetFileSize(const char *filename, uint64_t *n);
-
 } // namespace pedrolib
 
 PEDROLIB_CLASS_FORMATTER(pedrolib::File);

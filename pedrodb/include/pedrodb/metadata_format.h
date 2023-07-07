@@ -45,7 +45,10 @@ enum class LogType {
 struct LogEntry {
   LogType type{};
   file_t id{};
-
+  LogEntry() = default;
+  LogEntry(LogType type, file_t id) : type(type), id(id) {}
+  ~LogEntry() = default;
+  
   static size_t SizeOf() noexcept { return sizeof(uint8_t) + sizeof(file_t); }
 
   bool UnPack(Buffer *buffer) {

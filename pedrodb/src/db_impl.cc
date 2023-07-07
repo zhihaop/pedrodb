@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "pedrodb/db_impl.h"
 
 namespace pedrodb {
@@ -150,11 +152,9 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
     // move to active file because this file will be removed.
     buffer.Reset();
     record::Header header{
-        .crc32 = 0,
-        .type = record::Type::kSet,
-        .key_size = (uint8_t)r.key.size(),
-        .value_size = (uint32_t)r.value.size(),
-        .timestamp = r.timestamp,
+        (uint32_t)0,           record::Type::kSet,
+        (uint8_t)r.key.size(), (uint32_t)r.value.size(),
+        r.timestamp,
     };
 
     header.Pack(&buffer);
@@ -204,12 +204,9 @@ void DBImpl::Compact(file_t id) {
       continue;
     }
     batch_bytes += record::SizeOf(next.key.size(), next.value.size());
-    batch.emplace_back(Record{
-        .h = Hash(next.key),
-        .key = std::string{next.key},
-        .value = std::string{next.value},
-        .location = {.id = id, .offset = next.offset},
-    });
+    batch.emplace_back(Hash(next.key), std::string{next.key},
+                       std::string{next.value},
+                       record::Location{id, next.offset}, (uint32_t)0);
 
     if (batch_bytes >= options_.compaction_batch_bytes) {
       CompactBatch(id, batch);
@@ -256,12 +253,13 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   }
 
   uint32_t timestamp = 0;
-  record::Header header{.crc32 = 0,
-                        .type = value.empty() ? record::Type::kDelete
-                                              : record::Type::kSet,
-                        .key_size = (uint8_t)key.size(),
-                        .value_size = (uint32_t)value.size(),
-                        .timestamp = timestamp};
+
+  record::Header header;
+  header.crc32 = 0;
+  header.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
+  header.key_size = key.size();
+  header.value_size = value.size();
+  header.timestamp = timestamp;
 
   buffer_.Reset();
   header.Pack(&buffer_);
@@ -294,8 +292,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   }
 
   // insert.
-  indices_.emplace(record::Dir{
-      .h = h, .key = std::string{key}, .loc = loc, .size = record_size});
+  indices_.emplace(h, std::string{key}, loc, record_size);
   return Status::kOk;
 }
 
@@ -348,7 +345,7 @@ Status DBImpl::Recovery() {
 
 auto DBImpl::GetMetadataIterator(uint32_t h, std::string_view key)
     -> decltype(indices_.begin()) {
-  auto [s, t] = indices_.equal_range(record::Dir{.h = h});
+  auto [s, t] = indices_.equal_range(record::Dir{h});
   auto it = std::find_if(s, t, [=](auto &k) { return k.key == key; });
   return it == t ? indices_.end() : it;
 }
@@ -378,7 +375,7 @@ Status DBImpl::HandleGet(const ReadOptions &options, uint32_t h,
 }
 
 Status DBImpl::Recovery(file_t id, RecordEntry entry) {
-  record::Location loc{.id = id, .offset = entry.offset};
+  record::Location loc(id, entry.offset);
   uint32_t size = record::SizeOf(entry.key.size(), entry.value.size());
 
   uint32_t h = Hash(entry.key);
@@ -386,8 +383,7 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
   if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      indices_.emplace(record::Dir{
-          .h = h, .key = std::string{entry.key}, .loc = loc, .size = size});
+      indices_.emplace(h, std::string{entry.key}, loc, size);
       return Status::kOk;
     }
 
@@ -430,4 +426,9 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
   return Status::kOk;
 }
+
+Record::Record(uint32_t h, std::string key, std::string value,
+               const record::Location &location, uint32_t timestamp)
+    : h(h), key(std::move(key)), value(std::move(value)), location(location),
+      timestamp(timestamp) {}
 } // namespace pedrodb
