@@ -1,10 +1,9 @@
-cmake_minimum_required(VERSION 3.0)
-project(pedrolib)
+project(pedrolib VERSION 1.0.1)
 
-set(CMAKE_CXX_STANDARD 17)
 file(GLOB_RECURSE srcs src/*.cc)
 
-add_library(pedrolib ${srcs})
+add_library(pedrolib SHARED ${srcs})
+target_compile_features(pedrolib PRIVATE cxx_std_17)
 target_include_directories(pedrolib PUBLIC include)
 target_link_libraries(pedrolib PUBLIC fmt pthread)
 

@@ -1,12 +1,10 @@
-cmake_minimum_required(VERSION 3.0)
 project(pedronet)
 
-set(CMAKE_CXX_STANDARD 17)
-file(GLOB_RECURSE srcs src/*.cc)
+file(GLOB_RECURSE PEDRONET_SRCS src/*.cc)
 
-add_subdirectory(../pedrolib pedrolib)
-add_library(pedronet ${srcs})
-target_include_directories(pedronet PUBLIC include ../pedrolib/include)
+add_library(pedronet SHARED ${PEDRONET_SRCS})
+target_compile_features(pedrokv PRIVATE cxx_std_17)
+target_include_directories(pedronet PUBLIC include)
 target_link_libraries(pedronet PRIVATE pedrolib)
 
 add_executable(test_tcp_server test/test_tcp_server.cc)
