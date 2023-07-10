@@ -1,6 +1,7 @@
 #ifndef PEDRODB_CACHE_READ_CACHE_H
 #define PEDRODB_CACHE_READ_CACHE_H
 
+#include "pedrodb/cache/lfu_cache.h"
 #include "pedrodb/cache/lru_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/record_format.h"
@@ -23,9 +24,9 @@ public:
     return static_cast<double>(hits_) / static_cast<double>(total_);
   }
 
-  void UpdateCache(record::Location location, std::string_view value) {
+  bool Put(record::Location location, std::string_view value) {
     std::unique_lock lock{mu_};
-    cache_.Put(location, value);
+    return cache_.Put(location, value);
   }
 
   void Remove(record::Location location) {

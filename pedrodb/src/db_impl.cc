@@ -328,7 +328,7 @@ Status DBImpl::FetchRecord(ReadableFile *file, const record::Dir &dir,
   buffer_.Retrieve(header.key_size);
   value->resize(header.value_size);
   buffer_.Retrieve(value->data(), value->size());
-  read_cache_->UpdateCache(l, *value);
+  read_cache_->Put(l, *value);
   return Status::kOk;
 }
 

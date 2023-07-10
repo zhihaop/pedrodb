@@ -119,22 +119,20 @@ public:
     HashEntry<Key>::Free(first);
   }
 
-  void Put(const Key &key, std::string_view value) noexcept {
+  bool Put(const Key &key, std::string_view value) noexcept {
     if (value.empty() || value.size() > capacity_) {
-      return;
+      return false;
     }
 
     auto iter = GetIterator(key);
     HashEntry<Key> *entry = *iter;
-    if (entry == nullptr) {
-      // create the hash entry, and insert to the buckets_.
-      entry = HashEntry<Key>::New();
-      *iter = entry;
-    } else {
-      RemoveFromList(entry);
-      size_ -= entry->data.size();
-      entry->data.clear();
+    if (entry != nullptr) {
+      return false;
     }
+
+    // create the hash entry, and insert to the buckets_.
+    entry = HashEntry<Key>::New();
+    *iter = entry;
 
     entry->key = key;
     entry->data = value;
@@ -147,6 +145,7 @@ public:
     entry->next->prev = entry;
 
     EvictFull();
+    return true;
   }
 
   void EvictFull() {
