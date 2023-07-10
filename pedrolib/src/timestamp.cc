@@ -12,6 +12,7 @@ Timestamp Timestamp::Now() {
 }
 std::string Timestamp::String() const noexcept {
   time_t t = usecs / Duration::kMicroseconds;
-  return fmt::format("{:%Y-%m-%d-%H:%M:%S}", fmt::localtime(t));
+  uint64_t us = usecs % Duration::kMicroseconds;
+  return fmt::format("{:%Y-%m-%d-%H:%M:%S}:{:06}", fmt::localtime(t), us);
 }
 } // namespace pedrolib

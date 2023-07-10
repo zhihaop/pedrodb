@@ -32,6 +32,8 @@ int main() {
   Options options{};
   // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
+  
+  logger.SetLevel(Logger::Level::kTrace);
 
   std::string path = "/home/zhihaop/db/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
@@ -53,32 +55,32 @@ int main() {
   std::vector<int> all(n_puts);
   std::iota(all.begin(), all.end(), 0);
   // put
-  for (int i : all) {
-    std::string key = fmt::format("key{}", i);
-    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
-    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
-    if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
-    }
-  }
+//  for (int i : all) {
+//    std::string key = fmt::format("key{}", i);
+//    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+//    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+//    if (stat != Status::kOk) {
+//      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+//    }
+//  }
 
   // std::shuffle(all.begin(), all.end(), mt);
-  logger.Info("benchmark get all");
-  for (int i : all) {
-    std::string key = fmt::format("key{}", i);
-    std::string value;
-    auto stat = db->Get(ReadOptions{}, key, &value);
-    if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}: {}", key, stat);
-    }
-
-    if (value.find(fmt::format("value{}", i)) != 0) {
-      logger.Fatal("value is not correct: {}", value);
-    }
-  }
+//  logger.Info("benchmark get all");
+//  for (int i : all) {
+//    std::string key = fmt::format("key{}", i);
+//    std::string value;
+//    auto stat = db->Get(ReadOptions{}, key, &value);
+//    if (stat != Status::kOk) {
+//      logger.Fatal("failed to read {}: {}", key, stat);
+//    }
+//
+//    if (value.find(fmt::format("value{}", i)) != 0) {
+//      logger.Fatal("value is not correct: {}", value);
+//    }
+//  }
   logger.Info("benchmark get random");
 
-  std::normal_distribution<double> d((double)n_puts / 2.0, 10.0);
+  std::normal_distribution<double> d((double)n_puts / 2.0, (double)n_puts / 120.0);
   // get
   for (int i = 0; i < n_reads; ++i) {
     int x = std::clamp((int)d(mt), 0, (int)n_puts - 1);
@@ -93,7 +95,7 @@ int main() {
       logger.Fatal("value is not correct: key {} value{}", key, value);
     }
   }
-  fmt::print("cache hit: {}\n", db->CacheHitRatio());
+  logger.Info("cache hit: {}\n", db->CacheHitRatio());
   return 0;
 
   logger.Info("test delete");

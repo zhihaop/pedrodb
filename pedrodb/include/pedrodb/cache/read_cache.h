@@ -9,7 +9,7 @@
 namespace pedrodb {
 
 class ReadCache {
-  LRUCache<record::Location> cache_;
+  lfu::Cache<record::Location> cache_;
 
   uint64_t hits_{1};
   uint64_t total_{1};

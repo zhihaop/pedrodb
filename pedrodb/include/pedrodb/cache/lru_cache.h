@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace pedrodb {
+namespace pedrodb::lru {
 
 template <class Key> struct HashEntry {
   HashEntry *prev{};
@@ -21,7 +21,7 @@ template <class Key> struct HashEntry {
   static void Free(HashEntry *entry) { delete entry; }
 };
 
-template <class Key> class LRUCache {
+template <class Key> class Cache {
   constexpr static size_t kMinimumBuckets = 1024;
   constexpr static size_t kMaximumBuckets = 1 << 22;
 
@@ -70,7 +70,7 @@ template <class Key> class LRUCache {
   }
 
 public:
-  explicit LRUCache(size_t capacity)
+  explicit Cache(size_t capacity)
       : capacity_(capacity),
         buckets_(std::clamp(
             (size_t)((double)capacity / sizeof(HashEntry<Key>) * 1.25),
@@ -166,5 +166,5 @@ public:
     HashEntry<Key>::Free(entry);
   }
 };
-} // namespace pedrodb
+} // namespace pedrodb::lru
 #endif // PEDRODB_CACHE_LRU_CACHE_H
