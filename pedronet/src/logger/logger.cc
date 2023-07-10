@@ -1,5 +1,4 @@
 #include "pedronet/logger/logger.h"
-#include "../../../pedrodb/include/pedrodb/logger/logger.h"
 
 namespace pedronet::logger {
 pedrolib::Logger &GetLogger() {
@@ -8,4 +7,3 @@ pedrolib::Logger &GetLogger() {
 }
 void SetLevel(Level level) { GetLogger().SetLevel(level); }
 } // namespace pedronet::logger
-

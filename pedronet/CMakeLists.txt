@@ -8,10 +8,10 @@ target_include_directories(pedronet PUBLIC include)
 target_link_libraries(pedronet PRIVATE pedrolib)
 
 add_executable(test_tcp_server test/test_tcp_server.cc)
-target_link_libraries(test_tcp_server PRIVATE pedronet)
+target_link_libraries(test_tcp_server PRIVATE pedronet pedrolib)
 
 add_executable(test_tcp_client test/test_tcp_client.cc)
-target_link_libraries(test_tcp_client PRIVATE pedronet)
+target_link_libraries(test_tcp_client PRIVATE pedronet pedrolib)
 
 add_executable(test_event_loop test/test_event_loop.cc)
-target_link_libraries(test_event_loop PRIVATE pedronet)
+target_link_libraries(test_event_loop PRIVATE pedronet pedrolib)
