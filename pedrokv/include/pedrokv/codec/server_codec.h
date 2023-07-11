@@ -13,11 +13,10 @@
 namespace pedrokv {
 
 class ServerCodecContext;
-using ServerMessageCallback =
-    std::function<void(ServerCodecContext &, const Request &)>;
+using ServerMessageCallback = std::function<void(
+    const std::shared_ptr<TcpConnection> &, const Request &)>;
 
-class ServerCodecContext {
-  pedronet::TcpConnectionPtr conn_;
+class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
   uint16_t len_{};
   pedrolib::ArrayBuffer buf_;
 
@@ -25,22 +24,12 @@ class ServerCodecContext {
   ServerMessageCallback callback_;
 
 public:
-  explicit ServerCodecContext(pedronet::TcpConnectionPtr conn,
-                              ServerMessageCallback callback)
-      : conn_(std::move(conn)), callback_(std::move(callback)) {}
+  explicit ServerCodecContext(ServerMessageCallback callback)
+      : callback_(std::move(callback)) {}
 
-  pedronet::TcpConnection *GetConnection() { return conn_.get(); }
-
-  void SetResponse(const Response &response) {
-    pedronet::ArrayBuffer buffer;
-    PEDROKV_INFO("send response bytes: {}", response.SizeOf() + sizeof(uint16_t));
-    buffer.AppendInt(response.SizeOf());
-    response.Pack(&buffer);
-    conn_->Send(&buffer);
-  }
-
-  void HandleMessage(pedrolib::Buffer *buffer) {
-    PEDROKV_INFO("server codec: Read");
+  void HandleMessage(const std::shared_ptr<TcpConnection> &conn,
+                     pedrolib::Buffer *buffer) {
+    PEDROKV_TRACE("server codec: Read");
     while (buffer->ReadableBytes() > sizeof(len_)) {
       if (len_ == 0) {
         buffer->RetrieveInt(&len_);
@@ -58,7 +47,7 @@ public:
         len_ = 0;
 
         if (callback_) {
-          callback_(*this, request_);
+          callback_(conn, request_);
         }
       }
     }
@@ -68,8 +57,6 @@ public:
 class ServerCodec {
   pedronet::ConnectionCallback connect_callback_;
   pedronet::CloseCallback close_callback_;
-  pedronet::ErrorCallback error_callback_;
-  pedronet::HighWatermarkCallback high_watermark_callback_;
   ServerMessageCallback message_callback_;
 
 public:
@@ -81,21 +68,24 @@ public:
     close_callback_ = std::move(callback);
   }
 
-  void OnError(pedronet::ErrorCallback callback) {
-    error_callback_ = std::move(callback);
-  }
-
-  void OnHighWatermark(pedronet::HighWatermarkCallback callback) {
-    high_watermark_callback_ = std::move(callback);
-  }
-
   void OnMessage(ServerMessageCallback callback) {
     message_callback_ = std::move(callback);
   }
 
+  static void SendResponse(const std::shared_ptr<TcpConnection> &conn,
+                           const Response &response) {
+    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(response.SizeOf() +
+                                                          sizeof(uint16_t));
+    PEDROKV_TRACE("send response bytes: {}",
+                  response.SizeOf() + sizeof(uint16_t));
+    buffer->AppendInt(response.SizeOf());
+    response.Pack(buffer.get());
+    conn->Send(buffer);
+  }
+
   pedronet::ConnectionCallback GetOnConnect() {
     return [this](const pedronet::TcpConnectionPtr &conn) {
-      ServerCodecContext ctx(conn, message_callback_);
+      auto ctx = std::make_shared<ServerCodecContext>(message_callback_);
       conn->SetContext(ctx);
 
       if (connect_callback_) {
@@ -106,25 +96,19 @@ public:
 
   pedronet::CloseCallback GetOnClose() {
     return [this](const pedronet::TcpConnectionPtr &conn) {
-      conn->SetContext(nullptr);
       if (close_callback_) {
         close_callback_(conn);
       }
     };
   }
 
-  static pedronet::MessageCallback GetOnMessage() {
+  pedronet::MessageCallback GetOnMessage() {
     return [](const pedronet::TcpConnectionPtr &conn, pedronet::Buffer &buffer,
               pedrolib::Timestamp now) {
-      auto &ctx = std::any_cast<ServerCodecContext &>(conn->GetContext());
-      ctx.HandleMessage(&buffer);
+      auto ctx = std::any_cast<std::shared_ptr<ServerCodecContext>>(
+          conn->GetContext());
+      ctx->HandleMessage(conn, &buffer);
     };
-  }
-
-  pedronet::ErrorCallback GetOnError() { return error_callback_; }
-
-  pedronet::HighWatermarkCallback GetOnHighWatermark() {
-    return high_watermark_callback_;
   }
 };
 } // namespace pedrokv

@@ -64,6 +64,10 @@ public:
     eventloop_.Run([=] { handleSend(buffer); });
   }
 
+  void Send(const std::shared_ptr<Buffer>& buffer) {
+    eventloop_.Run([=] { handleSend(buffer.get()); });
+  }
+
   void Send(const char *buf, size_t n) {
     BufferView view{buf, n};
     handleSend(&view);

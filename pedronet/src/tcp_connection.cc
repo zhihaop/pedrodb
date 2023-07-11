@@ -38,11 +38,13 @@ void TcpConnection::handleRead(Timestamp now) {
   ssize_t n = input_.Append(&channel_.GetFile());
   PEDRONET_TRACE("read {} bytes", n);
   if (n < 0) {
+    PEDRONET_ERROR("failed to read buffer");
     handleError(channel_.GetError());
     return;
   }
 
   if (n == 0) {
+    PEDRONET_INFO("close because no data");
     handleClose();
     return;
   }
@@ -53,6 +55,7 @@ void TcpConnection::handleRead(Timestamp now) {
 }
 void TcpConnection::handleError(Error err) {
   if (err.Empty()) {
+    PEDRONET_ERROR("unknown error, force close");
     handleClose();
     return;
   }

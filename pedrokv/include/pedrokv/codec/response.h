@@ -7,12 +7,12 @@ struct Response {
   enum class Type { kOk, kError };
 
   Type type;
-  uint16_t id;
+  uint32_t id;
   std::string data;
 
   [[nodiscard]] uint16_t SizeOf() const noexcept {
     return sizeof(uint8_t) +  // type
-           sizeof(uint16_t) + // id
+           sizeof(uint32_t) + // id
            sizeof(uint16_t) + // data size
            data.size();       // data
   }

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+// @unstable
 namespace pedrodb::lfu {
 
 template <class Key> struct HashEntry {

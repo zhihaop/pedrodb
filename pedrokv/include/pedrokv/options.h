@@ -16,6 +16,7 @@ struct ServerOptions {
 
 struct ClientOptions {
   std::shared_ptr<pedronet::EventLoopGroup> worker_group;
+  size_t max_inflight{4096};
 };
 } // namespace pedrokv
 #endif // PEDROKV_OPTIONS_H

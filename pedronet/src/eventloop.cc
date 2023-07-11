@@ -109,6 +109,7 @@ EventLoop::EventLoop(std::unique_ptr<Selector> selector)
 void EventLoop::Join() {
   // TODO check joinable.
   close_latch_.Await();
+  PEDRONET_INFO("Eventloop join exit");
 }
 
 } // namespace pedronet

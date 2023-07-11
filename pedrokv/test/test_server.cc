@@ -11,7 +11,8 @@ using pedronet::InetAddress;
 int main() {
   pedrokv::logger::SetLevel(Logger::Level::kInfo);
   pedrodb::logger::SetLevel(Logger::Level::kInfo);
-  pedronet::logger::SetLevel(Logger::Level::kTrace);
+  pedronet::logger::SetLevel(Logger::Level::kInfo);
+
   auto address = InetAddress::Create("0.0.0.0", 1082);
   ServerOptions options;
   options.worker_group = EventLoopGroup::Create(16);
@@ -21,7 +22,7 @@ int main() {
   auto server = pedrokv::Server(address, options);
   server.Bind();
   server.Start();
-  
+
   options.worker_group->Join();
   options.boss_group->Join();
 

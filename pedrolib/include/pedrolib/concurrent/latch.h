@@ -1,6 +1,7 @@
 #ifndef PEDRODB_CONCURRENT_LATCH_H
 #define PEDRODB_CONCURRENT_LATCH_H
 #include "pedrolib/duration.h"
+#include "pedrolib/logger/logger.h"
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -15,7 +16,7 @@ class Latch {
 public:
   explicit Latch(size_t count) : count_(count) {}
 
-  size_t Count() const noexcept {
+  [[nodiscard]] size_t Count() const noexcept {
     return count_.load(std::memory_order_acquire);
   }
 

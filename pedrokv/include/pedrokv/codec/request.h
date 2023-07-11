@@ -12,13 +12,13 @@ struct Request {
   };
 
   Type type;
-  uint16_t id;
+  uint32_t id;
   std::string key;
   std::string value;
 
   [[nodiscard]] uint16_t SizeOf() const noexcept {
     return sizeof(uint8_t) +  // type
-           sizeof(uint16_t) + // id
+           sizeof(uint32_t) + // id
            sizeof(uint16_t) + // key size
            sizeof(uint16_t) + // value size
            key.size() +       // key

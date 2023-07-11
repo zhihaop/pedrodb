@@ -16,6 +16,7 @@
 namespace pedronet {
 
 class TcpClient : pedrolib::noncopyable, pedrolib::nonmovable {
+public:
   enum class State {
     kOffline,
     kConnecting,
@@ -24,6 +25,7 @@ class TcpClient : pedrolib::noncopyable, pedrolib::nonmovable {
     kDisconnected
   };
 
+private:
   EventLoopGroupPtr worker_group_;
   InetAddress address_;
   std::atomic<State> state_{State::kOffline};
@@ -71,6 +73,18 @@ public:
     error_callback_ = std::move(callback);
   }
 
+  [[nodiscard]] TcpConnectionPtr GetConnection() const noexcept {
+    return connection_;
+  }
+
+  bool Send(const std::shared_ptr<Buffer> &buffer) {
+    if (state_ == State::kConnected) {
+      connection_->Send(buffer);
+      return true;
+    }
+    return false;
+  }
+
   void OnWriteComplete(WriteCompleteCallback callback) {
     write_complete_callback_ = std::move(callback);
   }
@@ -79,7 +93,7 @@ public:
     high_watermark_callback_ = std::move(callback);
   }
 
-  State GetState() const noexcept { return state_; }
+  [[nodiscard]] State GetState() const noexcept { return state_; }
   auto GetConnection() noexcept { return connection_; }
 };
 } // namespace pedronet

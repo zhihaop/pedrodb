@@ -6,7 +6,7 @@
 #include <mutex>
 #include <string>
 
-#define USE_STDLOG
+#define USE_SPDLOG
 
 #ifdef USE_SPDLOG
 #include <spdlog/sinks/stdout_color_sinks.h>

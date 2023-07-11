@@ -22,47 +22,35 @@ class Server : nonmovable,
   std::shared_ptr<pedrodb::DB> db_;
   ServerCodec codec_;
 
-  Response ProcessRequest(ServerCodecContext &ctx, const Request &request) {
+  Response ProcessRequest(const Request &request) {
     Response response;
     response.id = request.id;
+
+    pedrodb::Status status;
     switch (request.type) {
     case Request::Type::kGet: {
-      PEDROKV_INFO("handle Get");
-      auto status = db_->Get({}, request.key, &response.data);
-      if (status != pedrodb::Status::kOk) {
-        response.type = Response::Type::kError;
-        response.data = fmt::format("err: {}", status);
-        return response;
-      }
-      response.type = Response::Type::kOk;
-      return response;
+      status = db_->Get({}, request.key, &response.data);
+      break;
     }
     case Request::Type::kDelete: {
-      PEDROKV_INFO("handle Delete");
-      auto status = db_->Delete({}, request.key);
-      if (status != pedrodb::Status::kOk) {
-        response.type = Response::Type::kError;
-        response.data = fmt::format("err: {}", status);
-        return response;
-      }
-      response.type = Response::Type::kOk;
-      return response;
+      status = db_->Delete({}, request.key);
+      break;
     }
     case Request::Type::kSet: {
-      PEDROKV_INFO("handle Set");
-      auto status = db_->Put({}, request.key, request.value);
-      if (status != pedrodb::Status::kOk) {
-        response.type = Response::Type::kError;
-        response.data = fmt::format("err: {}", status);
-        return response;
-      }
-      response.type = Response::Type::kOk;
-      return response;
+      status = db_->Put({}, request.key, request.value);
+      break;
     }
     default: {
       PEDROKV_WARN("invalid request receive");
       break;
     }
+    }
+
+    if (status != pedrodb::Status::kOk) {
+      response.type = Response::Type::kError;
+      response.data = fmt::format("err: {}", status);
+    } else {
+      response.type = Response::Type::kOk;
     }
     return response;
   }
@@ -77,9 +65,9 @@ public:
       PEDROKV_FATAL("failed to open db {}", options_.db_path);
     }
 
-    codec_.OnMessage([this](ServerCodecContext &ctx, const Request &request) {
-      Response response = ProcessRequest(ctx, request);
-      ctx.SetResponse(response);
+    codec_.OnMessage([this](const auto &conn, const Request &request) {
+      Response response = ProcessRequest(request);
+      ServerCodec::SendResponse(conn, response);
     });
 
     codec_.OnConnect([](const pedronet::TcpConnectionPtr &conn) {
@@ -90,15 +78,13 @@ public:
       PEDROKV_INFO("disconnect to client {}", *conn);
     });
 
-    codec_.OnError([](const pedronet::TcpConnectionPtr &conn, Error err) {
+    server_.OnError([](const pedronet::TcpConnectionPtr &conn, Error err) {
       PEDROKV_ERROR("client {} error: {}", *conn, err);
     });
 
     server_.OnConnect(codec_.GetOnConnect());
     server_.OnClose(codec_.GetOnClose());
     server_.OnMessage(codec_.GetOnMessage());
-    server_.OnError(codec_.GetOnError());
-    server_.OnHighWatermark(codec_.GetOnHighWatermark());
   }
 
   void Bind() {

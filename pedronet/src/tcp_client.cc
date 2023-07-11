@@ -17,6 +17,8 @@ void TcpClient::handleConnection(Socket socket) {
     PEDRONET_TRACE("client disconnect: {}", *conn);
     connection_.reset();
 
+    state_ = State::kDisconnected;
+    
     if (close_callback_) {
       close_callback_(conn);
     }
