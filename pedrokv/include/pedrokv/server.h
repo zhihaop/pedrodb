@@ -25,7 +25,7 @@ class Server : nonmovable,
   Response ProcessRequest(const Request &request) {
     Response response;
     response.id = request.id;
-
+    
     pedrodb::Status status;
     switch (request.type) {
     case Request::Type::kGet: {

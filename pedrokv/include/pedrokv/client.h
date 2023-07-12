@@ -12,6 +12,8 @@
 
 namespace pedrokv {
 
+using ResponseCallback = std::function<void(const Response &)>;
+
 class Client : nonmovable, noncopyable {
   pedronet::TcpClient client_;
   ClientOptions options_;
@@ -24,7 +26,7 @@ class Client : nonmovable, noncopyable {
   std::mutex mu_;
   std::condition_variable not_full_;
   uint32_t request_id_{};
-  std::unordered_map<uint32_t, std::promise<Response>> responses_;
+  std::unordered_map<uint32_t, ResponseCallback> responses_;
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
@@ -37,7 +39,10 @@ class Client : nonmovable, noncopyable {
       return;
     }
 
-    it->second.set_value(response);
+    auto callback = std::move(it->second);
+    if (callback) {
+      callback(response);
+    }
     responses_.erase(it);
     not_full_.notify_all();
   }
@@ -61,7 +66,7 @@ public:
     connect_callback_ = std::move(callback);
   }
 
-  std::future<Response> SendRequest(Request &request) {
+  void SendRequest(Request &request, ResponseCallback callback) {
     std::unique_lock lock{mu_};
 
     while (responses_.size() > options_.max_inflight) {
@@ -74,9 +79,9 @@ public:
       PEDROKV_FATAL("should not happened");
     }
 
-    auto future = [this, id] { return responses_[id].get_future(); }();
+    responses_[id] = std::move(callback);
     lock.unlock();
-    
+
     auto buffer = std::make_shared<pedrolib::ArrayBuffer>(sizeof(uint16_t) +
                                                           request.SizeOf());
 
@@ -90,29 +95,62 @@ public:
       response.type = Response::Type::kError;
       HandleResponse(response);
     }
-    return future;
   }
 
-  std::future<Response> Get(std::string_view key) {
+  Response Get(std::string_view key) {
+    pedrolib::Latch latch(1);
+    Response response;
+    Get(key, [&](const Response &resp) mutable {
+      response = resp;
+      latch.CountDown();
+    });
+    latch.Await();
+    return response;
+  }
+
+  Response Put(std::string_view key, std::string_view value) {
+    pedrolib::Latch latch(1);
+    Response response;
+    Put(key, value, [&](const Response &resp) mutable {
+      response = resp;
+      latch.CountDown();
+    });
+    latch.Await();
+    return response;
+  }
+
+  Response Delete(std::string_view key) {
+    pedrolib::Latch latch(1);
+    Response response;
+    Delete(key, [&](const Response &resp) mutable {
+      response = resp;
+      latch.CountDown();
+    });
+    latch.Await();
+    return response;
+  }
+
+  void Get(std::string_view key, ResponseCallback callback) {
     Request request;
     request.type = Request::Type::kGet;
     request.key = key;
-    return SendRequest(request);
+    return SendRequest(request, std::move(callback));
   }
 
-  std::future<Response> Put(std::string_view key, std::string_view value) {
+  void Put(std::string_view key, std::string_view value,
+           ResponseCallback callback) {
     Request request;
     request.type = Request::Type::kSet;
     request.key = key;
     request.value = value;
-    return SendRequest(request);
+    return SendRequest(request, std::move(callback));
   }
 
-  std::future<Response> Delete(std::string_view key) {
+  void Delete(std::string_view key, ResponseCallback callback) {
     Request request;
     request.type = Request::Type::kDelete;
     request.key = key;
-    return SendRequest(request);
+    return SendRequest(request, std::move(callback));
   }
 
   void OnClose(pedronet::CloseCallback callback) {
@@ -138,8 +176,10 @@ public:
         std::unique_lock lock{mu_};
         Response response;
         response.type = Response::Type::kError;
-        for (auto &[k, v] : responses_) {
-          v.set_value(response);
+        for (auto &[_, callback] : responses_) {
+          if (callback) {
+            callback(response);
+          }
         }
         responses_.clear();
         not_full_.notify_all();

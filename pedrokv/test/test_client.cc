@@ -2,6 +2,8 @@
 #include <pedrokv/logger/logger.h>
 #include <pedronet/logger/logger.h>
 
+#include <random>
+
 using pedrokv::ClientOptions;
 using pedrolib::Logger;
 using pedronet::EventLoopGroup;
@@ -22,67 +24,93 @@ std::string Repeat(std::string_view s, size_t n) {
   return t;
 }
 
-void TestPut(const std::vector<int> &data) {
-  pedrokv::Client client(address, options);
-  client.Start();
-
-  std::vector<std::future<pedrokv::Response>> resp;
-  resp.reserve(data.size());
+void TestSyncPut(pedrokv::Client &client, const std::vector<int> &data) {
   for (int i : data) {
-    resp.emplace_back(
+    auto response =
         client.Put(fmt::format("hello{}", i),
-                   fmt::format("world{}{}", i, Repeat("0", 1 << 10))));
+                   fmt::format("world{}{}", i, Repeat("0", 1 << 10)));
+
+    if (response.type != pedrokv::Response::Type::kOk) {
+      logger.Fatal("error");
+    }
     write_counts++;
   }
-  for (auto &r : resp) {
-    auto response = r.get();
-    if (response.type != pedrokv::Response::Type::kOk) {
-      logger.Fatal("error");
-    }
-  }
-  client.Close();
 }
 
-void TestGet(const std::vector<int> &data) {
-  pedrokv::Client client(address, options);
-  client.Start();
-
-  std::vector<std::future<pedrokv::Response>> resp;
-  resp.reserve(data.size());
+void TestAsyncPut(pedrokv::Client &client, const std::vector<int> &data) {
+  pedrolib::Latch latch(data.size());
   for (int i : data) {
-    resp.emplace_back(client.Get(fmt::format("hello{}", i)));
+    client.Put(fmt::format("hello{}", i),
+               fmt::format("world{}{}", i, Repeat("0", 1 << 10)),
+               [&latch](const auto &resp) {
+                 if (resp.type != pedrokv::Response::Type::kOk) {
+                   logger.Fatal("error");
+                 }
+                 write_counts++;
+                 latch.CountDown();
+               });
+  }
+  latch.Await();
+}
+
+void TestSyncGet(pedrokv::Client &client, std::vector<int> data) {
+  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
+  for (int i : data) {
+    auto response = client.Get(fmt::format("hello{}", i));
+    if (response.type != pedrokv::Response::Type::kOk) {
+      logger.Fatal("error type");
+    }
+    if (response.data.find(fmt::format("world{}", i)) == -1) {
+      logger.Fatal("error value");
+    }
     read_counts++;
   }
-  for (int i = 0; i < data.size(); ++i) {
-    auto response = resp[i].get();
-    if (response.type != pedrokv::Response::Type::kOk) {
-      logger.Fatal("error");
-    }
-    if (response.data.find(fmt::format("world{}", data[i])) == -1) {
-      logger.Fatal("error");
-    }
+}
+
+void TestAsyncGet(pedrokv::Client &client, std::vector<int> data) {
+  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
+  pedrolib::Latch latch(data.size());
+  for (int i : data) {
+    client.Get(fmt::format("hello{}", i), [i, &latch](auto &&response) {
+      if (response.type != pedrokv::Response::Type::kOk) {
+        logger.Fatal("error type");
+      }
+      if (response.data.find(fmt::format("world{}", i)) == -1) {
+        logger.Fatal("error value");
+      }
+      read_counts++;
+      latch.CountDown();
+    });
   }
-  client.Close();
+  latch.Await();
 }
 
 using namespace std::chrono_literals;
 
-int main() {
-  // pedrokv::logger::SetLevel(Logger::Level::kInfo);
-  // pedronet::logger::SetLevel(Logger::Level::kInfo);
+void TestAsync(int n) {
+  pedrokv::Client client(address, options);
+  client.Start();
+  
+  std::vector<int> data(n);
+  std::iota(data.begin(), data.end(), 0);
 
-  logger.SetLevel(Logger::Level::kTrace);
-  options.worker_group = EventLoopGroup::Create(24);
-  options.max_inflight = 128;
+  logger.Info("test async put start");
+  { TestAsyncPut(client, data); }
+  logger.Info("test async end");
 
-  options.worker_group->ScheduleEvery(1s, 1s, [] {
-    logger.Info("Puts: {}/s, Gets: {}/s", write_counts.exchange(0),
-                read_counts.exchange(0));
-  });
+  logger.Info("test async get start");
+  { TestAsyncGet(client, data); }
+  logger.Info("test async get end");
 
-  int n = 1000000;
-  int m = 1;
+  client.Close();
+}
 
+void TestSync(int n, int m) {
+  std::vector<std::shared_ptr<pedrokv::Client>> clients(m);
+  for (int i = 0; i < m; ++i) {
+    clients[i] = std::make_shared<pedrokv::Client>(address, options);
+    clients[i]->Start();
+  }
   std::vector<std::vector<int>> data(m);
   for (int i = 0; i < n;) {
     for (int j = 0; j < m; ++j, ++i) {
@@ -90,28 +118,51 @@ int main() {
     }
   }
 
-  logger.Info("test put start");
+  logger.Info("test sync put start");
   {
     std::vector<std::future<void>> ctx;
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(
-          std::async(std::launch::async, [j, &data] { TestPut(data[j]); }));
+      ctx.emplace_back(std::async(
+          std::launch::async, [&, j] { TestSyncPut(*clients[j], data[j]); }));
     }
   }
-  logger.Info("test put end");
+  logger.Info("test sync end");
 
-  logger.Info("test get start");
+  logger.Info("test sync get start");
   {
     std::vector<std::future<void>> ctx;
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(
-          std::async(std::launch::async, [j, &data] { TestGet(data[j]); }));
+      ctx.emplace_back(std::async(
+          std::launch::async, [&, j] { TestSyncGet(*clients[j], data[j]); }));
     }
   }
-  logger.Info("test get end");
+  logger.Info("test sync get end");
 
+  for (auto &client : clients) {
+    client->Close();
+    client.reset();
+  }
+}
+
+int main() {
+  // pedrokv::logger::SetLevel(Logger::Level::kInfo);
+  // pedronet::logger::SetLevel(Logger::Level::kInfo);
+
+  logger.SetLevel(Logger::Level::kTrace);
+  options.worker_group = EventLoopGroup::Create(32);
+  options.max_inflight = 512;
+
+  options.worker_group->ScheduleEvery(1s, 1s, [] {
+    logger.Info("Puts: {}/s, Gets: {}/s", write_counts.exchange(0),
+                read_counts.exchange(0));
+  });
+
+  int n = 1000000;
+  TestAsync(n);
+  TestSync(n / 2, 32);
+  
   options.worker_group->Close();
   return 0;
 }
