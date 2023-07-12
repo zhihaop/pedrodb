@@ -16,7 +16,6 @@ class ArrayBuffer final : public Buffer {
 
 public:
   explicit ArrayBuffer(size_t capacity) : buf_(capacity) {}
-
   ArrayBuffer() : ArrayBuffer(kInitialSize) {}
 
   [[nodiscard]] size_t Capacity() const noexcept override { return buf_.size(); }

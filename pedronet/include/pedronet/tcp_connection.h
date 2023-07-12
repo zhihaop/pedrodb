@@ -60,12 +60,27 @@ public:
 
   void Start();
 
-  void Send(Buffer *buffer) {
-    eventloop_.Run([=] { handleSend(buffer); });
-  }
+  template <class BufferPtr> void Send(BufferPtr buffer) {
+    if (eventloop_.CheckUnderLoop()) {
+      handleSend(buffer.get());
+      return;
+    }
 
-  void Send(const std::shared_ptr<Buffer>& buffer) {
-    eventloop_.Run([=] { handleSend(buffer.get()); });
+    eventloop_.Schedule(
+        [this, buf = std::move(buffer)]() mutable { handleSend(buf.get()); });
+  }
+  
+  void Send(Buffer *buffer) {
+    if (eventloop_.CheckUnderLoop()) {
+      handleSend(buffer);
+      return;
+    }
+
+    ArrayBuffer clone(buffer->ReadableBytes());
+    clone.Append(buffer);
+
+    eventloop_.Schedule(
+        [this, buf = std::move(clone)]() mutable { handleSend(&buf); });
   }
 
   void Send(const char *buf, size_t n) {

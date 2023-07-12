@@ -30,9 +30,12 @@ class Client : nonmovable, noncopyable {
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
-  void HandleResponse(std::vector<Response> &responses) {
+  void HandleResponse(std::queue<Response> &responses) {
     std::unique_lock lock{mu_};
-    for (auto &response : responses) {
+
+    while (!responses.empty()) {
+      auto response = std::move(responses.front());
+      responses.pop();
       auto it = responses_.find(response.id);
       if (it == responses_.end()) {
         return;
@@ -44,7 +47,6 @@ class Client : nonmovable, noncopyable {
       }
       responses_.erase(it);
     }
-    responses.clear();
     not_full_.notify_all();
   }
 
@@ -95,7 +97,7 @@ public:
       response.id = id;
       response.type = Response::Type::kError;
 
-      std::unique_lock lock{mu_};
+      lock.lock();
       responses_[id](response);
       responses_.erase(id);
     }

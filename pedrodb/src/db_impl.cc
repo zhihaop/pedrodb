@@ -150,7 +150,7 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
     buffer.Append(r.value.data(), r.value.size());
     // remove cache.
     read_cache_->Remove(it->loc);
-
+    
     record::Location loc;
     auto status = file_manager_->WriteActiveFile(&buffer, &loc);
     if (status != Status::kOk) {
@@ -232,15 +232,6 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   header.Pack(&buffer);
   buffer.Append(key.data(), key.size());
   buffer.Append(value.data(), value.size());
-
-  {
-    auto lock = AcquireLock();
-    // check valid deletion.
-    auto it = GetMetadataIterator(h, key);
-    if (it == indices_.end() && value.empty()) {
-      return Status::kNotFound;
-    }
-  }
   
   record::Location loc{};
   auto status = file_manager_->WriteActiveFile(&buffer, &loc);

@@ -77,9 +77,9 @@ public:
     return connection_;
   }
 
-  bool Send(const std::shared_ptr<Buffer> &buffer) {
+  template <class BufferPtr> bool Send(BufferPtr buffer) {
     if (state_ == State::kConnected) {
-      connection_->Send(buffer);
+      connection_->Send(std::move(buffer));
       return true;
     }
     return false;

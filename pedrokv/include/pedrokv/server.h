@@ -24,10 +24,13 @@ class Server : nonmovable,
   ServerCodec codec_;
 
   void HandleRequest(const std::shared_ptr<TcpConnection> &conn,
-                     std::vector<Request> &requests) {
+                     std::queue<Request> &requests) {
     auto buffer = std::make_shared<pedrolib::ArrayBuffer>();
     
-    for (auto &request : requests) {
+    while (!requests.empty()) {
+      Request request = std::move(requests.front());
+      requests.pop();
+      
       Response response;
       response.id = request.id;
       pedrodb::Status status = pedrodb::Status::kOk;
@@ -61,7 +64,6 @@ class Server : nonmovable,
       response.Pack(buffer.get());
     }
     conn->Send(buffer);
-    requests.clear();
   }
 
 public:

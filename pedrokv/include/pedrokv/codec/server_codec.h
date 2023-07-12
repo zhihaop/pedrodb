@@ -14,12 +14,12 @@ namespace pedrokv {
 
 class ServerCodecContext;
 using ServerMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection> &, std::vector<Request> &)>;
+    const std::shared_ptr<TcpConnection> &, std::queue<Request> &)>;
 
 class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
   uint16_t len_{};
   pedrolib::ArrayBuffer buf_;
-  std::vector<Request> request_;
+  std::queue<Request> request_;
   ServerMessageCallback callback_;
 
 public:
@@ -43,7 +43,7 @@ public:
       buffer->Retrieve(w);
 
       if (buf_.ReadableBytes() == len_) {
-        request_.emplace_back().UnPack(&buf_);
+        request_.emplace().UnPack(&buf_);
         len_ = 0;
       }
     }
