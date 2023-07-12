@@ -105,9 +105,9 @@ void TestAsync(int n) {
   client.Close();
 }
 
-void TestSync(int n, int m) {
-  std::vector<std::shared_ptr<pedrokv::Client>> clients(m);
-  for (int i = 0; i < m; ++i) {
+void TestSync(int n, int m, int c) {
+  std::vector<std::shared_ptr<pedrokv::Client>> clients(c);
+  for (int i = 0; i < c; ++i) {
     clients[i] = std::make_shared<pedrokv::Client>(address, options);
     clients[i]->Start();
   }
@@ -124,7 +124,7 @@ void TestSync(int n, int m) {
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
       ctx.emplace_back(std::async(
-          std::launch::async, [&, j] { TestSyncPut(*clients[j], data[j]); }));
+          std::launch::async, [&, j] { TestSyncPut(*clients[j % clients.size()], data[j]); }));
     }
   }
   logger.Info("test sync end");
@@ -135,7 +135,7 @@ void TestSync(int n, int m) {
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
       ctx.emplace_back(std::async(
-          std::launch::async, [&, j] { TestSyncGet(*clients[j], data[j]); }));
+          std::launch::async, [&, j] { TestSyncGet(*clients[j % clients.size()], data[j]); }));
     }
   }
   logger.Info("test sync get end");
@@ -147,11 +147,11 @@ void TestSync(int n, int m) {
 }
 
 int main() {
-  // pedrokv::logger::SetLevel(Logger::Level::kInfo);
+  pedrokv::logger::SetLevel(Logger::Level::kError);
   // pedronet::logger::SetLevel(Logger::Level::kInfo);
 
   logger.SetLevel(Logger::Level::kTrace);
-  options.worker_group = EventLoopGroup::Create(32);
+  options.worker_group = EventLoopGroup::Create();
   options.max_inflight = 512;
 
   options.worker_group->ScheduleEvery(1s, 1s, [] {
@@ -159,9 +159,9 @@ int main() {
                 read_counts.exchange(0));
   });
 
-  int n = 1000000;
+  int n = 2000000;
   TestAsync(n);
-  TestSync(n / 2, 32);
+  TestSync(n, 50, 50);
   
   options.worker_group->Close();
   return 0;

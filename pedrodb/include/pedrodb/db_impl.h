@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <pedrolib/executor/thread_pool_executor.h>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -44,7 +45,7 @@ struct CompactHint {
 };
 
 class DBImpl : public DB {
-  mutable std::mutex mu_;
+  mutable std::shared_mutex mu_;
 
   Options options_;
   ArrayBuffer buffer_;
@@ -81,6 +82,8 @@ public:
                    std::string *value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
+  
+  auto AcquireSharedLock() const { return std::shared_lock{mu_}; }
 
   Status FetchRecord(ReadableFile *file, const record::Dir &dir,
                      std::string *value);

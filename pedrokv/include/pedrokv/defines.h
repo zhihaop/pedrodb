@@ -11,6 +11,8 @@
 #include <pedronet/inetaddress.h>
 #include <pedronet/tcp_connection.h>
 
+#include <pedronet/eventloopgroup.h>
+
 namespace pedrokv {
 using noncopyable = pedrolib::noncopyable;
 using nonmovable = pedrolib::nonmovable;
@@ -23,5 +25,7 @@ using Error = pedrolib::Error;
 
 using TcpConnection = pedronet::TcpConnection;
 using InetAddress = pedronet::InetAddress;
+
+using pedronet::EventLoopGroup;
 } // namespace pedrokv
 #endif // PEDROKV_DEFINES_H

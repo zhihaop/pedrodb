@@ -12,11 +12,11 @@ namespace pedrokv {
 
 class ClientCodecContext;
 using ClientMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection> &, const Response &)>;
+    const std::shared_ptr<TcpConnection> &, std::vector<Response> &)>;
 
 class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
   uint16_t len_{};
-  Response response_;
+  std::vector<Response> response_;
   pedrolib::ArrayBuffer buf_;
   ClientMessageCallback callback_;
 
@@ -39,13 +39,13 @@ public:
       buffer->Retrieve(w);
 
       if (buf_.ReadableBytes() == len_) {
-        response_.UnPack(&buf_);
+        response_.emplace_back().UnPack(&buf_);
         len_ = 0;
-
-        if (callback_) {
-          callback_(conn, response_);
-        }
       }
+    }
+
+    if (!response_.empty()) {
+      callback_(conn, response_);
     }
   }
 };

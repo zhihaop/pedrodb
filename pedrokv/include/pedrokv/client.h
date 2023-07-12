@@ -30,20 +30,21 @@ class Client : nonmovable, noncopyable {
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
-  void HandleResponse(const Response &response) {
+  void HandleResponse(std::vector<Response> &responses) {
     std::unique_lock lock{mu_};
-    PEDROKV_INFO("handle response id {}", response.id);
+    for (auto &response : responses) {
+      auto it = responses_.find(response.id);
+      if (it == responses_.end()) {
+        return;
+      }
 
-    auto it = responses_.find(response.id);
-    if (it == responses_.end()) {
-      return;
+      auto callback = std::move(it->second);
+      if (callback) {
+        callback(response);
+      }
+      responses_.erase(it);
     }
-
-    auto callback = std::move(it->second);
-    if (callback) {
-      callback(response);
-    }
-    responses_.erase(it);
+    responses.clear();
     not_full_.notify_all();
   }
 
@@ -93,7 +94,10 @@ public:
       Response response;
       response.id = id;
       response.type = Response::Type::kError;
-      HandleResponse(response);
+
+      std::unique_lock lock{mu_};
+      responses_[id](response);
+      responses_.erase(id);
     }
   }
 
@@ -191,9 +195,8 @@ public:
       close_latch_->CountDown();
     });
 
-    codec_.OnMessage([this](auto &conn, const Response &response) {
-      HandleResponse(response);
-    });
+    codec_.OnMessage(
+        [this](auto &conn, auto &responses) { HandleResponse(responses); });
 
     client_.OnError(error_callback_);
     client_.OnMessage(codec_.GetOnMessage());

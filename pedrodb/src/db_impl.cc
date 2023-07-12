@@ -6,7 +6,7 @@ namespace pedrodb {
 
 Status DBImpl::Get(const ReadOptions &options, std::string_view key,
                    std::string *value) {
-  auto lock = AcquireLock();
+  auto lock = AcquireSharedLock();
   return HandleGet(options, Hash(key), key, value);
 }
 
@@ -135,7 +135,6 @@ Status DBImpl::Recovery(file_t id) {
 Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
   ArrayBuffer buffer;
   auto lock = AcquireLock();
-
   compact_hints_[id].state = CompactState::kCompacting;
 
   for (auto &r : records) {
@@ -160,7 +159,6 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
     header.Pack(&buffer);
     buffer.Append(r.key.data(), r.key.size());
     buffer.Append(r.value.data(), r.value.size());
-
     // remove cache.
     read_cache_->Remove(it->loc);
 
@@ -170,14 +168,9 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
     if (status != Status::kOk) {
       return status;
     }
-
+    
     it->loc = loc;
     it->size = record::SizeOf(r.key.size(), r.value.size());
-  }
-
-  {
-    auto _ = file_manager_->AcquireLock();
-    file_manager_->Sync();
   }
   return Status::kOk;
 }
@@ -306,28 +299,29 @@ Status DBImpl::FetchRecord(ReadableFile *file, const record::Dir &dir,
                            std::string *value) {
   record::Location l = dir.loc;
 
-  buffer_.Reset();
-  buffer_.EnsureWriteable(dir.size);
-  ssize_t r = file->Read(l.offset, buffer_.WriteIndex(), dir.size);
+  ArrayBuffer buffer;
+  buffer.Reset();
+  buffer.EnsureWriteable(dir.size);
+  ssize_t r = file->Read(l.offset, buffer.WriteIndex(), dir.size);
   if (r != dir.size) {
     PEDRODB_ERROR("failed to read from file {}, returns {}: {}", l.id, r,
                   file->GetError());
     return Status::kIOError;
   }
-  buffer_.Append(dir.size);
+  buffer.Append(dir.size);
 
   record::Header header{};
-  if (!header.UnPack(&buffer_)) {
+  if (!header.UnPack(&buffer)) {
     return Status::kCorruption;
   }
 
-  if (buffer_.ReadableBytes() != header.key_size + header.value_size) {
+  if (buffer.ReadableBytes() != header.key_size + header.value_size) {
     return Status::kCorruption;
   }
 
-  buffer_.Retrieve(header.key_size);
+  buffer.Retrieve(header.key_size);
   value->resize(header.value_size);
-  buffer_.Retrieve(value->data(), value->size());
+  buffer.Retrieve(value->data(), value->size());
   read_cache_->Put(l, *value);
   return Status::kOk;
 }

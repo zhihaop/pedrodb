@@ -34,7 +34,7 @@ class FileManager {
   // always in use.
   std::unique_ptr<WritableFile> active_;
   std::string memtable_;
-  record::Location latest_;
+  file_t id_{};
 
   Status OpenActiveFile(WritableFileGuard *file, file_t id);
 
@@ -60,7 +60,7 @@ public:
 
   void ReleaseDataFile(file_t id);
 
-  file_t GetActiveFile() const noexcept { return latest_.id; }
+  file_t GetActiveFile() const noexcept { return id_; }
 
   Status AcquireDataFile(file_t id, ReadableFileGuard *file);
 

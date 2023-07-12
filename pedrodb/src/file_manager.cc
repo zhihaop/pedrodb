@@ -31,9 +31,7 @@ Status FileManager::Recovery(file_t active) {
 
   active_ = std::move(file);
   memtable_ = std::move(value);
-  
-  latest_.id = active;
-  latest_.offset = memtable_.size();
+  id_ = active;
 
   return Status::kOk;
 }
@@ -53,7 +51,7 @@ Status FileManager::Init() {
 
 Status FileManager::CreateActiveFile() {
   WritableFileGuard active;
-  file_t id = latest_.id + 1;
+  file_t id = id_ + 1;
 
   auto stat = OpenActiveFile(&active, id);
   if (stat != Status::kOk) {
@@ -63,15 +61,14 @@ Status FileManager::CreateActiveFile() {
   auto _ = metadata_manager_->AcquireLock();
   metadata_manager_->CreateFile(id);
   active_ = std::move(active);
-  latest_.id = id;
-  latest_.offset = 0;
+  id_ = id;
   memtable_.clear();
 
   return Status::kOk;
 }
 
 void FileManager::ReleaseDataFile(file_t id) {
-  if (id == latest_.id) {
+  if (id == id_) {
     return;
   }
 
@@ -81,7 +78,7 @@ void FileManager::ReleaseDataFile(file_t id) {
 }
 
 Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
-  if (id == latest_.id) {
+  if (id == id_) {
     *file = std::make_shared<MemoryTableView>(&memtable_, this);
     return Status::kOk;
   }
@@ -116,7 +113,7 @@ Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
 }
 
 Error FileManager::RemoveDataFile(file_t id) {
-  if (id == latest_.id) {
+  if (id == id_) {
     return Error::Success();
   }
 
@@ -129,7 +126,7 @@ Error FileManager::RemoveDataFile(file_t id) {
 }
 
 Status FileManager::WriteActiveFile(Buffer *buffer, record::Location *loc) {
-  if (latest_.offset + buffer->ReadableBytes() > kMaxFileBytes) {
+  if (memtable_.size() + buffer->ReadableBytes() > kMaxFileBytes) {
     auto status = Flush(true);
     if (status != Status::kOk) {
       return status;
@@ -141,14 +138,13 @@ Status FileManager::WriteActiveFile(Buffer *buffer, record::Location *loc) {
     }
   }
 
-  loc->offset = latest_.offset;
-  loc->id = latest_.id;
+  loc->offset = memtable_.size();
+  loc->id = id_;
 
   size_t w = buffer->ReadableBytes();
   memtable_.insert(memtable_.end(), buffer->ReadIndex(),
                    buffer->ReadIndex() + w);
   buffer->Retrieve(w);
-  latest_.offset += w;
 
   PEDRODB_IGNORE_ERROR(Flush(false));
   return Status::kOk;

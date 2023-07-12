@@ -15,8 +15,6 @@ int main() {
 
   auto address = InetAddress::Create("0.0.0.0", 1082);
   ServerOptions options;
-  options.worker_group = EventLoopGroup::Create(16);
-  options.boss_group = EventLoopGroup::Create(1);
   options.db_path = "/home/zhihaop/db/test.db";
 
   auto server = pedrokv::Server(address, options);

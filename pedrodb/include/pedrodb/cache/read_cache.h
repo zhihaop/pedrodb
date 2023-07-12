@@ -8,36 +8,49 @@
 
 namespace pedrodb {
 
+constexpr size_t kCacheSegments = 64;
+
 class ReadCache {
-  lru::Cache<record::Location> cache_;
+
+  std::unique_ptr<lru::Cache<record::Location>> segments_[kCacheSegments];
 
   uint64_t hits_{1};
   uint64_t total_{1};
 
-  mutable std::mutex mu_;
+  mutable std::mutex mu_[kCacheSegments];
 
 public:
-  explicit ReadCache(size_t capacity) : cache_(capacity) {}
+  explicit ReadCache(size_t capacity) {
+    size_t segment_capacity = capacity / kCacheSegments;
+    for (auto &cache : segments_) {
+      cache = std::make_unique<lru::Cache<record::Location>>(segment_capacity);
+    }
+  }
 
   double HitRatio() const noexcept {
-    std::unique_lock lock{mu_};
     return static_cast<double>(hits_) / static_cast<double>(total_);
   }
 
   bool Put(record::Location location, std::string_view value) {
-    std::unique_lock lock{mu_};
-    return cache_.Put(location, value);
+    size_t h = location.Hash();
+    size_t b = h % kCacheSegments;
+    std::unique_lock lock{mu_[b]};
+    return segments_[b]->Put(location, value);
   }
 
   void Remove(record::Location location) {
-    std::unique_lock lock{mu_};
-    cache_.Remove(location);
+    size_t h = location.Hash();
+    size_t b = h % kCacheSegments;
+    std::unique_lock lock{mu_[b]};
+    segments_[b]->Remove(location);
   }
 
   bool Read(record::Location location, std::string *value) {
-    std::unique_lock lock{mu_};
+    size_t h = location.Hash();
+    size_t b = h % kCacheSegments;
+    std::unique_lock lock{mu_[b]};
     ++total_;
-    auto v = cache_.Get(location);
+    auto v = segments_[b]->Get(location);
     if (v.empty()) {
       return false;
     }

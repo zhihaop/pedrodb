@@ -15,7 +15,6 @@ struct Options {
   Duration sync_interval = Duration::Seconds(10);
 
   std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>()};
-  ;
 };
 
 struct ReadOptions {};

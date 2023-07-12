@@ -14,13 +14,12 @@ namespace pedrokv {
 
 class ServerCodecContext;
 using ServerMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection> &, const Request &)>;
+    const std::shared_ptr<TcpConnection> &, std::vector<Request> &)>;
 
 class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
   uint16_t len_{};
   pedrolib::ArrayBuffer buf_;
-
-  Request request_;
+  std::vector<Request> request_;
   ServerMessageCallback callback_;
 
 public:
@@ -30,6 +29,7 @@ public:
   void HandleMessage(const std::shared_ptr<TcpConnection> &conn,
                      pedrolib::Buffer *buffer) {
     PEDROKV_TRACE("server codec: Read");
+
     while (buffer->ReadableBytes() > sizeof(len_)) {
       if (len_ == 0) {
         buffer->RetrieveInt(&len_);
@@ -43,13 +43,13 @@ public:
       buffer->Retrieve(w);
 
       if (buf_.ReadableBytes() == len_) {
-        request_.UnPack(&buf_);
+        request_.emplace_back().UnPack(&buf_);
         len_ = 0;
-
-        if (callback_) {
-          callback_(conn, request_);
-        }
       }
+    }
+
+    if (!request_.empty()) {
+      callback_(conn, request_);
     }
   }
 };
@@ -71,18 +71,7 @@ public:
   void OnMessage(ServerMessageCallback callback) {
     message_callback_ = std::move(callback);
   }
-
-  static void SendResponse(const std::shared_ptr<TcpConnection> &conn,
-                           const Response &response) {
-    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(response.SizeOf() +
-                                                          sizeof(uint16_t));
-    PEDROKV_TRACE("send response bytes: {}",
-                  response.SizeOf() + sizeof(uint16_t));
-    buffer->AppendInt(response.SizeOf());
-    response.Pack(buffer.get());
-    conn->Send(buffer);
-  }
-
+  
   pedronet::ConnectionCallback GetOnConnect() {
     return [this](const pedronet::TcpConnectionPtr &conn) {
       auto ctx = std::make_shared<ServerCodecContext>(message_callback_);

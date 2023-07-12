@@ -27,6 +27,11 @@ public:
       : loops_(threads), threads_(threads), size_(threads), next_(0) {}
 
   template <typename Selector = EpollSelector>
+  static EventLoopGroupPtr Create() {
+    return Create<Selector>(std::thread::hardware_concurrency());
+  }
+  
+  template <typename Selector = EpollSelector>
   static EventLoopGroupPtr Create(size_t threads) {
     auto group = std::make_shared<EventLoopGroup>(threads);
 
