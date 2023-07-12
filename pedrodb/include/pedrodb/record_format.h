@@ -100,6 +100,7 @@ struct Dir {
   mutable Location loc;
   mutable uint32_t size{};
 
+  Dir() = default;
   explicit Dir(uint32_t h) : h(h) {}
   Dir(uint32_t h, std::string key, const Location &loc, uint32_t size)
       : h(h), key(std::move(key)), loc(loc), size(size) {}

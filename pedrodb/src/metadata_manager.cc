@@ -74,6 +74,7 @@ Status MetadataManager::Init() {
 }
 
 Status MetadataManager::CreateFile(file_t id) {
+  auto lock = AcquireLock();
   if (files_.count(id)) {
     return Status::kOk;
   }
@@ -92,6 +93,7 @@ Status MetadataManager::CreateFile(file_t id) {
 }
 
 Status MetadataManager::DeleteFile(file_t id) {
+  auto lock = AcquireLock();
   auto it = files_.find(id);
   if (it == files_.end()) {
     return Status::kOk;

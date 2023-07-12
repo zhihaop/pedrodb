@@ -6,18 +6,15 @@ namespace pedrodb {
 
 Status DBImpl::Get(const ReadOptions &options, std::string_view key,
                    std::string *value) {
-  auto lock = AcquireSharedLock();
   return HandleGet(options, Hash(key), key, value);
 }
 
 Status DBImpl::Put(const WriteOptions &options, std::string_view key,
                    std::string_view value) {
-  auto lock = AcquireLock();
   return HandlePut(options, Hash(key), key, value);
 }
 
 Status DBImpl::Delete(const WriteOptions &options, std::string_view key) {
-  auto lock = AcquireLock();
   return HandlePut(options, Hash(key), key, {});
 }
 
@@ -56,8 +53,8 @@ Status DBImpl::Init() {
         auto task = PollCompactTask();
         lock.unlock();
 
-        std::for_each(task.begin(), task.end(), [=](auto task) {
-          executor_->Schedule([=] { Compact(task); });
+        std::for_each(task.begin(), task.end(), [this](auto task) {
+          executor_->Schedule([this, task] { Compact(task); });
         });
       });
 
@@ -65,15 +62,7 @@ Status DBImpl::Init() {
 }
 
 std::vector<file_t> DBImpl::GetFiles() {
-  std::vector<file_t> files;
-  {
-    auto _ = metadata_manager_->AcquireLock();
-    auto all_files = metadata_manager_->GetFiles();
-    files.assign(all_files.begin(), all_files.end());
-  }
-
-  std::sort(files.begin(), files.end());
-  return files;
+  return metadata_manager_->GetFiles();
 }
 
 std::vector<file_t> DBImpl::PollCompactTask() {
@@ -119,9 +108,9 @@ Status DBImpl::Recovery(file_t id) {
   if (status != Status::kOk) {
     return status;
   }
-
-  buffer_.Reset();
-  auto iter = RecordIterator(file.get(), &buffer_);
+  
+  ArrayBuffer buffer(kMaxFileBytes);
+  auto iter = RecordIterator(file.get(), &buffer);
   while (iter.Valid()) {
     PEDRODB_IGNORE_ERROR(Recovery(id, iter.Next()));
   }
@@ -163,12 +152,11 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
     read_cache_->Remove(it->loc);
 
     record::Location loc;
-    auto _ = file_manager_->AcquireLock();
     auto status = file_manager_->WriteActiveFile(&buffer, &loc);
     if (status != Status::kOk) {
       return status;
     }
-    
+
     it->loc = loc;
     it->size = record::SizeOf(r.key.size(), r.value.size());
   }
@@ -177,12 +165,9 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
 
 void DBImpl::Compact(file_t id) {
   ReadableFileGuard file;
-  {
-    auto _ = file_manager_->AcquireLock();
-    auto stat = file_manager_->AcquireDataFile(id, &file);
-    if (stat != Status::kOk) {
-      return;
-    }
+  auto stat = file_manager_->AcquireDataFile(id, &file);
+  if (stat != Status::kOk) {
+    return;
   }
 
   PEDRODB_INFO("start compacting {}", id);
@@ -221,30 +206,19 @@ void DBImpl::Compact(file_t id) {
   }
 
   // remove file.
-  {
-    auto _ = file_manager_->AcquireLock();
-    file_manager_->ReleaseDataFile(id);
-    PEDRODB_IGNORE_ERROR(file_manager_->RemoveDataFile(id));
-  }
+  PEDRODB_IGNORE_ERROR(file_manager_->RemoveDataFile(id));
 
   PEDRODB_TRACE("end compacting: {}", id);
 }
 
 Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
                          std::string_view key, std::string_view value) {
-
   uint32_t record_size = record::SizeOf(key.size(), value.size());
   if (record_size > kMaxFileBytes) {
     PEDRODB_ERROR("key or value is too big");
     return Status::kNotSupported;
   }
-
-  // check valid deletion.
-  auto it = GetMetadataIterator(h, key);
-  if (it == indices_.end() && value.empty()) {
-    return Status::kNotFound;
-  }
-
+  
   uint32_t timestamp = 0;
 
   record::Header header;
@@ -253,18 +227,35 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   header.key_size = key.size();
   header.value_size = value.size();
   header.timestamp = timestamp;
+  
+  ArrayBuffer buffer(record_size);
+  header.Pack(&buffer);
+  buffer.Append(key.data(), key.size());
+  buffer.Append(value.data(), value.size());
 
-  buffer_.Reset();
-  header.Pack(&buffer_);
-  buffer_.Append(key.data(), key.size());
-  buffer_.Append(value.data(), value.size());
-
+  {
+    auto lock = AcquireLock();
+    // check valid deletion.
+    auto it = GetMetadataIterator(h, key);
+    if (it == indices_.end() && value.empty()) {
+      return Status::kNotFound;
+    }
+  }
+  
   record::Location loc{};
-  auto status = file_manager_->WriteActiveFile(&buffer_, &loc);
+  auto status = file_manager_->WriteActiveFile(&buffer, &loc);
   if (status != Status::kOk) {
     return status;
   }
 
+  auto lock = AcquireLock();
+  auto it = GetMetadataIterator(h, key);
+  
+  // check valid deletion.
+  if (it == indices_.end() && value.empty()) {
+    return Status::kNotFound;
+  }
+  
   // replace or delete.
   if (it != indices_.end()) {
     // remove cache.
@@ -290,9 +281,7 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
 }
 
 Status DBImpl::Flush() {
-  auto lock = file_manager_->AcquireLock();
-  file_manager_->Sync();
-  return Status::kOk;
+  return file_manager_->Flush(true);
 }
 
 Status DBImpl::FetchRecord(ReadableFile *file, const record::Dir &dir,
@@ -346,26 +335,28 @@ auto DBImpl::GetMetadataIterator(uint32_t h, std::string_view key)
 
 Status DBImpl::HandleGet(const ReadOptions &options, uint32_t h,
                          std::string_view key, std::string *value) {
-  auto it = GetMetadataIterator(h, key);
-  if (it == indices_.end()) {
-    return Status::kNotFound;
+  record::Dir dir;
+  {
+    auto lock = AcquireLock();
+    auto it = GetMetadataIterator(h, key);
+    if (it == indices_.end()) {
+      return Status::kNotFound;
+    }
+    dir = *it;
   }
 
-  if (read_cache_->Read(it->loc, value)) {
+  if (read_cache_->Read(dir.loc, value)) {
     return Status::kOk;
   }
 
   ReadableFileGuard file;
-  {
-    auto lock = file_manager_->AcquireLock();
-    auto stat = file_manager_->AcquireDataFile(it->loc.id, &file);
-    if (stat != Status::kOk) {
-      PEDRODB_ERROR("cannot get file {}", it->loc.id);
-      return stat;
-    }
+  auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
+  if (stat != Status::kOk) {
+    PEDRODB_ERROR("cannot get file {}", dir.loc.id);
+    return stat;
   }
 
-  return FetchRecord(file.get(), *it, value);
+  return FetchRecord(file.get(), dir, value);
 }
 
 Status DBImpl::Recovery(file_t id, RecordEntry entry) {

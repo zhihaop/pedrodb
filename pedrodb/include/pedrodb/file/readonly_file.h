@@ -1,5 +1,5 @@
-#ifndef PEDRODB_FILE_READABLE_FILE_IMPL_H
-#define PEDRODB_FILE_READABLE_FILE_IMPL_H
+#ifndef PEDRODB_FILE_READONLY_FILE_H
+#define PEDRODB_FILE_READONLY_FILE_H
 
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readable_file.h"
@@ -7,17 +7,17 @@
 #include "pedrodb/status.h"
 
 namespace pedrodb {
-class ReadableFileImpl : public ReadableFile {
+class ReadonlyFile : public ReadableFile {
   uint64_t size_{};
   mutable File file_{};
 
 public:
-  ReadableFileImpl() = default;
-  ~ReadableFileImpl() override = default;
-  ReadableFileImpl(ReadableFileImpl &&other) noexcept
+  ReadonlyFile() = default;
+  ~ReadonlyFile() override = default;
+  ReadonlyFile(ReadonlyFile &&other) noexcept
       : size_(other.size_), file_(std::move(other.file_)) {}
 
-  ReadableFileImpl &operator=(ReadableFileImpl &&other) noexcept {
+  ReadonlyFile &operator=(ReadonlyFile &&other) noexcept {
     if (this == &other) {
       return *this;
     }
@@ -36,7 +36,7 @@ public:
 
   Error GetError() const noexcept override { return file_.GetError(); }
 
-  static Status Open(const std::string &filename, ReadableFileImpl *file) {
+  static Status Open(const std::string &filename, ReadonlyFile *file) {
     File::OpenOption option{.mode = File ::OpenMode::kRead};
     auto f = File::Open(filename.c_str(), option);
     if (!f.Valid()) {
@@ -51,4 +51,4 @@ public:
 };
 } // namespace pedrodb
 
-#endif // PEDRODB_FILE_READABLE_FILE_IMPL_H
+#endif // PEDRODB_FILE_READONLY_FILE_H

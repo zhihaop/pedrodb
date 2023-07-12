@@ -80,6 +80,12 @@ public:
     lru_.prev = &lru_;
   }
 
+  ~Cache() {
+    while (size_ > 0) {
+      Evict();
+    }
+  }
+
   [[nodiscard]] size_t Capacity() const noexcept { return capacity_; }
 
   [[nodiscard]] size_t Size() const noexcept { return size_; }

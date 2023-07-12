@@ -23,15 +23,22 @@ class MetadataManager {
 
   Status CreateDatabase();
 
+  auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
+
 public:
   explicit MetadataManager(std::string path) : path_(std::move(path)) {}
   ~MetadataManager() = default;
 
   Status Init();
 
-  auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
-
-  const auto &GetFiles() const noexcept { return files_; }
+  std::vector<file_t> GetFiles() const noexcept {
+    auto lock = AcquireLock();
+    auto files = std::vector<file_t>{files_.begin(), files_.end()};
+    lock.unlock();
+    
+    std::sort(files.begin(), files.end());
+    return files;
+  }
 
   Status CreateFile(file_t id);
 

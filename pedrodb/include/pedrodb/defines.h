@@ -33,8 +33,8 @@ using noncopyable = pedrolib::noncopyable;
 
 using file_t = uint32_t;
 
-// the maximum size of file is 64MB.
-const uint64_t kMaxFileBytes = 64ULL << 20;
+// the maximum size of file is 32MB.
+const uint64_t kMaxFileBytes = 32ULL << 20;
 
 const uint32_t kBatchVersions = 128 << 10;
 

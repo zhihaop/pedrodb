@@ -40,7 +40,6 @@ Status SegmentDB::Get(const ReadOptions &options, std::string_view key,
                       std::string *value) {
   auto h = Hash(key);
   auto db = GetDB(h);
-  auto lock = db->AcquireLock();
   return db->HandleGet(options, h, key, value);
 }
 
@@ -48,14 +47,12 @@ Status SegmentDB::Put(const WriteOptions &options, std::string_view key,
                       std::string_view value) {
   auto h = Hash(key);
   auto db = GetDB(h);
-  auto lock = db->AcquireLock();
   return db->HandlePut(options, h, key, value);
 }
 
 Status SegmentDB::Delete(const WriteOptions &options, std::string_view key) {
   auto h = Hash(key);
   auto db = GetDB(h);
-  auto lock = db->AcquireLock();
   return db->HandlePut(options, h, key, {});
 }
 

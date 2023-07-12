@@ -1,60 +1,115 @@
 #ifndef PEDRODB_FILE_WRITABLE_FILE_H
 #define PEDRODB_FILE_WRITABLE_FILE_H
 #include "pedrodb/defines.h"
+#include "pedrodb/file/readable_file.h"
 #include "pedrodb/logger/logger.h"
 
 namespace pedrodb {
-class WritableFile : noncopyable {
+class WritableFile final : public ReadableFile {
   File file_{};
-  uint64_t write_offset_{};
+  std::string buf_;
+  size_t offset_{};
+  size_t capacity_{};
+  file_t id_{};
+  mutable std::mutex mu_;
+
+  WritableFile() = default;
 
 public:
-  ~WritableFile() = default;
+  ~WritableFile() override = default;
 
-  static Status OpenOrCreate(const std::string &filename,
-                             std::unique_ptr<WritableFile> *file) {
-    auto f = std::make_unique<WritableFile>();
+  static Status Open(const std::string &filename, file_t id, size_t capacity,
+                     WritableFile **f) {
     File::OpenOption option{.mode = File ::OpenMode::kReadWrite,
                             .create = 0777};
-    f->file_ = File::Open(filename.c_str(), option);
-    if (!f->file_.Valid()) {
+    auto file = File::Open(filename.c_str(), option);
+    if (!file.Valid()) {
       PEDRODB_ERROR("failed to create active file {}: {}", filename,
-                    f->file_.GetError());
+                    file.GetError());
       return Status::kIOError;
     }
-    *file = std::move(f);
+
+    int64_t i64_size = File::Size(file);
+    auto size = static_cast<size_t>(i64_size);
+    if (i64_size < 0 || i64_size != size || size > capacity) {
+      PEDRODB_ERROR("failed to get size of file {}", filename);
+      return Status::kIOError;
+    }
+
+    std::string buf(size, 0);
+    if (file.Read(buf.data(), buf.size()) != size) {
+      PEDRODB_ERROR("failed to read file {}", filename);
+      return Status::kIOError;
+    }
+
+    auto ptr = *f = new WritableFile();
+    ptr->file_ = std::move(file);
+    ptr->offset_ = buf.size();
+    ptr->buf_ = std::move(buf);
+    ptr->capacity_ = capacity;
+    ptr->id_ = id;
+    
+    ptr->buf_.reserve(capacity);
     return Status::kOk;
   }
 
-  Error ReadAll(std::string *value) {
-    int64_t size = File::Size(file_);
-    if (size < 0) {
-      return file_.GetError();
-    }
-
-    value->resize(size);
-
-    ssize_t r = file_.Read(value->data(), size);
-    if (r != size) {
-      return file_.GetError();
-    }
-
-    write_offset_ += r;
-    return Error::Success();
+  uint64_t Size() const noexcept override {
+    std::unique_lock lock{mu_};
+    return buf_.size();
   }
 
-  [[nodiscard]] uint64_t GetOffset() const noexcept { return write_offset_; }
+  Error GetError() const noexcept override { return file_.GetError(); }
 
-  Error Write(const char *buffer, size_t n) {
-    ssize_t w = file_.Write(buffer, n);
-    if (w != n) {
-      return file_.GetError();
-    }
-    write_offset_ += w;
-    return Error ::Success();
+  file_t GetFile() const noexcept { return id_; }
+
+  ssize_t Read(uint64_t offset, char *buf, size_t n) override {
+    std::unique_lock lock{mu_};
+    memcpy(buf, buf_.data() + offset, n);
+    return static_cast<ssize_t>(n);
   }
 
-  Error Sync() { return file_.Sync(); }
+  Error Flush(bool force) {
+    std::string_view buf;
+    {
+      std::unique_lock lock{mu_};
+      buf = buf_;
+      buf = buf.substr(offset_, buf_.size() - offset_);
+
+      if (!force && buf.size() < kBlockSize) {
+        return Error::kOk;
+      }
+
+      if (buf.empty()) {
+        return Error::kOk;
+      }
+
+      offset_ = buf_.size();
+    }
+
+    ssize_t w = file_.Write(buf.data(), buf.size());
+    if (w != buf.size()) {
+      return Error{1};
+    }
+    return Error::kOk;
+  }
+
+  size_t Write(std::string_view buffer) {
+    std::unique_lock lock{mu_};
+    if (buf_.size() + buffer.size() > capacity_) {
+      return -1;
+    }
+
+    size_t offset = buf_.size();
+    buf_ += buffer;
+    return offset;
+  }
+
+  Error Sync() {
+    if (auto err = Flush(true); err != Error::kOk) {
+      return err;
+    }
+    return file_.Sync();
+  }
 };
 
 } // namespace pedrodb

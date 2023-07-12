@@ -1,6 +1,6 @@
 #ifndef PEDRODB_ITERATOR_RECORDITERATOR_H
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
-#include "pedrodb/file/readable_file_impl.h"
+#include "pedrodb/file/readonly_file.h"
 #include "pedrodb/record_format.h"
 
 namespace pedrodb {

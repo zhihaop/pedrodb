@@ -45,10 +45,9 @@ struct CompactHint {
 };
 
 class DBImpl : public DB {
-  mutable std::shared_mutex mu_;
+  mutable std::mutex mu_;
 
   Options options_;
-  ArrayBuffer buffer_;
   uint64_t sync_worker_{};
   uint64_t compact_worker_{};
   std::unique_ptr<ReadCache> read_cache_;
@@ -82,8 +81,6 @@ public:
                    std::string *value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
-  
-  auto AcquireSharedLock() const { return std::shared_lock{mu_}; }
 
   Status FetchRecord(ReadableFile *file, const record::Dir &dir,
                      std::string *value);

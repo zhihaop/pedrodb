@@ -15,6 +15,7 @@ int main() {
 
   auto address = InetAddress::Create("0.0.0.0", 1082);
   ServerOptions options;
+  options.db_options.read_cache_bytes = 0;
   options.db_path = "/home/zhihaop/db/test.db";
 
   auto server = pedrokv::Server(address, options);
