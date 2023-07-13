@@ -48,7 +48,7 @@ public:
     ptr->buf_ = std::move(buf);
     ptr->capacity_ = capacity;
     ptr->id_ = id;
-    
+
     ptr->buf_.reserve(capacity);
     return Status::kOk;
   }
@@ -63,7 +63,6 @@ public:
   file_t GetFile() const noexcept { return id_; }
 
   ssize_t Read(uint64_t offset, char *buf, size_t n) override {
-    std::unique_lock lock{mu_};
     memcpy(buf, buf_.data() + offset, n);
     return static_cast<ssize_t>(n);
   }

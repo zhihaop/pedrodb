@@ -30,6 +30,7 @@ public:
     while (buffer->ReadableBytes() >= sizeof(len_)) {
       if (len_ == 0) {
         buffer->RetrieveInt(&len_);
+        buf_.Reset();
         buf_.EnsureWriteable(len_);
         continue;
       }

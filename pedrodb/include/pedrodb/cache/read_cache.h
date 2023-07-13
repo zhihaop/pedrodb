@@ -1,7 +1,6 @@
 #ifndef PEDRODB_CACHE_READ_CACHE_H
 #define PEDRODB_CACHE_READ_CACHE_H
 
-#include "pedrodb/cache/lfu_cache.h"
 #include "pedrodb/cache/lru_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/record_format.h"

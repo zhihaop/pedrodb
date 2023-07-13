@@ -4,7 +4,7 @@
 namespace pedrokv {
 
 struct Response {
-  enum class Type { kOk, kError };
+  enum Type { kOk, kError };
 
   Type type;
   uint32_t id;

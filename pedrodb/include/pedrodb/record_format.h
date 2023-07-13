@@ -95,15 +95,40 @@ struct Dir {
     size_t operator()(const Dir &other) const noexcept { return other.h; }
   };
 
+  struct Cleaner {
+    void operator()(const char *ptr) const noexcept { std::free((void *)ptr); }
+  };
+
+  using Key = std::unique_ptr<char, Cleaner>;
+
   uint32_t h{};
-  std::string key;
+  Key key;
   mutable Location loc;
   mutable uint32_t size{};
 
   Dir() = default;
   explicit Dir(uint32_t h) : h(h) {}
-  Dir(uint32_t h, std::string key, const Location &loc, uint32_t size)
-      : h(h), key(std::move(key)), loc(loc), size(size) {}
+  Dir(uint32_t h, std::string_view k, const Location &loc, uint32_t size)
+      : h(h), loc(loc), size(size) {
+    key = Key((char *)malloc(k.size() + 1), Cleaner{});
+    key.get()[k.size()] = 0;
+    memcpy(key.get(), k.data(), k.size());
+  }
+
+  int CompareKey(std::string_view k) const noexcept {
+    size_t i;
+    const char *buf = key.get();
+    for (i = 0; buf[i] && i < k.size(); ++i) {
+      if (buf[i] < k[i])
+        return -1;
+      else if (buf[i] > k[i])
+        return 1;
+    }
+    if (i == k.size() && buf[i] == 0) {
+      return 0;
+    }
+    return i == k.size() ? 1 : -1;
+  }
 
   ~Dir() = default;
 

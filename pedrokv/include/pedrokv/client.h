@@ -9,6 +9,7 @@
 #include <pedrolib/concurrent/latch.h>
 #include <pedronet/tcp_client.h>
 #include <unordered_map>
+#include <utility>
 
 namespace pedrokv {
 
@@ -25,8 +26,8 @@ class Client : nonmovable, noncopyable {
 
   std::mutex mu_;
   std::condition_variable not_full_;
-  uint32_t request_id_{};
   std::unordered_map<uint32_t, ResponseCallback> responses_;
+  std::atomic_uint32_t request_id_{};
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
@@ -69,30 +70,26 @@ public:
     connect_callback_ = std::move(callback);
   }
 
-  void SendRequest(Request &request, ResponseCallback callback) {
+  void SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
+                   ResponseCallback callback) {
     std::unique_lock lock{mu_};
 
     while (responses_.size() > options_.max_inflight) {
       not_full_.wait(lock);
     }
 
-    uint32_t id = request_id_++;
-
     if (responses_.count(id)) {
-      PEDROKV_FATAL("should not happened");
+      Response response;
+      response.id = id;
+      response.type = Response::Type::kError;
+      callback(response);
+      return;
     }
 
     responses_[id] = std::move(callback);
     lock.unlock();
 
-    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(sizeof(uint16_t) +
-                                                          request.SizeOf());
-
-    request.id = id;
-    buffer->AppendInt(request.SizeOf());
-    request.Pack(buffer.get());
-
-    if (!client_.Send(buffer)) {
+    if (!client_.Send(std::move(buffer))) {
       Response response;
       response.id = id;
       response.type = Response::Type::kError;
@@ -137,26 +134,31 @@ public:
   }
 
   void Get(std::string_view key, ResponseCallback callback) {
-    Request request;
-    request.type = Request::Type::kGet;
-    request.key = key;
-    return SendRequest(request, std::move(callback));
+    size_t len = Request::SizeOf(key, {});
+    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
+    uint32_t id = request_id_.fetch_add(1);
+    buffer->AppendInt(len);
+    Request::Pack(Request::kGet, id, key, {}, buffer.get());
+    return SendRequest(buffer, id, std::move(callback));
   }
 
   void Put(std::string_view key, std::string_view value,
            ResponseCallback callback) {
-    Request request;
-    request.type = Request::Type::kSet;
-    request.key = key;
-    request.value = value;
-    return SendRequest(request, std::move(callback));
+    size_t len = Request::SizeOf(key, value);
+    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
+    uint32_t id = request_id_.fetch_add(1);
+    buffer->AppendInt(len);
+    Request::Pack(Request::kSet, id, key, value, buffer.get());
+    return SendRequest(buffer, id, std::move(callback));
   }
 
   void Delete(std::string_view key, ResponseCallback callback) {
-    Request request;
-    request.type = Request::Type::kDelete;
-    request.key = key;
-    return SendRequest(request, std::move(callback));
+    size_t len = Request::SizeOf(key, {});
+    auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
+    uint32_t id = request_id_.fetch_add(1);
+    buffer->AppendInt(len);
+    Request::Pack(Request::kDelete, id, key, {}, buffer.get());
+    return SendRequest(buffer, id, std::move(callback));
   }
 
   void OnClose(pedronet::CloseCallback callback) {

@@ -69,6 +69,9 @@ class DBImpl : public DB {
 
   Status Recovery(file_t id, RecordEntry entry);
 
+  Status FetchRecord(ReadableFile *file, const record::Location &loc,
+                     size_t size, std::string *value);
+
 public:
   ~DBImpl() override;
 
@@ -81,9 +84,6 @@ public:
                    std::string *value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
-
-  Status FetchRecord(ReadableFile *file, const record::Dir &dir,
-                     std::string *value);
 
   Status Recovery();
 

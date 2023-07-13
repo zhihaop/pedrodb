@@ -1,6 +1,7 @@
 #ifndef PEDROKV_KV_SERVER_H
 #define PEDROKV_KV_SERVER_H
 
+#include "pedrodb/segment_db.h"
 #include "pedrokv/codec/server_codec.h"
 #include "pedrokv/defines.h"
 #include "pedrokv/logger/logger.h"
@@ -26,12 +27,12 @@ class Server : nonmovable,
   void HandleRequest(const std::shared_ptr<TcpConnection> &conn,
                      std::queue<Request> &requests) {
     auto buffer = std::make_shared<pedrolib::ArrayBuffer>();
+    Response response;
     
     while (!requests.empty()) {
       Request request = std::move(requests.front());
       requests.pop();
       
-      Response response;
       response.id = request.id;
       pedrodb::Status status = pedrodb::Status::kOk;
       switch (request.type) {
@@ -52,7 +53,7 @@ class Server : nonmovable,
         break;
       }
       }
-      
+
       if (status != pedrodb::Status::kOk) {
         response.type = Response::Type::kError;
         response.data = fmt::format("err: {}", status);

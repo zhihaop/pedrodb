@@ -152,7 +152,7 @@ int main() {
 
   logger.SetLevel(Logger::Level::kTrace);
   options.worker_group = EventLoopGroup::Create();
-  options.max_inflight = 512;
+  options.max_inflight = 1024;
 
   options.worker_group->ScheduleEvery(1s, 1s, [] {
     logger.Info("Puts: {}/s, Gets: {}/s", write_counts.exchange(0),
