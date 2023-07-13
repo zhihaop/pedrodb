@@ -12,8 +12,6 @@ using pedronet::TcpConnectionPtr;
 using pedronet::TcpServer;
 
 int main() {
-  spdlog::set_level(spdlog::level::info);
-
   TcpServer server;
 
   size_t n_workers = std::thread::hardware_concurrency();

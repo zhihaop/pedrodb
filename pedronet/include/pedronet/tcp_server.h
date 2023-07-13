@@ -11,8 +11,6 @@
 #include "pedronet/socket.h"
 #include "pedronet/tcp_connection.h"
 
-#include <memory>
-#include <spdlog/spdlog.h>
 #include <unordered_map>
 #include <unordered_set>
 
