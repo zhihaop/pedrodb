@@ -8,8 +8,6 @@
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
 
-#include <pedrolib/collection/lru_unordered_map.h>
-
 namespace pedrodb {
 
 using ReadableFileGuard = std::shared_ptr<ReadableFile>;

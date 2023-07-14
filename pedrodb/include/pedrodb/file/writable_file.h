@@ -49,11 +49,11 @@ class WritableFile final : public ReadableFile {
     return Status::kOk;
   }
 
-  uint64_t Size() const noexcept override { return buf_.ReadableBytes(); }
+  [[nodiscard]] uint64_t Size() const noexcept override { return buf_.ReadableBytes(); }
 
-  Error GetError() const noexcept override { return file_.GetError(); }
+  [[nodiscard]] Error GetError() const noexcept override { return file_.GetError(); }
 
-  file_t GetFile() const noexcept { return id_; }
+  [[nodiscard]] file_t GetFile() const noexcept { return id_; }
 
   ssize_t Read(uint64_t offset, char* buf, size_t n) override {
     memcpy(buf, buf_.ReadIndex() + offset, n);
