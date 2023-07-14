@@ -1135,9 +1135,9 @@ vm.lowmem_reserve_ratio = 256   256     32      0       0
 
 ### 对比对象
 
-- **muduo：**Event-driven network library for multi-threaded Linux server in C++11
-- **netty：**An asynchronous event-driven network application framework
-- **asio：**A cross-platform C++ library for network and low-level I/O programming
+- **muduo：** Event-driven network library for multithreaded Linux server in C++11
+- **netty：** An asynchronous event-driven network application framework
+- **asio：** A cross-platform C++ library for network and low-level I/O programming
 
 ### 实验结果
 
