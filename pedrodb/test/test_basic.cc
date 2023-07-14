@@ -1,8 +1,8 @@
-#include <iostream>
 #include <pedrodb/db.h>
 #include <pedrodb/db_impl.h>
 #include <pedrodb/logger/logger.h>
 #include <pedrodb/segment_db.h>
+#include <iostream>
 #include <random>
 
 using namespace std::chrono_literals;
@@ -14,7 +14,7 @@ using pedrodb::Status;
 using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
-std::string RandomString(const std::string &prefix, size_t bytes) {
+std::string RandomString(const std::string& prefix, size_t bytes) {
 
   std::string s = prefix;
   s.reserve(s.size() + bytes);
@@ -32,7 +32,7 @@ int main() {
   Options options{};
   // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
-  
+
   logger.SetLevel(Logger::Level::kTrace);
 
   std::string path = "/home/zhihaop/db/test.db";
@@ -80,7 +80,8 @@ int main() {
   }
   logger.Info("benchmark get random");
 
-  std::normal_distribution<double> d((double)n_puts / 2.0, (double)n_puts / 120.0);
+  std::normal_distribution<double> d((double)n_puts / 2.0,
+                                     (double)n_puts / 120.0);
   // get
   for (int i = 0; i < n_reads; ++i) {
     int x = std::clamp((int)d(mt), 0, (int)n_puts - 1);

@@ -59,7 +59,7 @@ void TimerQueue::processPendingTimer(Timestamp now) {
   updateExpire(now);
 }
 
-TimerQueue::TimerQueue(TimerChannel &channel, Executor &executor)
+TimerQueue::TimerQueue(TimerChannel& channel, Executor& executor)
     : channel_(channel), executor_(executor) {
   channel.SetEventCallBack([this](ReceiveEvents event, Timestamp now) {
     PEDRONET_TRACE("invoke timer ch");
@@ -75,8 +75,8 @@ TimerQueue::TimerQueue(TimerChannel &channel, Executor &executor)
   });
 }
 
-uint64_t TimerQueue::createTimer(Callback cb, const Duration &delay,
-                                 const Duration &interval) {
+uint64_t TimerQueue::createTimer(Callback cb, const Duration& delay,
+                                 const Duration& interval) {
   Timestamp now = Timestamp::Now();
   uint64_t id = ++sequences_;
   PEDRONET_TRACE("create timer {}", id);
@@ -88,13 +88,13 @@ uint64_t TimerQueue::createTimer(Callback cb, const Duration &delay,
   executor_.Schedule([this, now] { updateExpire(now); });
   return id;
 }
-uint64_t TimerQueue::ScheduleEvery(const Duration &delay,
-                                   const Duration &interval,
+uint64_t TimerQueue::ScheduleEvery(const Duration& delay,
+                                   const Duration& interval,
                                    Callback callback) {
   std::unique_lock<std::mutex> lock(mu_);
   return createTimer(std::move(callback), delay, interval);
 }
-uint64_t TimerQueue::ScheduleAfter(const Duration &delay, Callback callback) {
+uint64_t TimerQueue::ScheduleAfter(const Duration& delay, Callback callback) {
   std::unique_lock<std::mutex> lock(mu_);
   return createTimer(std::move(callback), delay, Duration::Seconds(0));
 }
@@ -102,4 +102,4 @@ void TimerQueue::Cancel(uint64_t timer_id) {
   std::unique_lock<std::mutex> lock(mu_);
   timers_.erase(timer_id);
 }
-} // namespace pedronet
+}  // namespace pedronet

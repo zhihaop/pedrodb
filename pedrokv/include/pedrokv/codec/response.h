@@ -11,13 +11,13 @@ struct Response {
   std::string data;
 
   [[nodiscard]] uint16_t SizeOf() const noexcept {
-    return sizeof(uint8_t) +  // type
-           sizeof(uint32_t) + // id
-           sizeof(uint16_t) + // data size
-           data.size();       // data
+    return sizeof(uint8_t) +   // type
+           sizeof(uint32_t) +  // id
+           sizeof(uint16_t) +  // data size
+           data.size();        // data
   }
 
-  void Pack(Buffer *buffer) const {
+  void Pack(Buffer* buffer) const {
     auto u8_type = static_cast<uint8_t>(type);
     uint16_t size = data.size();
 
@@ -27,7 +27,7 @@ struct Response {
     buffer->Append(data.data(), data.size());
   }
 
-  void UnPack(Buffer *buffer) {
+  void UnPack(Buffer* buffer) {
     uint8_t u8_type;
     uint16_t size;
 
@@ -41,5 +41,5 @@ struct Response {
   }
 };
 
-} // namespace pedrokv
-#endif // PEDROKV_CODEC_RESPONSE_H
+}  // namespace pedrokv
+#endif  // PEDROKV_CODEC_RESPONSE_H

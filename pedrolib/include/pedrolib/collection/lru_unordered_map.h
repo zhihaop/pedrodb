@@ -18,7 +18,7 @@ class unordered_map {
   std::list<KeyValue> data_;
   std::size_t capacity_;
 
-public:
+ public:
   explicit unordered_map(std::size_t capacity) : capacity_(capacity) {}
   unordered_map() : capacity_(std::numeric_limits<size_t>::max()) {}
 
@@ -37,7 +37,7 @@ public:
     return std::move(kv.value);
   }
 
-  V erase(const K &key) noexcept {
+  V erase(const K& key) noexcept {
     auto iter = indices_.find(key);
     KeyValue kv = std::move(*iter->second);
     data_.erase(iter->second);
@@ -45,11 +45,12 @@ public:
     return std::move(kv.value);
   }
 
-  bool contains(const K &key) const noexcept {
+  bool contains(const K& key) const noexcept {
     return indices_.find(key) != indices_.end();
   }
 
-  template <typename Value> Value &update(const K &key, Value &&value) {
+  template <typename Value>
+  Value& update(const K& key, Value&& value) {
     if (contains(key)) {
       return (*this)[key] = std::forward<Value>(value);
     }
@@ -63,14 +64,14 @@ public:
     return (indices_[key] = data_.insert(data_.end(), std::move(kv)))->value;
   }
 
-  V &operator[](const K &key) noexcept {
-    auto &iter = indices_[key];
+  V& operator[](const K& key) noexcept {
+    auto& iter = indices_[key];
     KeyValue kv = std::move(*iter);
     data_.erase(iter);
     iter = data_.insert(data_.end(), std::move(kv));
     return iter->value;
   }
 };
-} // namespace pedrolib::lru
+}  // namespace pedrolib::lru
 
-#endif // PEDRODB_COLLECTION_LRU_UNORDERED_MAP_H
+#endif  // PEDRODB_COLLECTION_LRU_UNORDERED_MAP_H

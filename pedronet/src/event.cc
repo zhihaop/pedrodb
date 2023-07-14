@@ -13,4 +13,4 @@ const ReceiveEvents ReceiveEvents::kReadable{POLLIN};
 const ReceiveEvents ReceiveEvents::kPriorReadable{POLLPRI};
 const ReceiveEvents ReceiveEvents::kReadHangUp{POLLRDHUP};
 const ReceiveEvents ReceiveEvents::kWritable{POLLOUT};
-} // namespace pedronet
+}  // namespace pedronet

@@ -6,7 +6,7 @@ namespace pedronet {
 void EventLoop::Loop() {
   PEDRONET_TRACE("EventLoop::Loop() running");
 
-  auto &current = core::Thread::Current();
+  auto& current = core::Thread::Current();
   current.BindEventLoop(this);
 
   SelectChannels selected;
@@ -19,7 +19,7 @@ void EventLoop::Loop() {
 
     size_t n_events = selected.channels.size();
     for (size_t i = 0; i < n_events; ++i) {
-      Channel *ch = selected.channels[i];
+      Channel* ch = selected.channels[i];
       ReceiveEvents event = selected.events[i];
       ch->HandleEvents(event, selected.now);
     }
@@ -28,7 +28,7 @@ void EventLoop::Loop() {
     std::swap(running_tasks_, pending_tasks_);
     lock.unlock();
 
-    for (auto &task : running_tasks_) {
+    for (auto& task : running_tasks_) {
       task();
     }
 
@@ -59,7 +59,7 @@ void EventLoop::AssertUnderLoop() const {
     PEDRONET_FATAL("check in event loop failed");
   }
 }
-void EventLoop::Register(Channel *channel, Callback register_callback,
+void EventLoop::Register(Channel* channel, Callback register_callback,
                          Callback deregister_callback) {
   PEDRONET_INFO("EventLoopImpl::Register({})", *channel);
   if (!CheckUnderLoop()) {
@@ -78,7 +78,7 @@ void EventLoop::Register(Channel *channel, Callback register_callback,
     }
   }
 }
-void EventLoop::Deregister(Channel *channel) {
+void EventLoop::Deregister(Channel* channel) {
   if (!CheckUnderLoop()) {
     Schedule([=] { Deregister(channel); });
     return;
@@ -112,4 +112,4 @@ void EventLoop::Join() {
   PEDRONET_INFO("Eventloop join exit");
 }
 
-} // namespace pedronet
+}  // namespace pedronet

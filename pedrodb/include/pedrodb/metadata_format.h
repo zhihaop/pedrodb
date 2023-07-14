@@ -13,7 +13,7 @@ struct Header {
     return sizeof(uint32_t) + name_length;
   }
 
-  bool UnPack(Buffer *buffer) {
+  bool UnPack(Buffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf(0)) {
       return false;
     }
@@ -30,7 +30,7 @@ struct Header {
     return true;
   }
 
-  bool Pack(Buffer *buffer) const {
+  bool Pack(Buffer* buffer) const {
     buffer->AppendInt(static_cast<uint32_t>(name.size()));
     buffer->Append(name.data(), name.size());
     return true;
@@ -48,10 +48,10 @@ struct LogEntry {
   LogEntry() = default;
   LogEntry(LogType type, file_t id) : type(type), id(id) {}
   ~LogEntry() = default;
-  
+
   static size_t SizeOf() noexcept { return sizeof(uint8_t) + sizeof(file_t); }
 
-  bool UnPack(Buffer *buffer) {
+  bool UnPack(Buffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
@@ -63,7 +63,7 @@ struct LogEntry {
     return true;
   }
 
-  bool Pack(Buffer *buffer) const {
+  bool Pack(Buffer* buffer) const {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
@@ -73,6 +73,6 @@ struct LogEntry {
     return true;
   }
 };
-} // namespace pedrodb::metadata
+}  // namespace pedrodb::metadata
 
-#endif // PEDRODB_METADATA_FORMAT_H
+#endif  // PEDRODB_METADATA_FORMAT_H

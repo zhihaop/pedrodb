@@ -2,9 +2,9 @@
 
 namespace pedrodb {
 
-Status FileManager::OpenActiveFile(WritableFileGuard *f, file_t id) {
+Status FileManager::OpenActiveFile(WritableFileGuard* f, file_t id) {
   PEDRODB_INFO("create active file {}", id);
-  WritableFile *file = nullptr;
+  WritableFile* file = nullptr;
   auto path = metadata_manager_->GetDataFilePath(id);
   auto status = WritableFile::Open(path, id, kMaxFileBytes, &file);
   if (status != Status::kOk) {
@@ -61,12 +61,14 @@ Status FileManager::CreateActiveFile() {
 
 void FileManager::ReleaseDataFile(file_t id) {
   auto lock = AcquireLock();
-  auto pred = [id](const OpenFile &file) { return file.id == id; };
+  auto pred = [id](const OpenFile& file) {
+    return file.id == id;
+  };
   auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
   open_files_.erase(it, open_files_.end());
 }
 
-Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
+Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard* file) {
   auto lock = AcquireLock();
   if (id == id_) {
     *file = active_;
@@ -74,7 +76,9 @@ Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
   }
 
   // find the opened file with id
-  auto pred = [id](const OpenFile &file) { return file.id == id; };
+  auto pred = [id](const OpenFile& file) {
+    return file.id == id;
+  };
   auto it = std::find_if(open_files_.begin(), open_files_.end(), pred);
   if (it != open_files_.end()) {
     // lru strategy.
@@ -108,14 +112,16 @@ Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard *file) {
 
 Error FileManager::RemoveDataFile(file_t id) {
   auto lock = AcquireLock();
-  auto pred = [id](const OpenFile &file) { return file.id == id; };
+  auto pred = [id](const OpenFile& file) {
+    return file.id == id;
+  };
   auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
   open_files_.erase(it, open_files_.end());
   PEDRODB_IGNORE_ERROR(metadata_manager_->DeleteFile(id));
   return File::Remove(metadata_manager_->GetDataFilePath(id).c_str());
 }
 
-Status FileManager::WriteActiveFile(Buffer *buffer, record::Location *loc) {
+Status FileManager::WriteActiveFile(Buffer* buffer, record::Location* loc) {
   for (;;) {
     auto lock = AcquireLock();
     auto active = active_;
@@ -134,13 +140,13 @@ Status FileManager::WriteActiveFile(Buffer *buffer, record::Location *loc) {
     if (active != active_) {
       continue;
     }
-    
+
     auto status = CreateActiveFile();
     if (status != Status::kOk) {
       return status;
     }
     lock.unlock();
-    
+
     active->Sync();
   }
 }
@@ -171,4 +177,4 @@ Status FileManager::Sync() {
   }
   return Status::kOk;
 }
-} // namespace pedrodb
+}  // namespace pedrodb

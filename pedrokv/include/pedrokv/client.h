@@ -4,16 +4,16 @@
 #include "pedrokv/defines.h"
 #include "pedrokv/options.h"
 
-#include <future>
-#include <mutex>
 #include <pedrolib/concurrent/latch.h>
 #include <pedronet/tcp_client.h>
+#include <future>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 
 namespace pedrokv {
 
-using ResponseCallback = std::function<void(const Response &)>;
+using ResponseCallback = std::function<void(const Response&)>;
 
 class Client : nonmovable, noncopyable {
   pedronet::TcpClient client_;
@@ -31,9 +31,9 @@ class Client : nonmovable, noncopyable {
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
-  void HandleResponse(std::queue<Response> &responses);
+  void HandleResponse(std::queue<Response>& responses);
 
-public:
+ public:
   Client(InetAddress address, ClientOptions options)
       : client_(std::move(address)), options_(std::move(options)) {
     client_.SetGroup(options_.worker_group);
@@ -78,6 +78,6 @@ public:
 
   void Start();
 };
-} // namespace pedrokv
+}  // namespace pedrokv
 
-#endif // PEDROKV_CLIENT_H
+#endif  // PEDROKV_CLIENT_H

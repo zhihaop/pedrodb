@@ -4,22 +4,22 @@
 
 namespace pedrodb {
 
-Status DBImpl::Get(const ReadOptions &options, std::string_view key,
-                   std::string *value) {
+Status DBImpl::Get(const ReadOptions& options, std::string_view key,
+                   std::string* value) {
   return HandleGet(options, Hash(key), key, value);
 }
 
-Status DBImpl::Put(const WriteOptions &options, std::string_view key,
+Status DBImpl::Put(const WriteOptions& options, std::string_view key,
                    std::string_view value) {
   return HandlePut(options, Hash(key), key, value);
 }
 
-Status DBImpl::Delete(const WriteOptions &options, std::string_view key) {
+Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
   return HandlePut(options, Hash(key), key, {});
 }
 
 void DBImpl::UpdateUnused(file_t id, size_t unused) {
-  auto &hint = compact_hints_[id];
+  auto& hint = compact_hints_[id];
   hint.unused += unused;
   if (hint.unused >= options_.compaction_threshold_bytes) {
     if (hint.state == CompactState::kNop) {
@@ -61,7 +61,9 @@ Status DBImpl::Init() {
   return Status::kOk;
 }
 
-std::vector<file_t> DBImpl::GetFiles() { return metadata_manager_->GetFiles(); }
+std::vector<file_t> DBImpl::GetFiles() {
+  return metadata_manager_->GetFiles();
+}
 
 std::vector<file_t> DBImpl::PollCompactTask() {
   auto tasks = compact_tasks_;
@@ -85,7 +87,7 @@ Status DBImpl::Compact() {
   return Status::kOk;
 }
 
-DBImpl::DBImpl(const Options &options, const std::string &name)
+DBImpl::DBImpl(const Options& options, const std::string& name)
     : options_(options) {
   read_cache_ = std::make_unique<ReadCache>(options_.read_cache_bytes);
   executor_ = options_.executor;
@@ -119,12 +121,12 @@ Status DBImpl::Recovery(file_t id) {
   return Status::kOk;
 }
 
-Status DBImpl::CompactBatch(file_t id, const std::vector<Record> &records) {
+Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
   ArrayBuffer buffer;
   auto lock = AcquireLock();
   compact_hints_[id].state = CompactState::kCompacting;
 
-  for (auto &r : records) {
+  for (auto& r : records) {
     auto it = GetMetadataIterator(r.h, r.key);
     if (it == indices_.end()) {
       continue;
@@ -209,7 +211,7 @@ void DBImpl::Compact(file_t id) {
   PEDRODB_TRACE("end compacting: {}", id);
 }
 
-Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
+Status DBImpl::HandlePut(const WriteOptions& options, uint32_t h,
                          std::string_view key, std::string_view value) {
   uint32_t record_size = record::SizeOf(key.size(), value.size());
   if (record_size > kMaxFileBytes) {
@@ -269,10 +271,12 @@ Status DBImpl::HandlePut(const WriteOptions &options, uint32_t h,
   return Status::kOk;
 }
 
-Status DBImpl::Flush() { return file_manager_->Flush(true); }
+Status DBImpl::Flush() {
+  return file_manager_->Flush(true);
+}
 
-Status DBImpl::FetchRecord(ReadableFile *file, const record::Location &loc,
-                           size_t size, std::string *value) {
+Status DBImpl::FetchRecord(ReadableFile* file, const record::Location& loc,
+                           size_t size, std::string* value) {
 
   ArrayBuffer buffer;
   buffer.Reset();
@@ -315,12 +319,12 @@ Status DBImpl::Recovery() {
 auto DBImpl::GetMetadataIterator(uint32_t h, std::string_view key)
     -> decltype(indices_.begin()) {
   auto [s, t] = indices_.equal_range(record::Dir{h});
-  auto it = std::find_if(s, t, [=](auto &k) { return k.CompareKey(key) == 0; });
+  auto it = std::find_if(s, t, [=](auto& k) { return k.CompareKey(key) == 0; });
   return it == t ? indices_.end() : it;
 }
 
-Status DBImpl::HandleGet(const ReadOptions &options, uint32_t h,
-                         std::string_view key, std::string *value) {
+Status DBImpl::HandleGet(const ReadOptions& options, uint32_t h,
+                         std::string_view key, std::string* value) {
   record::Location loc;
   size_t size;
   {
@@ -401,7 +405,10 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 }
 
 Record::Record(uint32_t h, std::string key, std::string value,
-               const record::Location &location, uint32_t timestamp)
-    : h(h), key(std::move(key)), value(std::move(value)), location(location),
+               const record::Location& location, uint32_t timestamp)
+    : h(h),
+      key(std::move(key)),
+      value(std::move(value)),
+      location(location),
       timestamp(timestamp) {}
-} // namespace pedrodb
+}  // namespace pedrodb

@@ -1,7 +1,7 @@
 #include "pedronet/selector/epoller.h"
-#include "pedronet/logger/logger.h"
-#include <memory>
 #include <sys/epoll.h>
+#include <memory>
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -17,7 +17,7 @@ EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(8192) {}
 
 EpollSelector::~EpollSelector() = default;
 
-void EpollSelector::internalUpdate(Channel *channel, int op,
+void EpollSelector::internalUpdate(Channel* channel, int op,
                                    SelectEvents events) {
   struct epoll_event ev {};
   ev.events = events.Value();
@@ -29,19 +29,19 @@ void EpollSelector::internalUpdate(Channel *channel, int op,
   }
 }
 
-void EpollSelector::Add(Channel *channel, SelectEvents events) {
+void EpollSelector::Add(Channel* channel, SelectEvents events) {
   internalUpdate(channel, EPOLL_CTL_ADD, events);
 }
 
-void EpollSelector::Update(Channel *channel, SelectEvents events) {
+void EpollSelector::Update(Channel* channel, SelectEvents events) {
   internalUpdate(channel, EPOLL_CTL_MOD, events);
 }
 
-void EpollSelector::Remove(Channel *channel) {
+void EpollSelector::Remove(Channel* channel) {
   internalUpdate(channel, EPOLL_CTL_DEL, SelectEvents::kNoneEvent);
 }
 
-Error EpollSelector::Wait(Duration timeout, SelectChannels *selected) {
+Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
   int n = ::epoll_wait(fd_, buf_.data(), buf_.size(), timeout.Milliseconds());
   selected->now = Timestamp::Now();
   selected->channels.clear();
@@ -58,10 +58,13 @@ Error EpollSelector::Wait(Duration timeout, SelectChannels *selected) {
   selected->channels.resize(n);
   selected->events.resize(n);
   for (int i = 0; i < n; ++i) {
-    selected->channels[i] = static_cast<Channel *>(buf_[i].data.ptr);
+    selected->channels[i] = static_cast<Channel*>(buf_[i].data.ptr);
     selected->events[i] = ReceiveEvents{buf_[i].events};
   }
   return Error::Success();
 }
-void EpollSelector::SetBufferSize(size_t size) { buf_.resize(size); }
-} // namespace pedronet
+
+void EpollSelector::SetBufferSize(size_t size) {
+  buf_.resize(size);
+}
+}  // namespace pedronet

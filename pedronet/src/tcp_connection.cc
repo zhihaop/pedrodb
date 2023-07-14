@@ -53,6 +53,7 @@ void TcpConnection::handleRead(Timestamp now) {
     message_callback_(shared_from_this(), input_, now);
   }
 }
+
 void TcpConnection::handleError(Error err) {
   if (err.Empty()) {
     PEDRONET_ERROR("unknown error, force close");
@@ -110,9 +111,11 @@ std::string TcpConnection::String() const {
   return fmt::format("TcpConnection[local={}, peer={}, channel={}]", local_,
                      peer_, channel_);
 }
-TcpConnection::TcpConnection(EventLoop &eventloop, Socket socket)
-    : channel_(std::move(socket)), local_(channel_.GetLocalAddress()),
-      peer_(channel_.GetPeerAddress()), eventloop_(eventloop) {
+TcpConnection::TcpConnection(EventLoop& eventloop, Socket socket)
+    : channel_(std::move(socket)),
+      local_(channel_.GetLocalAddress()),
+      peer_(channel_.GetPeerAddress()),
+      eventloop_(eventloop) {
 
   channel_.OnRead([this](auto events, auto now) { handleRead(now); });
   channel_.OnWrite([this](auto events, auto now) { handleWrite(); });
@@ -124,7 +127,7 @@ TcpConnection::~TcpConnection() {
   PEDRONET_TRACE("{}::~TcpConnection()", *this);
 }
 
-void TcpConnection::handleSend(Buffer *buffer) {
+void TcpConnection::handleSend(Buffer* buffer) {
   eventloop_.AssertUnderLoop();
 
   State s = state_;
@@ -155,7 +158,7 @@ void TcpConnection::handleSend(Buffer *buffer) {
   }
 }
 
-ssize_t TcpConnection::trySendingDirect(Buffer *buffer) {
+ssize_t TcpConnection::trySendingDirect(Buffer* buffer) {
   eventloop_.AssertUnderLoop();
   if (channel_.Writable()) {
     return 0;
@@ -214,4 +217,4 @@ void TcpConnection::handleClose() {
   eventloop_.Deregister(&channel_);
 }
 
-} // namespace pedronet
+}  // namespace pedronet

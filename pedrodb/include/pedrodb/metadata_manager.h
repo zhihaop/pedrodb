@@ -4,8 +4,8 @@
 #include "pedrodb/metadata_format.h"
 #include "pedrodb/status.h"
 
-#include <mutex>
 #include <pedrolib/buffer/array_buffer.h>
+#include <mutex>
 #include <unordered_set>
 
 namespace pedrodb {
@@ -25,7 +25,7 @@ class MetadataManager {
 
   auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
 
-public:
+ public:
   explicit MetadataManager(std::string path) : path_(std::move(path)) {}
   ~MetadataManager() = default;
 
@@ -35,7 +35,7 @@ public:
     auto lock = AcquireLock();
     auto files = std::vector<file_t>{files_.begin(), files_.end()};
     lock.unlock();
-    
+
     std::sort(files.begin(), files.end());
     return files;
   }
@@ -47,6 +47,6 @@ public:
   std::string GetDataFilePath(file_t id) const noexcept;
 };
 
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_METADATA_MANAGER_H
+#endif  // PEDRODB_METADATA_MANAGER_H

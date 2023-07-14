@@ -46,6 +46,6 @@ inline static uint32_t Hash(std::string_view s) {
   return std::hash<std::string_view>()(s);
 }
 
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_DEFINES_H
+#endif  // PEDRODB_DEFINES_H

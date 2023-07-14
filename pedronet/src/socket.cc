@@ -1,8 +1,8 @@
 #include "pedronet/socket.h"
+#include <netinet/tcp.h>
+#include <csignal>
 #include "pedronet/inetaddress_impl.h"
 #include "pedronet/logger/logger.h"
-#include <csignal>
-#include <netinet/tcp.h>
 
 namespace pedronet {
 
@@ -10,7 +10,7 @@ namespace {
 struct OnInitialStartUp {
   OnInitialStartUp() { ::signal(SIGPIPE, SIG_IGN); }
 } initialStartUp;
-} // namespace
+}  // namespace
 
 Socket Socket::Create(int family) {
   int type = SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC;
@@ -23,8 +23,8 @@ Socket Socket::Create(int family) {
   return Socket{fd};
 }
 
-void Socket::Bind(const InetAddress &address) {
-  auto &impl = address.impl_;
+void Socket::Bind(const InetAddress& address) {
+  auto& impl = address.impl_;
   if (::bind(fd_, impl->data(), impl->size())) {
     PEDRONET_FATAL("Socket::Bind({}) failed: {}", address, GetError());
   }
@@ -37,8 +37,8 @@ void Socket::Listen() {
   }
 }
 
-Error Socket::Connect(const InetAddress &address) {
-  auto &impl = address.impl_;
+Error Socket::Connect(const InetAddress& address) {
+  auto& impl = address.impl_;
   if (::connect(fd_, impl->data(), impl->size())) {
     return GetError();
   }
@@ -102,7 +102,7 @@ Error Socket::GetError() const noexcept {
   }
 }
 
-Error Socket::Accept(const InetAddress &local, Socket *socket) {
+Error Socket::Accept(const InetAddress& local, Socket* socket) {
   auto impl = std::make_unique<InetAddressImpl>();
   auto len = impl->size();
 
@@ -116,12 +116,14 @@ Error Socket::Accept(const InetAddress &local, Socket *socket) {
   *socket = std::move(file);
   return Error::Success();
 }
-std::string Socket::String() const { return fmt::format("Socket[fd={}]", fd_); }
+std::string Socket::String() const {
+  return fmt::format("Socket[fd={}]", fd_);
+}
 
-ssize_t Socket::Write(const void *buf, size_t size) noexcept {
+ssize_t Socket::Write(const void* buf, size_t size) noexcept {
   return ::send(fd_, buf, size, MSG_NOSIGNAL);
 }
-Socket &Socket::operator=(Socket &&other) noexcept {
+Socket& Socket::operator=(Socket&& other) noexcept {
   if (this == &other) {
     return *this;
   }
@@ -141,4 +143,4 @@ void Socket::Shutdown() {
   }
 }
 
-} // namespace pedronet
+}  // namespace pedronet

@@ -4,8 +4,8 @@
 #include "pedronet/eventloop.h"
 #include "pedronet/selector/epoller.h"
 
-#include <atomic>
 #include <pedrolib/collection/static_vector.h>
+#include <atomic>
 #include <thread>
 namespace pedronet {
 
@@ -22,7 +22,7 @@ class EventLoopGroup : public Executor {
 
   void HandleJoin();
 
-public:
+ public:
   explicit EventLoopGroup(size_t threads)
       : loops_(threads), threads_(threads), size_(threads), next_(0) {}
 
@@ -30,7 +30,7 @@ public:
   static EventLoopGroupPtr Create() {
     return Create<Selector>(std::thread::hardware_concurrency());
   }
-  
+
   template <typename Selector = EpollSelector>
   static EventLoopGroupPtr Create(size_t threads) {
     auto group = std::make_shared<EventLoopGroup>(threads);
@@ -40,7 +40,7 @@ public:
       group->loops_.emplace_back(std::move(selector));
     }
     for (size_t i = 0; i < threads; ++i) {
-      auto &loop = group->loops_[i];
+      auto& loop = group->loops_[i];
       group->threads_.emplace_back([&loop] { loop.Loop(); });
     }
     return group;
@@ -48,7 +48,7 @@ public:
 
   ~EventLoopGroup() override { HandleJoin(); }
 
-  EventLoop &Next() { return loops_[next()]; }
+  EventLoop& Next() { return loops_[next()]; }
 
   void Join() override;
 
@@ -64,6 +64,6 @@ public:
   void Close() override;
 };
 
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_EVENTLOOPGROUP_H
+#endif  // PEDRONET_EVENTLOOPGROUP_H

@@ -13,18 +13,18 @@ void TcpClient::handleConnection(Socket socket) {
 
   connection_ = std::make_shared<TcpConnection>(*eventloop_, std::move(socket));
 
-  connection_->OnClose([this](auto &&conn) {
+  connection_->OnClose([this](auto&& conn) {
     PEDRONET_TRACE("client disconnect: {}", *conn);
     connection_.reset();
 
     state_ = State::kDisconnected;
-    
+
     if (close_callback_) {
       close_callback_(conn);
     }
   });
 
-  connection_->OnConnection([this](auto &&conn) {
+  connection_->OnConnection([this](auto&& conn) {
     if (connection_callback_) {
       connection_callback_(conn);
     }
@@ -46,34 +46,34 @@ void TcpClient::raiseConnection() {
 
   auto err = socket.Connect(address_);
   switch (err.GetCode()) {
-  case 0:
-  case EINPROGRESS:
-  case EINTR:
-  case EISCONN:
-    handleConnection(std::move(socket));
-    return;
+    case 0:
+    case EINPROGRESS:
+    case EINTR:
+    case EISCONN:
+      handleConnection(std::move(socket));
+      return;
 
-  case EAGAIN:
-  case EADDRINUSE:
-  case EADDRNOTAVAIL:
-  case ECONNREFUSED:
-  case ENETUNREACH:
-    retry(std::move(socket), err);
-    return;
+    case EAGAIN:
+    case EADDRINUSE:
+    case EADDRNOTAVAIL:
+    case ECONNREFUSED:
+    case ENETUNREACH:
+      retry(std::move(socket), err);
+      return;
 
-  case EACCES:
-  case EPERM:
-  case EAFNOSUPPORT:
-  case EALREADY:
-  case EBADF:
-  case EFAULT:
-  case ENOTSOCK:
-    PEDRONET_ERROR("raiseConnection error: {}", err);
-    break;
+    case EACCES:
+    case EPERM:
+    case EAFNOSUPPORT:
+    case EALREADY:
+    case EBADF:
+    case EFAULT:
+    case ENOTSOCK:
+      PEDRONET_ERROR("raiseConnection error: {}", err);
+      break;
 
-  default:
-    PEDRONET_ERROR("unexpected raiseConnection error: {}", err);
-    break;
+    default:
+      PEDRONET_ERROR("unexpected raiseConnection error: {}", err);
+      break;
   }
 
   state_ = State::kOffline;
@@ -139,4 +139,4 @@ void TcpClient::ForceShutdown() {
     connection_->ForceShutdown();
   }
 }
-} // namespace pedronet
+}  // namespace pedronet

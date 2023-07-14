@@ -11,7 +11,7 @@ void TcpServer::Start() {
     auto connection = std::make_shared<TcpConnection>(worker_group_->Next(),
                                                       std::move(socket));
 
-    connection->OnConnection([this](const TcpConnectionPtr &conn) {
+    connection->OnConnection([this](const TcpConnectionPtr& conn) {
       PEDRONET_TRACE("server raiseConnection: {}", *conn);
 
       std::unique_lock<std::mutex> lock(mu_);
@@ -23,7 +23,7 @@ void TcpServer::Start() {
       }
     });
 
-    connection->OnClose([this](const TcpConnectionPtr &conn) {
+    connection->OnClose([this](const TcpConnectionPtr& conn) {
       PEDRONET_TRACE("server disconnect: {}", *conn);
 
       std::unique_lock<std::mutex> lock(mu_);
@@ -50,12 +50,12 @@ void TcpServer::Close() {
   acceptor_->Close();
 
   std::unique_lock<std::mutex> lock(mu_);
-  for (auto &conn : actives_) {
+  for (auto& conn : actives_) {
     conn->Close();
   }
   actives_.clear();
 }
-void TcpServer::Bind(const pedronet::InetAddress &address) {
+void TcpServer::Bind(const pedronet::InetAddress& address) {
   PEDRONET_TRACE("TcpServer::Bind({})", address);
 
   if (!boss_group_) {
@@ -66,4 +66,4 @@ void TcpServer::Bind(const pedronet::InetAddress &address) {
                                          Acceptor::Option{});
   acceptor_->Bind();
 }
-} // namespace pedronet
+}  // namespace pedronet

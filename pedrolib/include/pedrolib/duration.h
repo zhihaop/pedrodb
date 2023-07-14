@@ -18,7 +18,7 @@ struct Duration : public Comparable<Duration> {
   int64_t usecs{};
 
   Duration() = default;
-  Duration(const Duration &other) : usecs(other.usecs) {}
+  Duration(const Duration& other) : usecs(other.usecs) {}
 
   template <typename Rep, typename Period>
   Duration(std::chrono::duration<Rep, Period> other)
@@ -27,7 +27,7 @@ struct Duration : public Comparable<Duration> {
 
   explicit Duration(int64_t usecs) : usecs(usecs) {}
 
-  static int Compare(const Duration &p, const Duration &q) noexcept {
+  static int Compare(const Duration& p, const Duration& q) noexcept {
     return p.usecs == q.usecs ? 0 : p.usecs < q.usecs ? -1 : 1;
   }
 
@@ -47,7 +47,7 @@ struct Duration : public Comparable<Duration> {
 
   int64_t Milliseconds() const noexcept { return usecs / 1000; }
 
-  Duration &operator=(const Duration &other) noexcept {
+  Duration& operator=(const Duration& other) noexcept {
     usecs = other.usecs;
     return *this;
   }
@@ -63,14 +63,14 @@ struct Duration : public Comparable<Duration> {
   }
 
   template <typename Rep, typename Period>
-  Duration &operator=(std::chrono::duration<Rep, Period> other) noexcept {
+  Duration& operator=(std::chrono::duration<Rep, Period> other) noexcept {
     usecs =
         std::chrono::duration_cast<std::chrono::microseconds>(other).count();
     return *this;
   }
 };
-} // namespace pedrolib
+}  // namespace pedrolib
 
 PEDROLIB_CLASS_FORMATTER(pedrolib::Duration);
 
-#endif // PEDROLIB_DURATION_H
+#endif  // PEDROLIB_DURATION_H

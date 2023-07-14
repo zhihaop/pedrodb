@@ -20,7 +20,7 @@ void ArrayBuffer::EnsureWriteable(size_t n) {
   size_t size = buf_.size() + delta;
   buf_.resize(size << 1);
 }
-ssize_t ArrayBuffer::Append(File *source) {
+ssize_t ArrayBuffer::Append(File* source) {
   char buf[65535];
   size_t writable = WritableBytes();
   std::string_view views[2] = {{buf_.data() + write_index_, writable},
@@ -43,20 +43,20 @@ ssize_t ArrayBuffer::Append(File *source) {
   return r;
 }
 
-size_t ArrayBuffer::Append(const char *data, size_t n) {
+size_t ArrayBuffer::Append(const char* data, size_t n) {
   EnsureWriteable(n);
   memcpy(buf_.data() + write_index_, data, n);
   Append(n);
   return n;
 }
-size_t ArrayBuffer::Retrieve(char *data, size_t n) {
+size_t ArrayBuffer::Retrieve(char* data, size_t n) {
   n = std::min(n, ReadableBytes());
   memcpy(data, buf_.data() + read_index_, n);
   Retrieve(n);
   return n;
 }
 
-ssize_t ArrayBuffer::Retrieve(File *target) {
+ssize_t ArrayBuffer::Retrieve(File* target) {
   ssize_t w = target->Write(buf_.data() + read_index_, ReadableBytes());
   if (w > 0) {
     Retrieve(w);
@@ -64,14 +64,14 @@ ssize_t ArrayBuffer::Retrieve(File *target) {
   return w;
 }
 
-size_t ArrayBuffer::Append(Buffer *buffer) {
+size_t ArrayBuffer::Append(Buffer* buffer) {
   EnsureWriteable(buffer->ReadableBytes());
   size_t r = buffer->Retrieve(buf_.data() + write_index_, WritableBytes());
   Append(r);
   return r;
 }
 
-size_t ArrayBuffer::Retrieve(Buffer *buffer) {
+size_t ArrayBuffer::Retrieve(Buffer* buffer) {
   size_t w = buffer->Append(buf_.data() + read_index_, ReadableBytes());
   Retrieve(w);
   return w;
@@ -84,4 +84,4 @@ void ArrayBuffer::Retrieve(size_t n) {
   }
 }
 // namespace pedronet
-} // namespace pedrolib
+}  // namespace pedrolib

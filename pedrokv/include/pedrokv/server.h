@@ -7,9 +7,9 @@
 #include "pedrokv/logger/logger.h"
 #include "pedrokv/options.h"
 
-#include <memory>
 #include <pedrodb/db.h>
 #include <pedronet/tcp_server.h>
+#include <memory>
 #include <utility>
 
 namespace pedrokv {
@@ -24,10 +24,10 @@ class Server : nonmovable,
   std::shared_ptr<pedrodb::DB> db_;
   ServerCodec codec_;
 
-  void HandleRequest(const std::shared_ptr<TcpConnection> &conn,
-                     std::queue<Request> &requests);
+  void HandleRequest(const std::shared_ptr<TcpConnection>& conn,
+                     std::queue<Request>& requests);
 
-public:
+ public:
   Server(pedronet::InetAddress address, ServerOptions options);
 
   void Bind() {
@@ -46,6 +46,6 @@ public:
   }
 };
 
-} // namespace pedrokv
+}  // namespace pedrokv
 
-#endif // PEDROKV_KV_SERVER_H
+#endif  // PEDROKV_KV_SERVER_H

@@ -18,10 +18,10 @@ class ReadCache {
 
   mutable std::mutex mu_[kCacheSegments];
 
-public:
+ public:
   explicit ReadCache(size_t capacity) {
     size_t segment_capacity = capacity / kCacheSegments;
-    for (auto &cache : segments_) {
+    for (auto& cache : segments_) {
       cache = std::make_unique<lru::Cache<record::Location>>(segment_capacity);
     }
   }
@@ -44,7 +44,7 @@ public:
     segments_[b]->Remove(location);
   }
 
-  bool Read(record::Location location, std::string *value) {
+  bool Read(record::Location location, std::string* value) {
     size_t h = location.Hash();
     size_t b = h % kCacheSegments;
     std::unique_lock lock{mu_[b]};
@@ -59,6 +59,6 @@ public:
     return true;
   }
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_CACHE_READ_CACHE_H
+#endif  // PEDRODB_CACHE_READ_CACHE_H

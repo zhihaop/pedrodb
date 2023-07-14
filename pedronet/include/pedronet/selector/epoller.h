@@ -15,19 +15,19 @@ namespace pedronet {
 class EpollSelector : public File, public Selector {
   std::vector<struct epoll_event> buf_;
 
-  void internalUpdate(Channel *channel, int op, SelectEvents events);
+  void internalUpdate(Channel* channel, int op, SelectEvents events);
 
-public:
+ public:
   EpollSelector();
   ~EpollSelector() override;
   void SetBufferSize(size_t size);
 
-  void Add(Channel *channel, SelectEvents events) override;
-  void Remove(Channel *channel) override;
-  void Update(Channel *channel, SelectEvents events) override;
+  void Add(Channel* channel, SelectEvents events) override;
+  void Remove(Channel* channel) override;
+  void Update(Channel* channel, SelectEvents events) override;
 
-  Error Wait(Duration timeout, SelectChannels *selected) override;
+  Error Wait(Duration timeout, SelectChannels* selected) override;
 };
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PERDONET_SELECTOR_EPOLLER_H
+#endif  // PERDONET_SELECTOR_EPOLLER_H

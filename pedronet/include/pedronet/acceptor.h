@@ -3,8 +3,8 @@
 #include "pedronet/channel/socket_channel.h"
 #include "pedronet/socket.h"
 
-#include <algorithm>
 #include <pedrolib/format/formatter.h>
+#include <algorithm>
 
 namespace pedronet {
 
@@ -13,7 +13,7 @@ class EventLoop;
 using AcceptorCallback = std::function<void(Socket)>;
 
 class Acceptor : pedrolib::noncopyable, pedrolib::nonmovable {
-public:
+ public:
   struct Option {
     bool reuse_addr = true;
     bool reuse_port = true;
@@ -21,16 +21,16 @@ public:
     bool tcp_no_delay = true;
   };
 
-protected:
+ protected:
   AcceptorCallback acceptor_callback_;
   InetAddress address_;
 
   SocketChannel channel_;
-  EventLoop &eventloop_;
+  EventLoop& eventloop_;
 
-public:
-  Acceptor(EventLoop &eventloop, const InetAddress &address,
-           const Option &option);
+ public:
+  Acceptor(EventLoop& eventloop, const InetAddress& address,
+           const Option& option);
 
   ~Acceptor() { Close(); }
 
@@ -46,8 +46,8 @@ public:
 
   std::string String() const;
 };
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::Acceptor);
 
-#endif // PEDRONET_ACCEPTOR_H
+#endif  // PEDRONET_ACCEPTOR_H

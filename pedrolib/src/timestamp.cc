@@ -15,4 +15,4 @@ std::string Timestamp::String() const noexcept {
   uint64_t us = usecs % Duration::kMicroseconds;
   return fmt::format("{:%Y-%m-%d-%H:%M:%S}:{:06}", fmt::localtime(t), us);
 }
-} // namespace pedrolib
+}  // namespace pedrolib

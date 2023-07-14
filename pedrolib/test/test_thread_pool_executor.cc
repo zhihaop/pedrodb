@@ -1,6 +1,6 @@
+#include <pedrolib/executor/thread_pool_executor.h>
 #include <chrono>
 #include <iostream>
-#include <pedrolib/executor/thread_pool_executor.h>
 
 using namespace std::chrono_literals;
 using pedrolib::ThreadPoolExecutor;

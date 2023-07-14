@@ -3,9 +3,9 @@
 
 #include "pedronet/defines.h"
 
+#include <pedrolib/timestamp.h>
 #include <functional>
 #include <memory>
-#include <pedrolib/timestamp.h>
 namespace pedronet {
 
 class TcpConnection;
@@ -17,14 +17,14 @@ using Callback = std::function<void()>;
 using SelectorCallback = std::function<void(ReceiveEvents events, Timestamp)>;
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 using MessageCallback =
-    std::function<void(const TcpConnectionPtr &, Buffer &, Timestamp)>;
-using WriteCompleteCallback = std::function<void(const TcpConnectionPtr &)>;
+    std::function<void(const TcpConnectionPtr&, Buffer&, Timestamp)>;
+using WriteCompleteCallback = std::function<void(const TcpConnectionPtr&)>;
 using HighWatermarkCallback =
-    std::function<void(const TcpConnectionPtr &, size_t)>;
-using ErrorCallback = std::function<void(const TcpConnectionPtr &, Error)>;
-using CloseCallback = std::function<void(const TcpConnectionPtr &)>;
-using ConnectionCallback = std::function<void(const TcpConnectionPtr &)>;
+    std::function<void(const TcpConnectionPtr&, size_t)>;
+using ErrorCallback = std::function<void(const TcpConnectionPtr&, Error)>;
+using CloseCallback = std::function<void(const TcpConnectionPtr&)>;
+using ConnectionCallback = std::function<void(const TcpConnectionPtr&)>;
 
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_CALLBACK_H
+#endif  // PEDRONET_CALLBACK_H

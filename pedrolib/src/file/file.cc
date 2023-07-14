@@ -1,27 +1,27 @@
 #include "pedrolib/file/file.h"
-#include "pedrolib/logger/logger.h"
 #include <fcntl.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #include <vector>
+#include "pedrolib/logger/logger.h"
 
 namespace pedrolib {
 
 Logger File::logger = Logger("pedrolib::File");
 
 struct DefaultDeleter {
-  void operator()(struct iovec *ptr) const noexcept { std::free(ptr); }
+  void operator()(struct iovec* ptr) const noexcept { std::free(ptr); }
 };
 
-ssize_t File::Read(void *buf, size_t size) noexcept {
+ssize_t File::Read(void* buf, size_t size) noexcept {
   return ::read(fd_, buf, size);
 }
 
-ssize_t File::Write(const void *buf, size_t size) noexcept {
+ssize_t File::Write(const void* buf, size_t size) noexcept {
   return ::write(fd_, buf, size);
 }
 
-File &File::operator=(File &&other) noexcept {
+File& File::operator=(File&& other) noexcept {
   if (this == &other) {
     return *this;
   }
@@ -40,45 +40,47 @@ void File::Close() {
   fd_ = kInvalid;
 }
 
-std::string File::String() const { return fmt::format("File[fd={}]", fd_); }
+std::string File::String() const {
+  return fmt::format("File[fd={}]", fd_);
+}
 
-ssize_t File::Readv(const std::string_view *buf, size_t n) noexcept {
-  struct iovec *io;
+ssize_t File::Readv(const std::string_view* buf, size_t n) noexcept {
+  struct iovec* io;
   std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
   if (n * sizeof(struct iovec) <= 65536) {
-    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(alloca(sizeof(struct iovec) * n));
   } else {
-    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(malloc(sizeof(struct iovec) * n));
     cleaner.reset(io);
   }
 
   for (size_t i = 0; i < n; ++i) {
-    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_base = const_cast<char*>(buf[i].data());
     io[i].iov_len = buf[i].size();
   }
 
   return ::readv(fd_, io, static_cast<int>(n));
 }
 
-ssize_t File::Writev(std::string_view *buf, size_t n) noexcept {
-  struct iovec *io;
+ssize_t File::Writev(std::string_view* buf, size_t n) noexcept {
+  struct iovec* io;
   std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
   if (n * sizeof(struct iovec) <= 65536) {
-    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(alloca(sizeof(struct iovec) * n));
   } else {
-    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(malloc(sizeof(struct iovec) * n));
     cleaner.reset(io);
   }
 
   for (size_t i = 0; i < n; ++i) {
-    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_base = const_cast<char*>(buf[i].data());
     io[i].iov_len = buf[i].size();
   }
 
   return ::writev(fd_, io, static_cast<int>(n));
 }
 
-ssize_t File::Pread(uint64_t offset, void *buf, size_t n) {
+ssize_t File::Pread(uint64_t offset, void* buf, size_t n) {
   return ::pread64(fd_, buf, n, static_cast<__off64_t>(offset));
 }
 
@@ -94,13 +96,15 @@ int64_t File::Seek(uint64_t offset, File::Whence whence) {
   auto off = ::lseek64(fd_, static_cast<__off64_t>(offset), hint);
   return static_cast<int64_t>(off);
 }
-ssize_t File::Pwrite(uint64_t offset, const void *buf, size_t n) {
+ssize_t File::Pwrite(uint64_t offset, const void* buf, size_t n) {
   return ::pwrite64(fd_, buf, n, static_cast<__off64_t>(offset));
 }
 
-Error File::Sync() const noexcept { return Error{syncfs(fd_)}; }
+Error File::Sync() const noexcept {
+  return Error{syncfs(fd_)};
+}
 
-File File::Open(const char *name, File::OpenOption option) {
+File File::Open(const char* name, File::OpenOption option) {
   auto open_flag = [=] {
     int flag = 0;
     if (option.create) {
@@ -110,14 +114,14 @@ File File::Open(const char *name, File::OpenOption option) {
       flag |= O_DIRECT;
     }
     switch (option.mode) {
-    case OpenMode::kRead:
-      return flag | O_RDONLY;
-    case OpenMode::kWrite:
-      return flag | O_WRONLY;
-    case OpenMode::kReadWrite:
-      return flag | O_RDWR;
-    default:
-      std::terminate();
+      case OpenMode::kRead:
+        return flag | O_RDONLY;
+      case OpenMode::kWrite:
+        return flag | O_WRONLY;
+      case OpenMode::kReadWrite:
+        return flag | O_RDWR;
+      default:
+        std::terminate();
     }
   };
 
@@ -134,7 +138,7 @@ File File::Open(const char *name, File::OpenOption option) {
   return File{fd};
 }
 
-int64_t File::Fill(File &file, char ch, uint64_t n) {
+int64_t File::Fill(File& file, char ch, uint64_t n) {
   if (!file.Valid()) {
     return -1;
   }
@@ -151,7 +155,7 @@ int64_t File::Fill(File &file, char ch, uint64_t n) {
   return static_cast<int64_t>(total);
 }
 
-int64_t File::Size(File &file) {
+int64_t File::Size(File& file) {
   int64_t cur = file.Seek(0, Whence::kSeekCur);
   if (cur < 0) {
     return cur;
@@ -166,7 +170,7 @@ int64_t File::Size(File &file) {
   return n;
 }
 
-Error File::Remove(const char *name) {
+Error File::Remove(const char* name) {
   printf("remove %s\n", name);
   if (::remove(name)) {
     return Error{errno};
@@ -174,18 +178,18 @@ Error File::Remove(const char *name) {
   return Error::Success();
 }
 
-ssize_t File::Preadv(uint64_t offset, std::string_view *buf, size_t n) {
-  struct iovec *io;
+ssize_t File::Preadv(uint64_t offset, std::string_view* buf, size_t n) {
+  struct iovec* io;
   std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
   if (n * sizeof(struct iovec) <= 65536) {
-    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(alloca(sizeof(struct iovec) * n));
   } else {
-    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(malloc(sizeof(struct iovec) * n));
     cleaner.reset(io);
   }
 
   for (size_t i = 0; i < n; ++i) {
-    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_base = const_cast<char*>(buf[i].data());
     io[i].iov_len = buf[i].size();
   }
 
@@ -193,18 +197,18 @@ ssize_t File::Preadv(uint64_t offset, std::string_view *buf, size_t n) {
                     static_cast<__off64_t>(offset));
 }
 
-ssize_t File::Pwritev(uint64_t offset, std::string_view *buf, size_t n) {
-  struct iovec *io;
+ssize_t File::Pwritev(uint64_t offset, std::string_view* buf, size_t n) {
+  struct iovec* io;
   std::unique_ptr<struct iovec, DefaultDeleter> cleaner;
   if (n * sizeof(struct iovec) <= 65536) {
-    io = static_cast<iovec *>(alloca(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(alloca(sizeof(struct iovec) * n));
   } else {
-    io = static_cast<iovec *>(malloc(sizeof(struct iovec) * n));
+    io = static_cast<iovec*>(malloc(sizeof(struct iovec) * n));
     cleaner.reset(io);
   }
 
   for (size_t i = 0; i < n; ++i) {
-    io[i].iov_base = const_cast<char *>(buf[i].data());
+    io[i].iov_base = const_cast<char*>(buf[i].data());
     io[i].iov_len = buf[i].size();
   }
 
@@ -212,4 +216,4 @@ ssize_t File::Pwritev(uint64_t offset, std::string_view *buf, size_t n) {
                      static_cast<__off64_t>(offset));
 }
 
-} // namespace pedrolib
+}  // namespace pedrolib

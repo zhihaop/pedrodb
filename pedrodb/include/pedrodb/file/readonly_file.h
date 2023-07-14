@@ -11,13 +11,13 @@ class ReadonlyFile : public ReadableFile {
   uint64_t size_{};
   mutable File file_{};
 
-public:
+ public:
   ReadonlyFile() = default;
   ~ReadonlyFile() override = default;
-  ReadonlyFile(ReadonlyFile &&other) noexcept
+  ReadonlyFile(ReadonlyFile&& other) noexcept
       : size_(other.size_), file_(std::move(other.file_)) {}
 
-  ReadonlyFile &operator=(ReadonlyFile &&other) noexcept {
+  ReadonlyFile& operator=(ReadonlyFile&& other) noexcept {
     if (this == &other) {
       return *this;
     }
@@ -28,7 +28,7 @@ public:
     return *this;
   }
 
-  ssize_t Read(uint64_t offset, char *data, size_t length) override {
+  ssize_t Read(uint64_t offset, char* data, size_t length) override {
     return file_.Pread(offset, data, length);
   }
 
@@ -36,7 +36,7 @@ public:
 
   Error GetError() const noexcept override { return file_.GetError(); }
 
-  static Status Open(const std::string &filename, ReadonlyFile *file) {
+  static Status Open(const std::string& filename, ReadonlyFile* file) {
     File::OpenOption option{.mode = File ::OpenMode::kRead};
     auto f = File::Open(filename.c_str(), option);
     if (!f.Valid()) {
@@ -49,6 +49,6 @@ public:
     return Status::kOk;
   }
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_FILE_READONLY_FILE_H
+#endif  // PEDRODB_FILE_READONLY_FILE_H

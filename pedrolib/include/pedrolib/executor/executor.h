@@ -25,6 +25,6 @@ struct Executor : pedrolib::noncopyable, pedrolib::nonmovable {
   virtual void Join() = 0;
 };
 
-} // namespace pedrolib
+}  // namespace pedrolib
 
-#endif // PEDROLIB_EXECUTOR_EXECUTOR_H
+#endif  // PEDROLIB_EXECUTOR_EXECUTOR_H

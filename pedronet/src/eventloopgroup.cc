@@ -3,16 +3,12 @@
 namespace pedronet {
 
 size_t EventLoopGroup::next() noexcept {
-  for (;;) {
-    size_t c = next_.load(std::memory_order_acquire);
-    size_t n = (c + 1) % size_;
-    if (!next_.compare_exchange_strong(c, n)) {
-      continue;
-    }
-    return c;
-  }
+  return next_.fetch_add(std::memory_order_relaxed) % size_;
 }
-void EventLoopGroup::Join() { HandleJoin(); }
+
+void EventLoopGroup::Join() {
+  HandleJoin();
+}
 
 uint64_t EventLoopGroup::ScheduleAfter(Duration delay, Callback cb) {
   size_t loop_id = next();
@@ -33,16 +29,16 @@ void EventLoopGroup::ScheduleCancel(uint64_t id) {
 }
 
 void EventLoopGroup::Close() {
-  for (auto &loop : loops_) {
+  for (auto& loop : loops_) {
     loop.Close();
   }
 }
 void EventLoopGroup::HandleJoin() {
-  for (auto &t : threads_) {
+  for (auto& t : threads_) {
     if (t.joinable()) {
       t.join();
     }
   }
   threads_.clear();
 }
-} // namespace pedronet
+}  // namespace pedronet

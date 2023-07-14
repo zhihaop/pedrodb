@@ -11,7 +11,7 @@ class EventChannel final : public Channel {
   SelectorCallback event_callback_;
   File file_;
 
-public:
+ public:
   EventChannel();
   ~EventChannel() override = default;
 
@@ -21,8 +21,8 @@ public:
 
   void HandleEvents(ReceiveEvents event, Timestamp now) override;
 
-  File &GetFile() noexcept override { return file_; }
-  const File &GetFile() const noexcept override { return file_; }
+  File& GetFile() noexcept override { return file_; }
+  const File& GetFile() const noexcept override { return file_; }
 
   std::string String() const override;
 
@@ -31,7 +31,7 @@ public:
     file_.Write(&val, sizeof(val));
   }
 };
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::EventChannel);
-#endif // PEDRONET_CHANNEL_EVENT_CHANNEL_H
+#endif  // PEDRONET_CHANNEL_EVENT_CHANNEL_H

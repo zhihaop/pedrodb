@@ -1,6 +1,7 @@
 #ifndef PEDRODB_DB_IMPL_H
 #define PEDRODB_DB_IMPL_H
 
+#include <pedrolib/concurrent/latch.h>
 #include "pedrodb/cache/read_cache.h"
 #include "pedrodb/db.h"
 #include "pedrodb/defines.h"
@@ -10,12 +11,11 @@
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
 #include "pedrodb/record_format.h"
-#include <pedrolib/concurrent/latch.h>
 
+#include <pedrolib/executor/thread_pool_executor.h>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <pedrolib/executor/thread_pool_executor.h>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -30,7 +30,7 @@ struct Record {
   uint32_t timestamp{};
 
   Record(uint32_t h, std::string key, std::string value,
-         const record::Location &location, uint32_t timestamp);
+         const record::Location& location, uint32_t timestamp);
 };
 
 enum class CompactState {
@@ -69,19 +69,19 @@ class DBImpl : public DB {
 
   Status Recovery(file_t id, RecordEntry entry);
 
-  Status FetchRecord(ReadableFile *file, const record::Location &loc,
-                     size_t size, std::string *value);
+  Status FetchRecord(ReadableFile* file, const record::Location& loc,
+                     size_t size, std::string* value);
 
-public:
+ public:
   ~DBImpl() override;
 
-  explicit DBImpl(const Options &options, const std::string &name);
+  explicit DBImpl(const Options& options, const std::string& name);
 
-  Status HandlePut(const WriteOptions &options, uint32_t h,
+  Status HandlePut(const WriteOptions& options, uint32_t h,
                    std::string_view key, std::string_view value);
 
-  Status HandleGet(const ReadOptions &options, uint32_t h, std::string_view key,
-                   std::string *value);
+  Status HandleGet(const ReadOptions& options, uint32_t h, std::string_view key,
+                   std::string* value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
 
@@ -95,13 +95,13 @@ public:
 
   Status Init();
 
-  Status Get(const ReadOptions &options, std::string_view key,
-             std::string *value) override;
+  Status Get(const ReadOptions& options, std::string_view key,
+             std::string* value) override;
 
-  Status Put(const WriteOptions &options, std::string_view key,
+  Status Put(const WriteOptions& options, std::string_view key,
              std::string_view value) override;
 
-  Status Delete(const WriteOptions &options, std::string_view key) override;
+  Status Delete(const WriteOptions& options, std::string_view key) override;
 
   std::vector<file_t> GetFiles();
 
@@ -109,8 +109,8 @@ public:
 
   std::vector<file_t> PollCompactTask();
 
-  Status CompactBatch(file_t id, const std::vector<Record> &records);
+  Status CompactBatch(file_t id, const std::vector<Record>& records);
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_DB_IMPL_H
+#endif  // PEDRODB_DB_IMPL_H

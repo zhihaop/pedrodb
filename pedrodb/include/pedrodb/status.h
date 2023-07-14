@@ -15,14 +15,15 @@ enum class Status {
   kIOError
 };
 
-} // namespace pedrodb
+}  // namespace pedrodb
 
-template <> struct fmt::formatter<pedrodb::Status> {
-  static constexpr auto parse(format_parse_context &ctx)
+template <>
+struct fmt::formatter<pedrodb::Status> {
+  static constexpr auto parse(format_parse_context& ctx)
       -> format_parse_context::iterator {
     return ctx.end();
   }
-  static auto format(const pedrodb::Status &status, format_context &ctx) {
+  static auto format(const pedrodb::Status& status, format_context& ctx) {
     using namespace pedrodb;
     std::string_view msg[6] = {"ok",          "not found",        "corruption",
                                "not support", "invalid argument", "io error"};
@@ -30,4 +31,4 @@ template <> struct fmt::formatter<pedrodb::Status> {
   }
 };
 
-#endif // PEDRODB_STATUS_H
+#endif  // PEDRODB_STATUS_H

@@ -1,10 +1,10 @@
 #ifndef PEDRODB_CONCURRENT_LATCH_H
 #define PEDRODB_CONCURRENT_LATCH_H
-#include "pedrolib/duration.h"
-#include "pedrolib/logger/logger.h"
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include "pedrolib/duration.h"
+#include "pedrolib/logger/logger.h"
 
 namespace pedrolib {
 
@@ -13,7 +13,7 @@ class Latch {
   std::mutex mu_;
   std::condition_variable zero_;
 
-public:
+ public:
   explicit Latch(size_t count) : count_(count) {}
 
   [[nodiscard]] size_t Count() const noexcept {
@@ -27,7 +27,7 @@ public:
     }
   }
 
-  bool Await(const Duration &d) {
+  bool Await(const Duration& d) {
     std::unique_lock<std::mutex> lock(mu_);
     auto st = std::chrono::steady_clock::now();
     auto et = st + std::chrono::microseconds(d.Microseconds());
@@ -49,6 +49,6 @@ public:
     }
   }
 };
-} // namespace pedrolib
+}  // namespace pedrolib
 
-#endif // PEDRODB_CONCURRENT_LATCH_H
+#endif  // PEDRODB_CONCURRENT_LATCH_H

@@ -8,8 +8,8 @@ struct ReadableFile : pedrolib::noncopyable {
   virtual ~ReadableFile() = default;
   [[nodiscard]] virtual uint64_t Size() const noexcept = 0;
   [[nodiscard]] virtual Error GetError() const noexcept = 0;
-  virtual ssize_t Read(uint64_t offset, char *buf, size_t n) = 0;
+  virtual ssize_t Read(uint64_t offset, char* buf, size_t n) = 0;
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_FILE_READABLE_FILE_H
+#endif  // PEDRODB_FILE_READABLE_FILE_H

@@ -24,7 +24,7 @@ std::string Repeat(std::string_view s, size_t n) {
   return t;
 }
 
-void TestSyncPut(pedrokv::Client &client, const std::vector<int> &data) {
+void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
   for (int i : data) {
     auto response =
         client.Put(fmt::format("hello{}", i),
@@ -37,12 +37,12 @@ void TestSyncPut(pedrokv::Client &client, const std::vector<int> &data) {
   }
 }
 
-void TestAsyncPut(pedrokv::Client &client, const std::vector<int> &data) {
+void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
   pedrolib::Latch latch(data.size());
   for (int i : data) {
     client.Put(fmt::format("hello{}", i),
                fmt::format("world{}{}", i, Repeat("0", 1 << 10)),
-               [&latch](const auto &resp) {
+               [&latch](const auto& resp) {
                  if (resp.type != pedrokv::Response::Type::kOk) {
                    logger.Fatal("error");
                  }
@@ -53,7 +53,7 @@ void TestAsyncPut(pedrokv::Client &client, const std::vector<int> &data) {
   latch.Await();
 }
 
-void TestSyncGet(pedrokv::Client &client, std::vector<int> data) {
+void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
   std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
   for (int i : data) {
     auto response = client.Get(fmt::format("hello{}", i));
@@ -67,11 +67,11 @@ void TestSyncGet(pedrokv::Client &client, std::vector<int> data) {
   }
 }
 
-void TestAsyncGet(pedrokv::Client &client, std::vector<int> data) {
+void TestAsyncGet(pedrokv::Client& client, std::vector<int> data) {
   std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
   pedrolib::Latch latch(data.size());
   for (int i : data) {
-    client.Get(fmt::format("hello{}", i), [i, &latch](auto &&response) {
+    client.Get(fmt::format("hello{}", i), [i, &latch](auto&& response) {
       if (response.type != pedrokv::Response::Type::kOk) {
         logger.Fatal("error type");
       }
@@ -90,7 +90,7 @@ using namespace std::chrono_literals;
 void TestAsync(int n) {
   pedrokv::Client client(address, options);
   client.Start();
-  
+
   std::vector<int> data(n);
   std::iota(data.begin(), data.end(), 0);
 
@@ -123,8 +123,9 @@ void TestSync(int n, int m, int c) {
     std::vector<std::future<void>> ctx;
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(
-          std::launch::async, [&, j] { TestSyncPut(*clients[j % clients.size()], data[j]); }));
+      ctx.emplace_back(std::async(std::launch::async, [&, j] {
+        TestSyncPut(*clients[j % clients.size()], data[j]);
+      }));
     }
   }
   logger.Info("test sync end");
@@ -134,13 +135,14 @@ void TestSync(int n, int m, int c) {
     std::vector<std::future<void>> ctx;
     ctx.reserve(m);
     for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(
-          std::launch::async, [&, j] { TestSyncGet(*clients[j % clients.size()], data[j]); }));
+      ctx.emplace_back(std::async(std::launch::async, [&, j] {
+        TestSyncGet(*clients[j % clients.size()], data[j]);
+      }));
     }
   }
   logger.Info("test sync get end");
 
-  for (auto &client : clients) {
+  for (auto& client : clients) {
     client->Close();
     client.reset();
   }
@@ -162,7 +164,7 @@ int main() {
   int n = 2000000;
   TestAsync(n);
   TestSync(n, 50, 50);
-  
+
   options.worker_group->Close();
   return 0;
 }

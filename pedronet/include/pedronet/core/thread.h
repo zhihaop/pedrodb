@@ -7,20 +7,20 @@ namespace pedronet {
 class EventLoop;
 namespace core {
 class Thread {
-  const EventLoop *loop_{};
+  const EventLoop* loop_{};
   std::string name_;
 
-public:
-  static Thread &Current();
-  void BindEventLoop(const EventLoop *loop);
-  void UnbindEventLoop(const EventLoop *loop);
-  bool CheckUnderLoop(const EventLoop *loop) const noexcept {
+ public:
+  static Thread& Current();
+  void BindEventLoop(const EventLoop* loop);
+  void UnbindEventLoop(const EventLoop* loop);
+  bool CheckUnderLoop(const EventLoop* loop) const noexcept {
     return loop == loop_;
   }
   void SetAlias(std::string name);
-  const std::string &GetAlias() const noexcept { return name_; }
+  const std::string& GetAlias() const noexcept { return name_; }
 };
-} // namespace core
-} // namespace pedronet
+}  // namespace core
+}  // namespace pedronet
 
-#endif // PEDRONET_CORE_THREAD_H
+#endif  // PEDRONET_CORE_THREAD_H

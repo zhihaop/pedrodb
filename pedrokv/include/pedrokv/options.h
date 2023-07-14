@@ -1,8 +1,8 @@
 #ifndef PEDROKV_OPTIONS_H
 #define PEDROKV_OPTIONS_H
-#include "pedrokv/defines.h"
 #include <pedrodb/options.h>
 #include <pedronet/eventloopgroup.h>
+#include "pedrokv/defines.h"
 
 namespace pedrokv {
 
@@ -19,5 +19,5 @@ struct ClientOptions {
   std::shared_ptr<pedronet::EventLoopGroup> worker_group;
   size_t max_inflight{4096};
 };
-} // namespace pedrokv
-#endif // PEDROKV_OPTIONS_H
+}  // namespace pedrokv
+#endif  // PEDROKV_OPTIONS_H

@@ -1,18 +1,18 @@
 #ifndef PEDROKV_CODEC_CLIENT_CODEC_H
 #define PEDROKV_CODEC_CLIENT_CODEC_H
 
+#include <pedrolib/buffer/array_buffer.h>
+#include <pedronet/callbacks.h>
+#include <memory>
 #include "pedrokv/codec/request.h"
 #include "pedrokv/codec/response.h"
 #include "pedrokv/logger/logger.h"
-#include <memory>
-#include <pedrolib/buffer/array_buffer.h>
-#include <pedronet/callbacks.h>
 
 namespace pedrokv {
 
 class ClientCodecContext;
 using ClientMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection> &, std::queue<Response> &)>;
+    const std::shared_ptr<TcpConnection>&, std::queue<Response>&)>;
 
 class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
   uint16_t len_{};
@@ -20,12 +20,12 @@ class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
   pedrolib::ArrayBuffer buf_;
   ClientMessageCallback callback_;
 
-public:
+ public:
   explicit ClientCodecContext(ClientMessageCallback callback)
       : callback_(std::move(callback)) {}
 
-  void HandleMessage(const std::shared_ptr<TcpConnection> &conn,
-                     Buffer *buffer) {
+  void HandleMessage(const std::shared_ptr<TcpConnection>& conn,
+                     Buffer* buffer) {
     PEDROKV_TRACE("client codec handle bytes: {}", buffer->ReadableBytes());
     while (buffer->ReadableBytes() >= sizeof(len_)) {
       if (len_ == 0) {
@@ -56,7 +56,7 @@ class ClientCodec {
   pedronet::CloseCallback close_callback_;
   ClientMessageCallback message_callback_;
 
-public:
+ public:
   void OnConnect(pedronet::ConnectionCallback callback) {
     connect_callback_ = std::move(callback);
   }
@@ -70,7 +70,7 @@ public:
   }
 
   pedronet::ConnectionCallback GetOnConnect() {
-    return [this](const pedronet::TcpConnectionPtr &conn) {
+    return [this](const pedronet::TcpConnectionPtr& conn) {
       auto ctx = std::make_shared<ClientCodecContext>(message_callback_);
       conn->SetContext(ctx);
       if (connect_callback_) {
@@ -80,7 +80,7 @@ public:
   }
 
   pedronet::CloseCallback GetOnClose() {
-    return [this](const pedronet::TcpConnectionPtr &conn) {
+    return [this](const pedronet::TcpConnectionPtr& conn) {
       conn->SetContext(nullptr);
       if (close_callback_) {
         close_callback_(conn);
@@ -89,7 +89,7 @@ public:
   }
 
   pedronet::MessageCallback GetOnMessage() {
-    return [](const pedronet::TcpConnectionPtr &conn, pedronet::Buffer &buffer,
+    return [](const pedronet::TcpConnectionPtr& conn, pedronet::Buffer& buffer,
               pedrolib::Timestamp now) {
       auto ctx = std::any_cast<std::shared_ptr<ClientCodecContext>>(
           conn->GetContext());
@@ -97,6 +97,6 @@ public:
     };
   }
 };
-} // namespace pedrokv
+}  // namespace pedrokv
 
-#endif // PEDROKV_CODEC_CLIENT_CODEC_H
+#endif  // PEDROKV_CODEC_CLIENT_CODEC_H

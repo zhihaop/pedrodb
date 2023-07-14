@@ -8,17 +8,17 @@ namespace pedronet {
 class Socket : public File {
   explicit Socket(int fd) : File(fd) {}
 
-public:
+ public:
   Socket() : Socket(kInvalid) {}
   ~Socket() override;
-  Socket(Socket &&other) noexcept : Socket(other.fd_) { other.fd_ = kInvalid; }
-  Socket &operator=(Socket &&other) noexcept;
+  Socket(Socket&& other) noexcept : Socket(other.fd_) { other.fd_ = kInvalid; }
+  Socket& operator=(Socket&& other) noexcept;
   static Socket Create(int family);
 
-  void Bind(const InetAddress &address);
-  Error Accept(const InetAddress &local, Socket *socket);
+  void Bind(const InetAddress& address);
+  Error Accept(const InetAddress& local, Socket* socket);
   void Listen();
-  Error Connect(const InetAddress &address);
+  Error Connect(const InetAddress& address);
 
   void SetReuseAddr(bool on);
   void SetReusePort(bool on);
@@ -36,10 +36,10 @@ public:
 
   std::string String() const override;
 
-  ssize_t Write(const void *buf, size_t size) noexcept override;
+  ssize_t Write(const void* buf, size_t size) noexcept override;
 };
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::Socket);
 
-#endif // PEDRONET_SOCKET_H
+#endif  // PEDRONET_SOCKET_H

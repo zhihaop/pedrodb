@@ -1,17 +1,17 @@
 #ifndef PEDRONET_CHANNEL_SOCKET_CHANNEL_H
 #define PEDRONET_CHANNEL_SOCKET_CHANNEL_H
 
+#include <pedrolib/format/formatter.h>
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/channel.h"
 #include "pedronet/socket.h"
-#include <pedrolib/format/formatter.h>
 
 namespace pedronet {
 
 struct Selector;
 
 class SocketChannel final : public Socket, public Channel {
-protected:
+ protected:
   SelectEvents events_{SelectEvents::kNoneEvent};
 
   SelectorCallback close_callback_;
@@ -19,14 +19,14 @@ protected:
   SelectorCallback error_callback_;
   SelectorCallback write_callback_;
 
-  Selector *selector_{};
+  Selector* selector_{};
 
-public:
+ public:
   explicit SocketChannel(Socket socket) : Socket(std::move(socket)) {}
 
   ~SocketChannel() override = default;
 
-  void SetSelector(Selector *selector) { selector_ = selector; }
+  void SetSelector(Selector* selector) { selector_ = selector; }
 
   void OnRead(SelectorCallback read_callback) {
     read_callback_ = std::move(read_callback);
@@ -58,15 +58,15 @@ public:
 
   void SetWritable(bool on);
 
-  Socket &GetFile() noexcept final { return *this; }
-  const Socket &GetFile() const noexcept final { return *this; }
+  Socket& GetFile() noexcept final { return *this; }
+  const Socket& GetFile() const noexcept final { return *this; }
 
   std::string String() const override {
     return fmt::format("SocketChannel[fd={}]", fd_);
   }
 };
 
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::SocketChannel);
-#endif // PEDRONET_CHANNEL_SOCKET_CHANNEL_H
+#endif  // PEDRONET_CHANNEL_SOCKET_CHANNEL_H

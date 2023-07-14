@@ -12,7 +12,7 @@
 namespace pedrolib {
 
 class File : pedrolib::noncopyable {
-public:
+ public:
   constexpr inline static int kInvalid = -1;
 
   enum class Whence { kSeekSet, kSeekCur, kSeekEnd };
@@ -25,45 +25,45 @@ public:
     bool direct{false};
   };
 
-protected:
+ protected:
   int fd_{kInvalid};
 
   static Logger logger;
 
-public:
+ public:
   File() = default;
 
-  static File Open(const char *name, OpenOption option);
+  static File Open(const char* name, OpenOption option);
 
-  static Error Remove(const char *name);
+  static Error Remove(const char* name);
 
-  static int64_t Fill(File &file, char ch, uint64_t n);
+  static int64_t Fill(File& file, char ch, uint64_t n);
 
-  static int64_t Size(File &file);
+  static int64_t Size(File& file);
 
   explicit File(int fd) : fd_(fd) {}
 
-  File(File &&other) noexcept : fd_(other.fd_) { other.fd_ = kInvalid; }
+  File(File&& other) noexcept : fd_(other.fd_) { other.fd_ = kInvalid; }
 
-  File &operator=(File &&other) noexcept;
+  File& operator=(File&& other) noexcept;
 
-  virtual ssize_t Read(void *buf, size_t n) noexcept;
+  virtual ssize_t Read(void* buf, size_t n) noexcept;
 
-  virtual ssize_t Write(const void *buf, size_t n) noexcept;
+  virtual ssize_t Write(const void* buf, size_t n) noexcept;
 
-  virtual ssize_t Readv(const std::string_view *buf, size_t n) noexcept;
+  virtual ssize_t Readv(const std::string_view* buf, size_t n) noexcept;
 
-  virtual ssize_t Writev(std::string_view *buf, size_t n) noexcept;
+  virtual ssize_t Writev(std::string_view* buf, size_t n) noexcept;
 
-  virtual ssize_t Pread(uint64_t offset, void *buf, size_t n);
-  
-  virtual ssize_t Preadv(uint64_t offset, std::string_view *buf, size_t n);
+  virtual ssize_t Pread(uint64_t offset, void* buf, size_t n);
+
+  virtual ssize_t Preadv(uint64_t offset, std::string_view* buf, size_t n);
 
   virtual int64_t Seek(uint64_t offset, Whence whence);
 
-  virtual ssize_t Pwrite(uint64_t offset, const void *buf, size_t n);
-  
-  virtual ssize_t Pwritev(uint64_t offset, std::string_view *buf, size_t n);
+  virtual ssize_t Pwrite(uint64_t offset, const void* buf, size_t n);
+
+  virtual ssize_t Pwritev(uint64_t offset, std::string_view* buf, size_t n);
 
   bool Valid() const noexcept { return fd_ != kInvalid; }
 
@@ -80,7 +80,7 @@ public:
   Error Sync() const noexcept;
 };
 
-} // namespace pedrolib
+}  // namespace pedrolib
 
 PEDROLIB_CLASS_FORMATTER(pedrolib::File);
-#endif // PEDROLIB_FILE_FILE_H
+#endif  // PEDROLIB_FILE_FILE_H

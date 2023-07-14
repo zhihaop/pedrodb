@@ -11,8 +11,8 @@
 #include "pedronet/selector/selector.h"
 #include "pedronet/timer_queue.h"
 
-#include <atomic>
 #include <pedrolib/concurrent/latch.h>
+#include <atomic>
 
 namespace pedronet {
 
@@ -29,7 +29,7 @@ class EventLoop : public Executor {
   std::vector<Callback> running_tasks_;
 
   std::atomic_int32_t state_{1};
-  std::unordered_map<Channel *, Callback> channels_;
+  std::unordered_map<Channel*, Callback> channels_;
 
   pedrolib::Latch close_latch_{1};
 
@@ -37,14 +37,14 @@ class EventLoop : public Executor {
     return state_.load(std::memory_order_acquire);
   }
 
-public:
+ public:
   explicit EventLoop(std::unique_ptr<Selector> selector);
 
-  Selector *GetSelector() noexcept { return selector_.get(); }
+  Selector* GetSelector() noexcept { return selector_.get(); }
 
-  void Deregister(Channel *channel);
+  void Deregister(Channel* channel);
 
-  void Register(Channel *channel, Callback register_callback,
+  void Register(Channel* channel, Callback register_callback,
                 Callback deregister_callback);
 
   bool CheckUnderLoop() const noexcept {
@@ -66,7 +66,8 @@ public:
 
   void ScheduleCancel(uint64_t id) override { timer_queue_.Cancel(id); }
 
-  template <typename Runnable> void Run(Runnable &&runnable) {
+  template <typename Runnable>
+  void Run(Runnable&& runnable) {
     if (CheckUnderLoop()) {
       runnable();
       return;
@@ -86,6 +87,6 @@ public:
   void Join() override;
 };
 
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_EVENTLOOP_H
+#endif  // PEDRONET_EVENTLOOP_H

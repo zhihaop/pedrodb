@@ -1,8 +1,8 @@
-#include "reporter.h"
 #include <pedronet/eventloopgroup.h>
 #include <pedronet/logger/logger.h>
 #include <pedronet/selector/epoller.h>
 #include <pedronet/tcp_client.h>
+#include "reporter.h"
 
 using namespace std::chrono_literals;
 using pedrolib::Duration;
@@ -35,10 +35,10 @@ int main() {
   StaticVector<TcpClient> clients(n_clients);
   InetAddress address = InetAddress::Create("127.0.0.1", 1082);
   for (size_t i = 0; i < n_clients; ++i) {
-    TcpClient &client = clients.emplace_back(address);
+    TcpClient& client = clients.emplace_back(address);
     client.SetGroup(worker_group);
-    client.OnConnect([buf](const auto &conn) { conn->Send(buf); });
-    client.OnMessage([&reporter](const auto &conn, auto &buffer, auto) {
+    client.OnConnect([buf](const auto& conn) { conn->Send(buf); });
+    client.OnMessage([&reporter](const auto& conn, auto& buffer, auto) {
       reporter.Trace(buffer.ReadableBytes());
       conn->Send(&buffer);
     });

@@ -12,7 +12,8 @@
 #include <pedrolib/timestamp.h>
 
 namespace pedronet {
-template <typename T> using Comparable = pedrolib::Comparable<T>;
+template <typename T>
+using Comparable = pedrolib::Comparable<T>;
 
 using File = pedrolib::File;
 using Error = pedrolib::Error;
@@ -22,6 +23,6 @@ using Executor = pedrolib::Executor;
 using Buffer = pedrolib::Buffer;
 using ArrayBuffer = pedrolib::ArrayBuffer;
 using BufferView = pedrolib::BufferView;
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_DEFINES_H
+#endif  // PEDRONET_DEFINES_H

@@ -1,6 +1,6 @@
 #include "pedronet/channel/event_channel.h"
-#include "pedronet/logger/logger.h"
 #include <sys/eventfd.h>
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -27,4 +27,4 @@ void EventChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
 std::string EventChannel::String() const {
   return fmt::format("EventChannel[fd={}]", file_.Descriptor());
 }
-} // namespace pedronet
+}  // namespace pedronet

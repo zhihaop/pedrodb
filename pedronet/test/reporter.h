@@ -4,7 +4,8 @@
 #include <pedrolib/duration.h>
 #include <pedronet/eventloopgroup.h>
 
-template <typename T, typename Op> T AtomicApply(std::atomic<T> &val, Op &&op) {
+template <typename T, typename Op>
+T AtomicApply(std::atomic<T>& val, Op&& op) {
   T n{}, m{};
   do {
     n = val.load();
@@ -24,9 +25,9 @@ class Reporter {
   std::function<void(size_t, size_t, size_t, size_t)> callback_;
 
   uint64_t id_{};
-  pedrolib::Executor *executor_{};
+  pedrolib::Executor* executor_{};
 
-public:
+ public:
   explicit Reporter() = default;
   ~Reporter() { Close(); }
 
@@ -41,7 +42,7 @@ public:
     callback_ = std::move(cb);
   }
 
-  void Start(pedronet::EventLoopGroup &group, const Duration &interval) {
+  void Start(pedronet::EventLoopGroup& group, const Duration& interval) {
     executor_ = &group.Next();
     id_ = executor_->ScheduleEvery(Duration::Zero(), interval, [this] {
       size_t bytes = bytes_.exchange(0);
@@ -61,4 +62,4 @@ public:
   }
 };
 
-#endif // PEDRONET_REPEATER_H
+#endif  // PEDRONET_REPEATER_H

@@ -34,7 +34,7 @@ void Client::SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
 
 void Client::Start() {
   auto latch = std::make_shared<pedrolib::Latch>(1);
-  codec_.OnConnect([=, &latch](auto &&conn) {
+  codec_.OnConnect([=, &latch](auto&& conn) {
     if (connect_callback_) {
       connect_callback_(conn);
     }
@@ -42,12 +42,12 @@ void Client::Start() {
     latch->CountDown();
   });
 
-  codec_.OnClose([=](auto &&conn) {
+  codec_.OnClose([=](auto&& conn) {
     {
       std::unique_lock lock{mu_};
       Response response;
       response.type = Response::Type::kError;
-      for (auto &[_, callback] : responses_) {
+      for (auto& [_, callback] : responses_) {
         if (callback) {
           callback(response);
         }
@@ -63,7 +63,7 @@ void Client::Start() {
   });
 
   codec_.OnMessage(
-      [this](auto &conn, auto &responses) { HandleResponse(responses); });
+      [this](auto& conn, auto& responses) { HandleResponse(responses); });
 
   client_.OnError(error_callback_);
   client_.OnMessage(codec_.GetOnMessage());
@@ -77,7 +77,7 @@ void Client::Start() {
 Response Client::Get(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Get(key, [&](const Response &resp) mutable {
+  Get(key, [&](const Response& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -88,7 +88,7 @@ Response Client::Get(std::string_view key) {
 Response Client::Put(std::string_view key, std::string_view value) {
   pedrolib::Latch latch(1);
   Response response;
-  Put(key, value, [&](const Response &resp) mutable {
+  Put(key, value, [&](const Response& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -99,7 +99,7 @@ Response Client::Put(std::string_view key, std::string_view value) {
 Response Client::Delete(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Delete(key, [&](const Response &resp) mutable {
+  Delete(key, [&](const Response& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -135,7 +135,7 @@ void Client::Delete(std::string_view key, ResponseCallback callback) {
   return SendRequest(buffer, id, std::move(callback));
 }
 
-void Client::HandleResponse(std::queue<Response> &responses) {
+void Client::HandleResponse(std::queue<Response>& responses) {
   std::unique_lock lock{mu_};
 
   while (!responses.empty()) {
@@ -154,4 +154,4 @@ void Client::HandleResponse(std::queue<Response> &responses) {
   }
   not_full_.notify_all();
 }
-}
+}  // namespace pedrokv

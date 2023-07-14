@@ -20,7 +20,7 @@ class FileManager;
 class FileManager {
   mutable std::mutex mu_;
 
-  MetadataManager *metadata_manager_;
+  MetadataManager* metadata_manager_;
 
   struct OpenFile {
     file_t id{};
@@ -35,7 +35,7 @@ class FileManager {
   std::shared_ptr<WritableFile> active_;
   file_t id_{};
 
-  Status OpenActiveFile(WritableFileGuard *file, file_t id);
+  Status OpenActiveFile(WritableFileGuard* file, file_t id);
 
   Status CreateActiveFile();
 
@@ -43,10 +43,9 @@ class FileManager {
 
   auto AcquireLock() const noexcept { return std::unique_lock(mu_); }
 
-public:
-  FileManager(MetadataManager *metadata, uint8_t max_open_files)
-      : max_open_files_(max_open_files), metadata_manager_(metadata) {
-  }
+ public:
+  FileManager(MetadataManager* metadata, uint8_t max_open_files)
+      : max_open_files_(max_open_files), metadata_manager_(metadata) {}
 
   Status Init();
 
@@ -54,13 +53,13 @@ public:
 
   Status Flush(bool force);
 
-  Status WriteActiveFile(Buffer *buffer, record::Location *loc);
+  Status WriteActiveFile(Buffer* buffer, record::Location* loc);
 
   void ReleaseDataFile(file_t id);
 
-  Status AcquireDataFile(file_t id, ReadableFileGuard *file);
+  Status AcquireDataFile(file_t id, ReadableFileGuard* file);
 
   Error RemoveDataFile(file_t id);
 };
-} // namespace pedrodb
-#endif // PEDRODB_FILE_MANAGER_H
+}  // namespace pedrodb
+#endif  // PEDRODB_FILE_MANAGER_H

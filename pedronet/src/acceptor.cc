@@ -1,17 +1,18 @@
 #include "pedronet/acceptor.h"
+#include <pedrolib/concurrent/latch.h>
 #include "pedronet/eventloop.h"
 #include "pedronet/logger/logger.h"
-#include <pedrolib/concurrent/latch.h>
 
 namespace pedronet {
 
-Acceptor::Acceptor(EventLoop &eventloop, const InetAddress &address,
-                   const Acceptor::Option &option)
-    : address_(address), channel_(Socket::Create(address.Family())),
+Acceptor::Acceptor(EventLoop& eventloop, const InetAddress& address,
+                   const Acceptor::Option& option)
+    : address_(address),
+      channel_(Socket::Create(address.Family())),
       eventloop_(eventloop) {
   PEDRONET_TRACE("Acceptor::Acceptor()");
 
-  auto &socket = channel_.GetFile();
+  auto& socket = channel_.GetFile();
   socket.SetReuseAddr(option.reuse_addr);
   socket.SetReusePort(option.reuse_port);
   socket.SetKeepAlive(option.keep_alive);
@@ -59,4 +60,4 @@ void Acceptor::Listen() {
   };
   eventloop_.Register(&channel_, std::move(callback), {});
 }
-} // namespace pedronet
+}  // namespace pedronet

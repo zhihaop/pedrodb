@@ -21,26 +21,26 @@ struct Timestamp : public Comparable<Timestamp> {
 
   static Timestamp Min() { return Timestamp{0}; }
 
-  static int Compare(const Timestamp &p, const Timestamp &q) noexcept {
+  static int Compare(const Timestamp& p, const Timestamp& q) noexcept {
     return p.usecs == q.usecs ? 0 : p.usecs < q.usecs ? -1 : 1;
   }
 
-  Duration operator-(const Timestamp &other) const noexcept {
+  Duration operator-(const Timestamp& other) const noexcept {
     return Duration{usecs - other.usecs};
   }
 
-  Timestamp operator+(const Duration &d) const noexcept {
+  Timestamp operator+(const Duration& d) const noexcept {
     return Timestamp{usecs + d.usecs};
   }
 
-  Timestamp operator-(const Duration &d) const noexcept {
+  Timestamp operator-(const Duration& d) const noexcept {
     return Timestamp{usecs - d.usecs};
   }
 
   std::string String() const noexcept;
 };
-} // namespace pedrolib
+}  // namespace pedrolib
 
 PEDROLIB_CLASS_FORMATTER(pedrolib::Timestamp);
 
-#endif // PEDROLIB_TIMESTAMP_H
+#endif  // PEDROLIB_TIMESTAMP_H

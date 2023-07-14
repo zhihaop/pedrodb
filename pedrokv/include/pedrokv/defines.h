@@ -27,5 +27,5 @@ using TcpConnection = pedronet::TcpConnection;
 using InetAddress = pedronet::InetAddress;
 
 using pedronet::EventLoopGroup;
-} // namespace pedrokv
-#endif // PEDROKV_DEFINES_H
+}  // namespace pedrokv
+#endif  // PEDROKV_DEFINES_H

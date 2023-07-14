@@ -5,3 +5,5 @@
 **/cmake-build-*
 **/.idea
 **/build
+html/
+latex/

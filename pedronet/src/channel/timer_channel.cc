@@ -1,6 +1,6 @@
 #include "pedronet/channel/timer_channel.h"
-#include "pedronet/logger/logger.h"
 #include <sys/timerfd.h>
+#include "pedronet/logger/logger.h"
 
 namespace pedronet {
 
@@ -41,4 +41,4 @@ void TimerChannel::WakeUpAfter(Duration duration) {
 std::string TimerChannel::String() const {
   return fmt::format("TimerChannel[fd={}]", file_.Descriptor());
 }
-} // namespace pedronet
+}  // namespace pedronet

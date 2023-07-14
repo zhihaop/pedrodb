@@ -15,11 +15,11 @@ class WritableFile final : public ReadableFile {
 
   WritableFile() = default;
 
-public:
+ public:
   ~WritableFile() override = default;
 
-  static Status Open(const std::string &filename, file_t id, size_t capacity,
-                     WritableFile **f) {
+  static Status Open(const std::string& filename, file_t id, size_t capacity,
+                     WritableFile** f) {
     File::OpenOption option{.mode = File ::OpenMode::kReadWrite,
                             .create = 0777};
     auto file = File::Open(filename.c_str(), option);
@@ -62,7 +62,7 @@ public:
 
   file_t GetFile() const noexcept { return id_; }
 
-  ssize_t Read(uint64_t offset, char *buf, size_t n) override {
+  ssize_t Read(uint64_t offset, char* buf, size_t n) override {
     memcpy(buf, buf_.data() + offset, n);
     return static_cast<ssize_t>(n);
   }
@@ -111,5 +111,5 @@ public:
   }
 };
 
-} // namespace pedrodb
-#endif // PEDRODB_FILE_WRITABLE_FILE_H
+}  // namespace pedrodb
+#endif  // PEDRODB_FILE_WRITABLE_FILE_H

@@ -54,4 +54,4 @@ void SocketChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
     }
   }
 }
-} // namespace pedronet
+}  // namespace pedronet

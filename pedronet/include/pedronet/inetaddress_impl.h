@@ -37,10 +37,10 @@ union InetAddressImpl {
       return sizeof(struct sockaddr_in6);
     }
   }
-  struct sockaddr *data() noexcept {
-    return reinterpret_cast<struct sockaddr *>(this);
+  struct sockaddr* data() noexcept {
+    return reinterpret_cast<struct sockaddr*>(this);
   }
 };
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_INETADDRESS_IMPL_H
+#endif  // PEDRONET_INETADDRESS_IMPL_H

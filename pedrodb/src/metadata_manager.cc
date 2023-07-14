@@ -115,4 +115,4 @@ Status MetadataManager::DeleteFile(file_t id) {
 std::string MetadataManager::GetDataFilePath(file_t id) const noexcept {
   return fmt::format("{}_{}.data", name_, id);
 }
-} // namespace pedrodb
+}  // namespace pedrodb

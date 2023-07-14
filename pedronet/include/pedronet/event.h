@@ -1,8 +1,8 @@
 #ifndef PEDRONET_EVENT_H
 #define PEDRONET_EVENT_H
 
-#include <initializer_list>
 #include <pedrolib/format/formatter.h>
+#include <initializer_list>
 #include <string>
 
 namespace pedronet {
@@ -10,7 +10,7 @@ namespace pedronet {
 class SelectEvents {
   uint32_t events_{};
 
-public:
+ public:
   static const SelectEvents kNoneEvent;
   static const SelectEvents kReadEvent;
   static const SelectEvents kWriteEvent;
@@ -25,15 +25,15 @@ public:
     return events_ & other.events_;
   }
 
-  SelectEvents &Add(SelectEvents other) noexcept {
+  SelectEvents& Add(SelectEvents other) noexcept {
     events_ |= other.events_;
     return *this;
   }
-  SelectEvents &Remove(SelectEvents other) noexcept {
+  SelectEvents& Remove(SelectEvents other) noexcept {
     events_ &= ~other.events_;
     return *this;
   }
-  bool operator!=(const SelectEvents &other) const noexcept {
+  bool operator!=(const SelectEvents& other) const noexcept {
     return events_ != other.events_;
   }
 
@@ -48,7 +48,7 @@ public:
 class ReceiveEvents {
   uint32_t events_{};
 
-public:
+ public:
   static const ReceiveEvents kHangUp;
   static const ReceiveEvents kInvalid;
   static const ReceiveEvents kError;
@@ -67,7 +67,7 @@ public:
     return events_ & other.events_;
   }
 
-  bool OneOf(const std::initializer_list<ReceiveEvents> &events) {
+  bool OneOf(const std::initializer_list<ReceiveEvents>& events) {
     for (auto e : events) {
       if (Contains(e)) {
         return true;
@@ -76,16 +76,16 @@ public:
     return false;
   }
 
-  ReceiveEvents &Add(ReceiveEvents other) noexcept {
+  ReceiveEvents& Add(ReceiveEvents other) noexcept {
     events_ |= other.events_;
     return *this;
   }
-  ReceiveEvents &Remove(ReceiveEvents other) noexcept {
+  ReceiveEvents& Remove(ReceiveEvents other) noexcept {
     events_ &= ~other.events_;
     return *this;
   }
 };
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::SelectEvents);
-#endif // PEDRONET_EVENT_H
+#endif  // PEDRONET_EVENT_H

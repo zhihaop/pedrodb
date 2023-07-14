@@ -11,19 +11,19 @@ pedrokv::Server::Server(pedronet::InetAddress address,
     PEDROKV_FATAL("failed to open db {}", options_.db_path);
   }
 
-  codec_.OnMessage([this](const auto &conn, auto &&requests) {
+  codec_.OnMessage([this](const auto& conn, auto&& requests) {
     HandleRequest(conn, requests);
   });
 
-  codec_.OnConnect([](const pedronet::TcpConnectionPtr &conn) {
+  codec_.OnConnect([](const pedronet::TcpConnectionPtr& conn) {
     PEDROKV_INFO("connect to client {}", *conn);
   });
 
-  codec_.OnClose([](const pedronet::TcpConnectionPtr &conn) {
+  codec_.OnClose([](const pedronet::TcpConnectionPtr& conn) {
     PEDROKV_INFO("disconnect to client {}", *conn);
   });
 
-  server_.OnError([](const pedronet::TcpConnectionPtr &conn, Error err) {
+  server_.OnError([](const pedronet::TcpConnectionPtr& conn, Error err) {
     PEDROKV_ERROR("client {} error: {}", *conn, err);
   });
 
@@ -32,8 +32,8 @@ pedrokv::Server::Server(pedronet::InetAddress address,
   server_.OnMessage(codec_.GetOnMessage());
 }
 
-void Server::HandleRequest(const std::shared_ptr<TcpConnection> &conn,
-                           std::queue<Request> &requests) {
+void Server::HandleRequest(const std::shared_ptr<TcpConnection>& conn,
+                           std::queue<Request>& requests) {
   auto buffer = std::make_shared<pedrolib::ArrayBuffer>();
   Response response;
 
@@ -44,22 +44,22 @@ void Server::HandleRequest(const std::shared_ptr<TcpConnection> &conn,
     response.id = request.id;
     pedrodb::Status status = pedrodb::Status::kOk;
     switch (request.type) {
-    case Request::Type::kGet: {
-      status = db_->Get({}, request.key, &response.data);
-      break;
-    }
-    case Request::Type::kDelete: {
-      status = db_->Delete({}, request.key);
-      break;
-    }
-    case Request::Type::kSet: {
-      status = db_->Put({}, request.key, request.value);
-      break;
-    }
-    default: {
-      PEDROKV_WARN("invalid request receive");
-      break;
-    }
+      case Request::Type::kGet: {
+        status = db_->Get({}, request.key, &response.data);
+        break;
+      }
+      case Request::Type::kDelete: {
+        status = db_->Delete({}, request.key);
+        break;
+      }
+      case Request::Type::kSet: {
+        status = db_->Put({}, request.key, request.value);
+        break;
+      }
+      default: {
+        PEDROKV_WARN("invalid request receive");
+        break;
+      }
     }
 
     if (status != pedrodb::Status::kOk) {
@@ -74,4 +74,4 @@ void Server::HandleRequest(const std::shared_ptr<TcpConnection> &conn,
   }
   conn->Send(buffer);
 }
-} // namespace pedrokv
+}  // namespace pedrokv

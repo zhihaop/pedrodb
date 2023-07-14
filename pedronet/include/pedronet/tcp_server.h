@@ -32,17 +32,17 @@ class TcpServer : pedrolib::noncopyable, pedrolib::nonmovable {
   std::mutex mu_;
   std::unordered_set<std::shared_ptr<TcpConnection>> actives_;
 
-public:
+ public:
   TcpServer() = default;
   ~TcpServer() { Close(); }
 
-  void SetGroup(const std::shared_ptr<EventLoopGroup> &boss,
-                const std::shared_ptr<EventLoopGroup> &worker) {
+  void SetGroup(const std::shared_ptr<EventLoopGroup>& boss,
+                const std::shared_ptr<EventLoopGroup>& worker) {
     boss_group_ = boss;
     worker_group_ = worker;
   }
 
-  void Bind(const InetAddress &address);
+  void Bind(const InetAddress& address);
 
   void Start();
   void Close();
@@ -72,6 +72,6 @@ public:
   }
 };
 
-} // namespace pedronet
+}  // namespace pedronet
 
-#endif // PEDRONET_TCP_SERVER_H
+#endif  // PEDRONET_TCP_SERVER_H

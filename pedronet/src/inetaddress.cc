@@ -7,20 +7,20 @@ namespace pedronet {
 InetAddress::InetAddress() : impl_(std::make_unique<InetAddressImpl>()) {}
 InetAddress::~InetAddress() = default;
 
-InetAddress::InetAddress(const InetAddress &other) : host_(other.host_) {
+InetAddress::InetAddress(const InetAddress& other) : host_(other.host_) {
   if (other.impl_) {
     impl_ = std::make_unique<InetAddressImpl>();
     memcpy(impl_.get(), other.impl_.get(), sizeof(InetAddressImpl));
   }
 }
-InetAddress::InetAddress(InetAddress &&other) noexcept
+InetAddress::InetAddress(InetAddress&& other) noexcept
     : impl_(std::move(other.impl_)), host_(std::move(other.host_)) {}
 
-bool InetAddress::operator==(const InetAddress &other) const noexcept {
+bool InetAddress::operator==(const InetAddress& other) const noexcept {
   return Port() == other.Port() && host_ == other.host_;
 }
 
-InetAddress &InetAddress::operator=(const InetAddress &other) {
+InetAddress& InetAddress::operator=(const InetAddress& other) {
   if (this == &other) {
     return *this;
   }
@@ -34,7 +34,7 @@ InetAddress &InetAddress::operator=(const InetAddress &other) {
   return *this;
 }
 
-InetAddress &InetAddress::operator=(InetAddress &&other) noexcept {
+InetAddress& InetAddress::operator=(InetAddress&& other) noexcept {
   if (this == &other) {
     return *this;
   }
@@ -43,9 +43,11 @@ InetAddress &InetAddress::operator=(InetAddress &&other) noexcept {
   return *this;
 }
 
-int InetAddress::Family() const { return impl_->family(); }
+int InetAddress::Family() const {
+  return impl_->family();
+}
 
-InetAddress InetAddress::Create(const std::string &host, uint16_t port) {
+InetAddress InetAddress::Create(const std::string& host, uint16_t port) {
   auto impl = std::make_unique<InetAddressImpl>();
   impl->in4.sin_family = AF_INET;
   impl->in4.sin_port = htobe16(port);
@@ -55,7 +57,7 @@ InetAddress InetAddress::Create(const std::string &host, uint16_t port) {
   return InetAddress{std::move(impl)};
 }
 
-InetAddress InetAddress::CreateV6(const std::string &host, uint16_t port) {
+InetAddress InetAddress::CreateV6(const std::string& host, uint16_t port) {
   auto impl = std::make_unique<InetAddressImpl>();
   impl->in6.sin6_family = AF_INET6;
   impl->in6.sin6_port = htobe16(port);
@@ -65,9 +67,13 @@ InetAddress InetAddress::CreateV6(const std::string &host, uint16_t port) {
   return InetAddress{std::move(impl)};
 }
 
-bool InetAddress::IPv6() const noexcept { return impl_->family() == AF_INET6; }
+bool InetAddress::IPv6() const noexcept {
+  return impl_->family() == AF_INET6;
+}
 
-uint16_t InetAddress::Port() const noexcept { return impl_->port(); }
+uint16_t InetAddress::Port() const noexcept {
+  return impl_->port();
+}
 
 std::string InetAddress::String() const noexcept {
   return fmt::format("InetAddress[{}:{}]", host_, Port());
@@ -76,4 +82,4 @@ std::string InetAddress::String() const noexcept {
 InetAddress::InetAddress(std::unique_ptr<InetAddressImpl> impl)
     : impl_(std::move(impl)), host_(impl_->host()) {}
 
-} // namespace pedronet
+}  // namespace pedronet

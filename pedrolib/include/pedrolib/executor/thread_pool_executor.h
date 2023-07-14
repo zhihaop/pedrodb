@@ -1,13 +1,13 @@
 #ifndef PEDRODB_THREAD_POOL_EXECUTOR_H
 #define PEDRODB_THREAD_POOL_EXECUTOR_H
-#include "pedrolib/collection/static_vector.h"
-#include "pedrolib/executor/executor.h"
 #include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <queue>
 #include <thread>
+#include "pedrolib/collection/static_vector.h"
+#include "pedrolib/executor/executor.h"
 namespace pedrolib {
 
 namespace detail {
@@ -17,12 +17,12 @@ struct PriorityCallback {
   Duration interval;
   std::weak_ptr<Callback> callback;
 
-  bool operator<(const PriorityCallback &other) const noexcept {
+  bool operator<(const PriorityCallback& other) const noexcept {
     return expired > other.expired;
   }
 };
 
-} // namespace detail
+}  // namespace detail
 
 class ThreadPoolExecutor : public Executor {
   std::mutex mu_;
@@ -46,7 +46,7 @@ class ThreadPoolExecutor : public Executor {
           non_empty_.wait(lock);
           continue;
         }
-        auto &top = queue_.top();
+        auto& top = queue_.top();
         Duration d = top.expired - Timestamp::Now();
         if (d <= Duration::Microseconds(100)) {
           break;
@@ -85,7 +85,7 @@ class ThreadPoolExecutor : public Executor {
     }
   }
 
-  uint64_t schedule(const Duration &delay, const Duration &interval,
+  uint64_t schedule(const Duration& delay, const Duration& interval,
                     Callback cb) {
     uint64_t id = id_++;
     detail::PriorityCallback detail{
@@ -105,17 +105,17 @@ class ThreadPoolExecutor : public Executor {
   }
 
   void HandleJoin() {
-    for (auto &thread : workers_) {
+    for (auto& thread : workers_) {
       if (thread.joinable()) {
         thread.join();
       }
     }
   }
 
-public:
+ public:
   explicit ThreadPoolExecutor()
       : ThreadPoolExecutor(std::thread::hardware_concurrency()) {}
-  
+
   explicit ThreadPoolExecutor(size_t threads) : workers_(threads) {
     for (size_t i = 0; i < threads; ++i) {
       workers_.emplace_back([this] { worker(); });
@@ -168,6 +168,6 @@ public:
 
   void Join() override { HandleJoin(); }
 };
-} // namespace pedrolib
+}  // namespace pedrolib
 
-#endif // PEDRODB_THREAD_POOL_EXECUTOR_H
+#endif  // PEDRODB_THREAD_POOL_EXECUTOR_H

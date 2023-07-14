@@ -1,16 +1,16 @@
 #include "pedrodb/segment_db.h"
-#include "pedrodb/db_impl.h"
 #include <pedrolib/concurrent/latch.h>
+#include "pedrodb/db_impl.h"
 
 namespace pedrodb {
 
-Status SegmentDB::Open(const Options &options, const std::string &path,
-                       size_t n, std::shared_ptr<DB> *db) {
+Status SegmentDB::Open(const Options& options, const std::string& path,
+                       size_t n, std::shared_ptr<DB>* db) {
   auto impl = std::make_shared<SegmentDB>(n);
   impl->executor_ = options.executor;
 
-  auto &segments = impl->segments_;
-  auto &executor = impl->executor_;
+  auto& segments = impl->segments_;
+  auto& executor = impl->executor_;
 
   pedrolib::Latch latch(n);
   std::vector<Status> status(n, Status::kOk);
@@ -36,21 +36,21 @@ Status SegmentDB::Open(const Options &options, const std::string &path,
   return Status::kOk;
 }
 
-Status SegmentDB::Get(const ReadOptions &options, std::string_view key,
-                      std::string *value) {
+Status SegmentDB::Get(const ReadOptions& options, std::string_view key,
+                      std::string* value) {
   auto h = Hash(key);
   auto db = GetDB(h);
   return db->HandleGet(options, h, key, value);
 }
 
-Status SegmentDB::Put(const WriteOptions &options, std::string_view key,
+Status SegmentDB::Put(const WriteOptions& options, std::string_view key,
                       std::string_view value) {
   auto h = Hash(key);
   auto db = GetDB(h);
   return db->HandlePut(options, h, key, value);
 }
 
-Status SegmentDB::Delete(const WriteOptions &options, std::string_view key) {
+Status SegmentDB::Delete(const WriteOptions& options, std::string_view key) {
   auto h = Hash(key);
   auto db = GetDB(h);
   return db->HandlePut(options, h, key, {});
@@ -58,7 +58,7 @@ Status SegmentDB::Delete(const WriteOptions &options, std::string_view key) {
 
 Status SegmentDB::Compact() {
   pedrolib::Latch latch(segments_.size());
-  for (auto &segment : segments_) {
+  for (auto& segment : segments_) {
     executor_->Schedule([&] {
       PEDRODB_IGNORE_ERROR(segment->Compact());
       latch.CountDown();
@@ -67,4 +67,4 @@ Status SegmentDB::Compact() {
   latch.Await();
   return Status::kOk;
 }
-} // namespace pedrodb
+}  // namespace pedrodb

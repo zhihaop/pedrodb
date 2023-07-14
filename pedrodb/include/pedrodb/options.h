@@ -1,9 +1,9 @@
 #ifndef PEDRODB_OPTIONS_H
 #define PEDRODB_OPTIONS_H
 
-#include "pedrodb/defines.h"
 #include <pedrolib/executor/thread_pool_executor.h>
 #include <string>
+#include "pedrodb/defines.h"
 
 namespace pedrodb {
 struct Options {
@@ -21,6 +21,6 @@ struct ReadOptions {};
 struct WriteOptions {
   bool sync = false;
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_OPTIONS_H
+#endif  // PEDRODB_OPTIONS_H

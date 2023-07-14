@@ -16,14 +16,14 @@ struct RecordEntry {
 };
 
 class RecordIterator {
-  ReadableFile *file_;
+  ReadableFile* file_;
 
   record::Header view_{};
 
   size_t offset_{};
   size_t size_{};
   size_t buffer_offset_{};
-  Buffer *buffer_;
+  Buffer* buffer_;
 
   void FetchBuffer(size_t fetch) {
     if (buffer_->ReadableBytes() >= fetch) {
@@ -39,8 +39,8 @@ class RecordIterator {
     buffer_->Append(fetch);
   }
 
-public:
-  explicit RecordIterator(ReadableFile *file, Buffer *buffer)
+ public:
+  explicit RecordIterator(ReadableFile* file, Buffer* buffer)
       : file_(file), size_(file_->Size()), buffer_(buffer) {}
 
   bool Valid() noexcept {
@@ -82,6 +82,6 @@ public:
     return entry;
   }
 };
-} // namespace pedrodb
+}  // namespace pedrodb
 
-#endif // PEDRODB_ITERATOR_RECORDITERATOR_H
+#endif  // PEDRODB_ITERATOR_RECORDITERATOR_H

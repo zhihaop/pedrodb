@@ -19,10 +19,10 @@ namespace pedronet {
 class TcpConnection : pedrolib::noncopyable,
                       pedrolib::nonmovable,
                       public std::enable_shared_from_this<TcpConnection> {
-public:
+ public:
   enum class State { kConnected, kDisconnected, kConnecting, kDisconnecting };
 
-protected:
+ protected:
   std::atomic<State> state_{TcpConnection::State::kConnecting};
 
   MessageCallback message_callback_{};
@@ -39,28 +39,29 @@ protected:
   SocketChannel channel_;
   InetAddress local_;
   InetAddress peer_;
-  EventLoop &eventloop_;
+  EventLoop& eventloop_;
 
-  ssize_t trySendingDirect(Buffer *buffer);
+  ssize_t trySendingDirect(Buffer* buffer);
   void handleRead(Timestamp now);
   void handleError(Error);
   void handleWrite();
-  void handleSend(Buffer *buffer);
+  void handleSend(Buffer* buffer);
   void handleClose();
 
-public:
-  TcpConnection(EventLoop &eventloop, Socket socket);
+ public:
+  TcpConnection(EventLoop& eventloop, Socket socket);
 
   ~TcpConnection();
 
-  void SetContext(const std::any &ctx) { ctx_ = ctx; }
-  std::any &GetContext() { return ctx_; }
+  void SetContext(const std::any& ctx) { ctx_ = ctx; }
+  std::any& GetContext() { return ctx_; }
 
   State GetState() const noexcept { return state_; }
 
   void Start();
 
-  template <class BufferPtr> void Send(BufferPtr buffer) {
+  template <class BufferPtr>
+  void Send(BufferPtr buffer) {
     if (eventloop_.CheckUnderLoop()) {
       handleSend(buffer.get());
       return;
@@ -69,8 +70,8 @@ public:
     eventloop_.Schedule(
         [this, buf = std::move(buffer)]() mutable { handleSend(buf.get()); });
   }
-  
-  void Send(Buffer *buffer) {
+
+  void Send(Buffer* buffer) {
     if (eventloop_.CheckUnderLoop()) {
       handleSend(buffer);
       return;
@@ -83,7 +84,7 @@ public:
         [this, buf = std::move(clone)]() mutable { handleSend(&buf); });
   }
 
-  void Send(const char *buf, size_t n) {
+  void Send(const char* buf, size_t n) {
     BufferView view{buf, n};
     handleSend(&view);
   }
@@ -114,19 +115,19 @@ public:
 
   void OnClose(CloseCallback cb) { close_callback_ = std::move(cb); }
 
-  const InetAddress &GetLocalAddress() const noexcept { return local_; }
-  const InetAddress &GetPeerAddress() const noexcept { return peer_; }
+  const InetAddress& GetLocalAddress() const noexcept { return local_; }
+  const InetAddress& GetPeerAddress() const noexcept { return peer_; }
 
   void Close();
   void Shutdown();
   void ForceShutdown();
   void ForceClose();
 
-  EventLoop &GetEventLoop() noexcept { return eventloop_; }
+  EventLoop& GetEventLoop() noexcept { return eventloop_; }
 
   std::string String() const;
 };
-} // namespace pedronet
+}  // namespace pedronet
 
 PEDROLIB_CLASS_FORMATTER(pedronet::TcpConnection);
-#endif // PEDRONET_TCP_CONNECTION_H
+#endif  // PEDRONET_TCP_CONNECTION_H
