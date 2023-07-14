@@ -3,7 +3,7 @@
 
 #include "pedrodb/cache/lru_cache.h"
 #include "pedrodb/defines.h"
-#include "pedrodb/record_format.h"
+#include "pedrodb/format/record_format.h"
 
 namespace pedrodb {
 

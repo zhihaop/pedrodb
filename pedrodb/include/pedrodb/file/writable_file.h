@@ -7,16 +7,16 @@
 namespace pedrodb {
 class WritableFile final : public ReadableFile {
   File file_{};
-  std::string buf_;
+  ArrayBuffer buf_;
   size_t offset_{};
-  size_t capacity_{};
-  file_t id_{};
-  mutable std::mutex mu_;
+  const size_t capacity_{};
+  const file_t id_{};
 
-  WritableFile() = default;
+  WritableFile(file_t id, size_t capacity)
+      : buf_(capacity), capacity_(capacity), id_(id) {}
 
  public:
-  ~WritableFile() override = default;
+  ~WritableFile() override { Flush(true); }
 
   static Status Open(const std::string& filename, file_t id, size_t capacity,
                      WritableFile** f) {
@@ -42,64 +42,55 @@ class WritableFile final : public ReadableFile {
       return Status::kIOError;
     }
 
-    auto ptr = *f = new WritableFile();
+    auto ptr = *f = new WritableFile(id, capacity);
     ptr->file_ = std::move(file);
     ptr->offset_ = buf.size();
-    ptr->buf_ = std::move(buf);
-    ptr->capacity_ = capacity;
-    ptr->id_ = id;
-
-    ptr->buf_.reserve(capacity);
+    ptr->buf_.Append(buf.data(), buf.size());
     return Status::kOk;
   }
 
-  uint64_t Size() const noexcept override {
-    std::unique_lock lock{mu_};
-    return buf_.size();
-  }
+  uint64_t Size() const noexcept override { return buf_.ReadableBytes(); }
 
   Error GetError() const noexcept override { return file_.GetError(); }
 
   file_t GetFile() const noexcept { return id_; }
 
   ssize_t Read(uint64_t offset, char* buf, size_t n) override {
-    memcpy(buf, buf_.data() + offset, n);
+    memcpy(buf, buf_.ReadIndex() + offset, n);
     return static_cast<ssize_t>(n);
   }
 
   Error Flush(bool force) {
-    std::string_view buf;
-    {
-      std::unique_lock lock{mu_};
-      buf = buf_;
-      buf = buf.substr(offset_, buf_.size() - offset_);
+    const char* offset = buf_.ReadIndex() + offset_;
+    size_t flush = buf_.ReadableBytes() - offset_;
 
-      if (!force && buf.size() < kBlockSize) {
-        return Error::kOk;
-      }
-
-      if (buf.empty()) {
-        return Error::kOk;
-      }
-
-      offset_ = buf_.size();
+    if (!force && flush < kBlockSize) {
+      return Error::kOk;
     }
 
-    ssize_t w = file_.Write(buf.data(), buf.size());
-    if (w != buf.size()) {
+    if (flush == 0) {
+      return Error::kOk;
+    }
+
+    offset_ = buf_.ReadableBytes();
+
+    ssize_t w = file_.Write(offset, flush);
+    if (w != flush) {
       return Error{1};
     }
     return Error::kOk;
   }
 
-  size_t Write(std::string_view buffer) {
-    std::unique_lock lock{mu_};
-    if (buf_.size() + buffer.size() > capacity_) {
+  template <typename Key, typename Value>
+  size_t Write(const record::Entry<Key, Value>& entry) {
+    if (buf_.ReadableBytes() + entry.SizeOf() > capacity_) {
       return -1;
     }
 
-    size_t offset = buf_.size();
-    buf_ += buffer;
+    size_t offset = buf_.ReadableBytes();
+    entry.Pack(&buf_);
+
+    PEDRODB_IGNORE_ERROR(Flush(false));
     return offset;
   }
 

@@ -1,5 +1,5 @@
-#ifndef PEDRODB_RECORD_FORMAT_H
-#define PEDRODB_RECORD_FORMAT_H
+#ifndef PEDRODB_FORMAT_RECORD_FORMAT_H
+#define PEDRODB_FORMAT_RECORD_FORMAT_H
 
 #include <utility>
 
@@ -17,14 +17,6 @@ struct Header {
   uint32_t timestamp{};
 
   Header() = default;
-  Header(uint32_t crc32, Type type, uint8_t keySize, uint32_t valueSize,
-         uint32_t timestamp)
-      : crc32(crc32),
-        type(type),
-        key_size(keySize),
-        value_size(valueSize),
-        timestamp(timestamp) {}
-
   ~Header() = default;
 
   constexpr static size_t SizeOf() noexcept {
@@ -61,6 +53,59 @@ struct Header {
     return true;
   }
 };
+
+template <typename Key, typename Value>
+struct Entry {
+  uint32_t crc32{};
+  Type type{};
+  Key key{};
+  Value value{};
+  uint32_t timestamp{};
+
+  [[nodiscard]] uint32_t SizeOf() const noexcept {
+    return Header::SizeOf() + std::size(key) + std::size(value);
+  }
+
+  bool UnPack(Buffer* buffer) {
+    Header header;
+    if (!header.UnPack(buffer)) {
+      return false;
+    }
+    crc32 = header.crc32;
+    type = header.type;
+    timestamp = header.timestamp;
+
+    if (buffer->ReadableBytes() < header.key_size + header.value_size) {
+      return false;
+    }
+
+    key = Key{buffer->ReadIndex(), header.key_size};
+    buffer->Retrieve(header.key_size);
+
+    value = Value{buffer->ReadIndex(), header.value_size};
+    buffer->Retrieve(header.value_size);
+    return true;
+  }
+
+  bool Pack(Buffer* buffer) const noexcept {
+    if (buffer->WritableBytes() < SizeOf()) {
+      return false;
+    }
+    Header header;
+    header.crc32 = crc32;
+    header.type = type;
+    header.key_size = std::size(key);
+    header.value_size = std::size(value);
+    header.timestamp = timestamp;
+
+    header.Pack(buffer);
+    buffer->Append(std::data(key), std::size(key));
+    buffer->Append(std::data(value), std::size(value));
+    return true;
+  }
+};
+
+using EntryView = Entry<std::string_view, std::string_view>;
 
 constexpr static size_t SizeOf(uint8_t key_size, uint32_t value_size) {
   return Header::SizeOf() + key_size + value_size;
@@ -139,4 +184,4 @@ struct Dir {
 };
 }  // namespace pedrodb::record
 
-#endif  // PEDRODB_RECORD_FORMAT_H
+#endif  // PEDRODB_FORMAT_RECORD_FORMAT_H

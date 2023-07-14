@@ -112,7 +112,8 @@ Status DBImpl::Recovery(file_t id) {
   ArrayBuffer buffer(kMaxFileBytes);
   auto iter = RecordIterator(file.get(), &buffer);
   while (iter.Valid()) {
-    PEDRODB_IGNORE_ERROR(Recovery(id, iter.Next()));
+    record::Location loc{id, iter.GetOffset()};
+    PEDRODB_IGNORE_ERROR(Recovery(loc, iter.Next()));
   }
 
   PEDRODB_TRACE("crash recover success: file[{}], record[{}]", id,
@@ -122,7 +123,6 @@ Status DBImpl::Recovery(file_t id) {
 }
 
 Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
-  ArrayBuffer buffer;
   auto lock = AcquireLock();
   compact_hints_[id].state = CompactState::kCompacting;
 
@@ -132,33 +132,30 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
       continue;
     }
 
-    // steal record.
+    // steal entry.
     if (it->loc != r.location) {
       continue;
     }
 
     // move to active file because this file will be removed.
-    buffer.Reset();
-    record::Header header{
-        (uint32_t)0,           record::Type::kSet,
-        (uint8_t)r.key.size(), (uint32_t)r.value.size(),
-        r.timestamp,
-    };
+    record::EntryView entry;
+    entry.crc32 = 0;
+    entry.type = record::Type::kSet;
+    entry.key = r.key;
+    entry.value = r.value;
+    entry.timestamp = r.timestamp;
 
-    header.Pack(&buffer);
-    buffer.Append(r.key.data(), r.key.size());
-    buffer.Append(r.value.data(), r.value.size());
     // remove cache.
     read_cache_->Remove(it->loc);
 
     record::Location loc;
-    auto status = file_manager_->WriteActiveFile(&buffer, &loc);
+    auto status = file_manager_->WriteActiveFile(entry, &loc);
     if (status != Status::kOk) {
       return status;
     }
 
     it->loc = loc;
-    it->size = record::SizeOf(r.key.size(), r.value.size());
+    it->size = entry.SizeOf();
   }
   return Status::kOk;
 }
@@ -177,14 +174,15 @@ void DBImpl::Compact(file_t id) {
 
   ArrayBuffer buffer;
   for (auto iter = RecordIterator(file.get(), &buffer); iter.Valid();) {
+    uint32_t offset = iter.GetOffset();
     auto next = iter.Next();
     if (next.type != record::Type::kSet) {
       continue;
     }
-    batch_bytes += record::SizeOf(next.key.size(), next.value.size());
+    batch_bytes += next.SizeOf();
     batch.emplace_back(Hash(next.key), std::string{next.key},
-                       std::string{next.value},
-                       record::Location{id, next.offset}, (uint32_t)0);
+                       std::string{next.value}, record::Location{id, offset},
+                       (uint32_t)0);
 
     if (batch_bytes >= options_.compaction_batch_bytes) {
       CompactBatch(id, batch);
@@ -213,28 +211,22 @@ void DBImpl::Compact(file_t id) {
 
 Status DBImpl::HandlePut(const WriteOptions& options, uint32_t h,
                          std::string_view key, std::string_view value) {
-  uint32_t record_size = record::SizeOf(key.size(), value.size());
-  if (record_size > kMaxFileBytes) {
+  record::EntryView entry;
+  entry.crc32 = 0;
+  entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
+  entry.key = key;
+  entry.value = value;
+
+  if (entry.SizeOf() > kMaxFileBytes) {
     PEDRODB_ERROR("key or value is too big");
     return Status::kNotSupported;
   }
 
   uint32_t timestamp = 0;
-
-  record::Header header;
-  header.crc32 = 0;
-  header.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
-  header.key_size = key.size();
-  header.value_size = value.size();
-  header.timestamp = timestamp;
-
-  ArrayBuffer buffer(record_size);
-  header.Pack(&buffer);
-  buffer.Append(key.data(), key.size());
-  buffer.Append(value.data(), value.size());
+  entry.timestamp = timestamp;
 
   record::Location loc{};
-  auto status = file_manager_->WriteActiveFile(&buffer, &loc);
+  auto status = file_manager_->WriteActiveFile(entry, &loc);
   if (status != Status::kOk) {
     return status;
   }
@@ -261,13 +253,13 @@ Status DBImpl::HandlePut(const WriteOptions& options, uint32_t h,
     } else {
       // replace.
       it->loc = loc;
-      it->size = record_size;
+      it->size = entry.SizeOf();
     }
     return Status::kOk;
   }
 
   // insert.
-  indices_.emplace(h, std::string{key}, loc, record_size);
+  indices_.emplace(h, std::string{key}, loc, entry.SizeOf());
   return Status::kOk;
 }
 
@@ -278,29 +270,21 @@ Status DBImpl::Flush() {
 Status DBImpl::FetchRecord(ReadableFile* file, const record::Location& loc,
                            size_t size, std::string* value) {
 
-  ArrayBuffer buffer;
-  buffer.Reset();
-  buffer.EnsureWriteable(size);
+  ArrayBuffer buffer(size);
   ssize_t r = file->Read(loc.offset, buffer.WriteIndex(), size);
   if (r != size) {
-    PEDRODB_ERROR("failed to read from file {}, returns {}: {}", loc.id, r,
-                  file->GetError());
+    PEDRODB_ERROR("failed to read from file {}, return {} expect {}, {}",
+                  loc.id, r, size, file->GetError());
     return Status::kIOError;
   }
   buffer.Append(size);
 
-  record::Header header{};
-  if (!header.UnPack(&buffer)) {
+  record::EntryView entry;
+  if (!entry.UnPack(&buffer)) {
     return Status::kCorruption;
   }
 
-  if (buffer.ReadableBytes() != header.key_size + header.value_size) {
-    return Status::kCorruption;
-  }
-
-  buffer.Retrieve(header.key_size);
-  value->resize(header.value_size);
-  buffer.Retrieve(value->data(), value->size());
+  *value = entry.value;
   read_cache_->Put(loc, *value);
   return Status::kOk;
 }
@@ -351,22 +335,19 @@ Status DBImpl::HandleGet(const ReadOptions& options, uint32_t h,
   return FetchRecord(file.get(), loc, size, value);
 }
 
-Status DBImpl::Recovery(file_t id, RecordEntry entry) {
-  record::Location loc(id, entry.offset);
-  uint32_t size = record::SizeOf(entry.key.size(), entry.value.size());
-
+Status DBImpl::Recovery(record::Location loc, record::EntryView entry) {
   uint32_t h = Hash(entry.key);
   auto it = GetMetadataIterator(h, entry.key);
 
   if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      indices_.emplace(h, std::string{entry.key}, loc, size);
+      indices_.emplace(h, std::string{entry.key}, loc, entry.SizeOf());
       return Status::kOk;
     }
 
     // indices has the newer version data.
     if (it->loc > loc) {
-      UpdateUnused(id, record::SizeOf(entry.key.size(), entry.value.size()));
+      UpdateUnused(loc.id, entry.SizeOf());
       return Status::kOk;
     }
 
@@ -380,12 +361,12 @@ Status DBImpl::Recovery(file_t id, RecordEntry entry) {
 
     // update indices.
     it->loc = loc;
-    it->size = size;
+    it->size = entry.SizeOf();
   }
 
   // a tombstone of deletion.
   if (entry.type == record::Type::kDelete) {
-    UpdateUnused(id, record::SizeOf(entry.key.size(), entry.value.size()));
+    UpdateUnused(loc.id, entry.SizeOf());
     if (it == indices_.end()) {
       return Status::kOk;
     }

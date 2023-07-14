@@ -2,23 +2,24 @@
 #define PEDRODB_DB_IMPL_H
 
 #include <pedrolib/concurrent/latch.h>
-#include "pedrodb/cache/read_cache.h"
-#include "pedrodb/db.h"
-#include "pedrodb/defines.h"
-#include "pedrodb/file/writable_file.h"
-#include "pedrodb/file_manager.h"
-#include "pedrodb/iterator/record_iterator.h"
-#include "pedrodb/logger/logger.h"
-#include "pedrodb/metadata_manager.h"
-#include "pedrodb/record_format.h"
-
 #include <pedrolib/executor/thread_pool_executor.h>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
+
+#include "pedrodb/cache/read_cache.h"
+#include "pedrodb/db.h"
+#include "pedrodb/defines.h"
+#include "pedrodb/file/writable_file.h"
+#include "pedrodb/file_manager.h"
+#include "pedrodb/format/index_format.h"
+#include "pedrodb/format/record_format.h"
+#include "pedrodb/iterator/record_iterator.h"
+#include "pedrodb/logger/logger.h"
+#include "pedrodb/metadata_manager.h"
 
 namespace pedrodb {
 
@@ -66,9 +67,7 @@ class DBImpl : public DB {
 
   auto GetMetadataIterator(uint32_t h, std::string_view key)
       -> decltype(indices_.begin());
-
-  Status Recovery(file_t id, RecordEntry entry);
-
+  
   Status FetchRecord(ReadableFile* file, const record::Location& loc,
                      size_t size, std::string* value);
 
@@ -110,6 +109,7 @@ class DBImpl : public DB {
   std::vector<file_t> PollCompactTask();
 
   Status CompactBatch(file_t id, const std::vector<Record>& records);
+  Status Recovery(record::Location loc, record::EntryView entry);
 };
 }  // namespace pedrodb
 

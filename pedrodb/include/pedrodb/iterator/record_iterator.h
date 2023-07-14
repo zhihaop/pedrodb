@@ -1,24 +1,15 @@
 #ifndef PEDRODB_ITERATOR_RECORDITERATOR_H
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
 #include "pedrodb/file/readonly_file.h"
-#include "pedrodb/record_format.h"
+#include "pedrodb/format/record_format.h"
 
 namespace pedrodb {
 using pedrolib::htobe;
 
-struct RecordEntry {
-  std::string_view key;
-  std::string_view value;
-
-  record::Type type{};
-  uint32_t timestamp{};
-  uint32_t offset{};
-};
-
 class RecordIterator {
   ReadableFile* file_;
 
-  record::Header view_{};
+  record::Header header_{};
 
   size_t offset_{};
   size_t size_{};
@@ -49,36 +40,40 @@ class RecordIterator {
     }
 
     FetchBuffer(record::Header::SizeOf());
-    if (!view_.UnPack(buffer_)) {
+    if (!header_.UnPack(buffer_)) {
       PEDRODB_ERROR("file corrupt, cannot unpack header");
       return false;
     }
 
-    if (view_.type == record::Type::kEmpty) {
+    if (header_.type == record::Type::kEmpty) {
       PEDRODB_ERROR("file corrupt, type is empty");
       return false;
     }
 
-    FetchBuffer(view_.key_size + view_.value_size);
-    if (buffer_->ReadableBytes() < view_.key_size + view_.value_size) {
+    FetchBuffer(header_.key_size + header_.value_size);
+    if (buffer_->ReadableBytes() < header_.key_size + header_.value_size) {
       PEDRODB_ERROR("file corrupt");
       return false;
     }
     return true;
   }
 
-  RecordEntry Next() noexcept {
-    RecordEntry entry;
-    entry.key = {buffer_->ReadIndex(), view_.key_size};
-    buffer_->Retrieve(view_.key_size);
+  [[nodiscard]] uint32_t GetOffset() const noexcept { return offset_; }
 
-    entry.value = {buffer_->ReadIndex(), view_.value_size};
-    buffer_->Retrieve(view_.value_size);
+  record::EntryView Next() noexcept {
+    record::EntryView entry;
 
-    entry.offset = offset_;
-    entry.type = view_.type;
-    entry.timestamp = view_.timestamp;
-    offset_ += record::SizeOf(view_.key_size, view_.value_size);
+    entry.crc32 = header_.crc32;
+    entry.type = header_.type;
+    entry.timestamp = header_.timestamp;
+
+    entry.key = {buffer_->ReadIndex(), header_.key_size};
+    buffer_->Retrieve(header_.key_size);
+
+    entry.value = {buffer_->ReadIndex(), header_.value_size};
+    buffer_->Retrieve(header_.value_size);
+
+    offset_ += entry.SizeOf();
     return entry;
   }
 };

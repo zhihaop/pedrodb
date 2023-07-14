@@ -33,7 +33,6 @@ class FileManager {
 
   // always in use.
   std::shared_ptr<WritableFile> active_;
-  file_t id_{};
 
   Status OpenActiveFile(WritableFileGuard* file, file_t id);
 
@@ -53,7 +52,23 @@ class FileManager {
 
   Status Flush(bool force);
 
-  Status WriteActiveFile(Buffer* buffer, record::Location* loc);
+  template <typename Key, typename Value>
+  Status WriteActiveFile(const record::Entry<Key, Value>& entry,
+                         record::Location* loc) {
+    for (auto lock = AcquireLock();;) {
+      size_t offset = active_->Write(entry);
+      if (offset != -1) {
+        loc->offset = offset;
+        loc->id = active_->GetFile();
+        return Status::kOk;
+      }
+
+      auto status = CreateActiveFile();
+      if (status != Status::kOk) {
+        return status;
+      }
+    }
+  }
 
   void ReleaseDataFile(file_t id);
 

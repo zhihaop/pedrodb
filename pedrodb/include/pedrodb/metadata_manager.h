@@ -1,12 +1,12 @@
 #ifndef PEDRODB_METADATA_MANAGER_H
 #define PEDRODB_METADATA_MANAGER_H
 
-#include "pedrodb/metadata_format.h"
+#include "pedrodb/format/metadata_format.h"
 #include "pedrodb/status.h"
 
 #include <pedrolib/buffer/array_buffer.h>
 #include <mutex>
-#include <unordered_set>
+#include <set>
 
 namespace pedrodb {
 
@@ -14,7 +14,7 @@ class MetadataManager {
   mutable std::mutex mu_;
 
   std::string name_;
-  std::unordered_set<file_t> files_;
+  std::set<file_t> files_;
 
   File file_;
   const std::string path_;
@@ -43,6 +43,14 @@ class MetadataManager {
   Status CreateFile(file_t id);
 
   Status DeleteFile(file_t id);
+
+  bool isActiveFile(file_t id) {
+    auto lock = AcquireLock();
+    if (files_.empty()) {
+      return false;
+    }
+    return id == *files_.rbegin();
+  }
 
   std::string GetDataFilePath(file_t id) const noexcept;
 };

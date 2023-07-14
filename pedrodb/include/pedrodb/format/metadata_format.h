@@ -1,5 +1,5 @@
-#ifndef PEDRODB_METADATA_FORMAT_H
-#define PEDRODB_METADATA_FORMAT_H
+#ifndef PEDRODB_FORMAT_METADATA_FORMAT_H
+#define PEDRODB_FORMAT_METADATA_FORMAT_H
 
 #include "pedrodb/defines.h"
 
@@ -75,4 +75,4 @@ struct LogEntry {
 };
 }  // namespace pedrodb::metadata
 
-#endif  // PEDRODB_METADATA_FORMAT_H
+#endif  // PEDRODB_FORMAT_METADATA_FORMAT_H

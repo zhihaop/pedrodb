@@ -25,7 +25,6 @@ Status FileManager::Recovery(file_t active) {
   }
 
   active_ = std::move(file);
-  id_ = active;
 
   return Status::kOk;
 }
@@ -45,16 +44,19 @@ Status FileManager::Init() {
 
 Status FileManager::CreateActiveFile() {
   WritableFileGuard active;
-  file_t id = id_ + 1;
 
-  auto stat = OpenActiveFile(&active, id);
+  auto err = active_->Sync();
+  if (err != Error::kOk) {
+    return Status::kIOError;
+  }
+
+  auto stat = OpenActiveFile(&active, active_->GetFile() + 1);
   if (stat != Status::kOk) {
     return stat;
   }
 
-  metadata_manager_->CreateFile(id);
+  metadata_manager_->CreateFile(active->GetFile());
   active_ = std::move(active);
-  id_ = id;
 
   return Status::kOk;
 }
@@ -70,7 +72,7 @@ void FileManager::ReleaseDataFile(file_t id) {
 
 Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard* file) {
   auto lock = AcquireLock();
-  if (id == id_) {
+  if (id == active_->GetFile()) {
     *file = active_;
     return Status::kOk;
   }
@@ -119,36 +121,6 @@ Error FileManager::RemoveDataFile(file_t id) {
   open_files_.erase(it, open_files_.end());
   PEDRODB_IGNORE_ERROR(metadata_manager_->DeleteFile(id));
   return File::Remove(metadata_manager_->GetDataFilePath(id).c_str());
-}
-
-Status FileManager::WriteActiveFile(Buffer* buffer, record::Location* loc) {
-  for (;;) {
-    auto lock = AcquireLock();
-    auto active = active_;
-    lock.unlock();
-
-    std::string_view view{buffer->ReadIndex(), buffer->ReadableBytes()};
-    size_t offset = active->Write(view);
-    if (offset != -1) {
-      buffer->Retrieve(view.size());
-      loc->offset = offset;
-      loc->id = active->GetFile();
-      return Status::kOk;
-    }
-
-    lock.lock();
-    if (active != active_) {
-      continue;
-    }
-
-    auto status = CreateActiveFile();
-    if (status != Status::kOk) {
-      return status;
-    }
-    lock.unlock();
-
-    active->Sync();
-  }
 }
 
 Status FileManager::Flush(bool force) {
