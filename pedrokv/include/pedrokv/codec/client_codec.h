@@ -24,7 +24,7 @@ class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
-
+    
     while (true) {
       Response response;
       if (buffer_.ReadableBytes()) {

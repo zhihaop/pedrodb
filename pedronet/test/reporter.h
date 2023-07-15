@@ -47,8 +47,8 @@ class Reporter {
     id_ = executor_->ScheduleEvery(Duration::Zero(), interval, [this] {
       size_t bytes = bytes_.exchange(0);
       size_t count = counts_.exchange(0);
-      size_t min_bytes = min_bytes_.exchange(0);
-      size_t max_bytes = max_bytes_.exchange(size_t{0} - 1);
+      size_t min_bytes = min_bytes_.exchange(size_t{0} - 1);
+      size_t max_bytes = max_bytes_.exchange(0);
       if (callback_) {
         callback_(bytes, count, min_bytes, max_bytes);
       }

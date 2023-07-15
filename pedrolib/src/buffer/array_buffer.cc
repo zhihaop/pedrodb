@@ -2,7 +2,7 @@
 
 namespace pedrolib {
 
-void ArrayBuffer::EnsureWriteable(size_t n) {
+void ArrayBuffer::EnsureWriteable(size_t n, bool fixed) {
   size_t w = WritableBytes();
   if (n <= w) {
     return;
@@ -18,16 +18,31 @@ void ArrayBuffer::EnsureWriteable(size_t n) {
   }
   size_t delta = n - w;
   size_t size = buf_.size() + delta;
-  buf_.resize(size << 1);
-}
-ssize_t ArrayBuffer::Append(File* source) {
-  char buf[65535];
-  size_t writable = WritableBytes();
-  std::string_view views[2] = {{buf_.data() + write_index_, writable},
-                               {buf, sizeof(buf)}};
 
-  const int cnt = (writable < sizeof(buf)) ? 2 : 1;
-  ssize_t r = source->Readv(views, cnt);
+  if (fixed) {
+    buf_.resize(size);
+  } else {
+    buf_.resize(size << 1);
+  }
+}
+
+ssize_t ArrayBuffer::Append(File* source) {
+  const size_t kMaxReadBytes = 65536;
+
+  if (WritableBytes() >= kMaxReadBytes) {
+    ssize_t r = source->Read(WriteIndex(), kMaxReadBytes);
+    if (r > 0) {
+      Append(r);
+    }
+    return r;
+  }
+
+  size_t writable = WritableBytes();
+  char* buf = reinterpret_cast<char*>(alloca(kMaxReadBytes - writable));
+  std::string_view io_vector[2] = {{WriteIndex(), writable},
+                                   {buf, kMaxReadBytes - writable}};
+
+  ssize_t r = source->Readv(io_vector, 2);
   if (r <= 0) {
     return r;
   }
@@ -39,13 +54,13 @@ ssize_t ArrayBuffer::Append(File* source) {
 
   Append(writable);
 
-  EnsureWriteable(r - writable);
+  EnsureWriteable(r - writable, true);
   Append(buf, r - writable);
   return r;
 }
 
 void ArrayBuffer::Append(const char* data, size_t n) {
-  EnsureWriteable(n);
+  EnsureWriteable(n, false);
   memcpy(WriteIndex(), data, n);
   Append(n);
 }
@@ -67,7 +82,7 @@ ssize_t ArrayBuffer::Retrieve(File* target) {
 
 void ArrayBuffer::Append(ArrayBuffer* buffer) {
   size_t r = buffer->ReadableBytes();
-  EnsureWriteable(r);
+  EnsureWriteable(r, false);
   buffer->Retrieve(WriteIndex(), r);
   Append(r);
 }

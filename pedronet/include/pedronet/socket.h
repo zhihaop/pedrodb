@@ -25,16 +25,18 @@ class Socket : public File {
   void SetKeepAlive(bool on);
   void SetTcpNoDelay(bool on);
 
-  InetAddress GetLocalAddress() const;
-  InetAddress GetPeerAddress() const;
+  [[nodiscard]] InetAddress GetLocalAddress() const;
+  [[nodiscard]] InetAddress GetPeerAddress() const;
 
   void CloseWrite();
 
   void Shutdown();
 
-  Error GetError() const noexcept override;
+  [[nodiscard]] Error GetError() const noexcept override;
 
-  std::string String() const override;
+  [[nodiscard]] std::string String() const override;
+
+  ssize_t Read(void* buf, size_t n) noexcept override;
 
   ssize_t Write(const void* buf, size_t size) noexcept override;
 };

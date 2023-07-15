@@ -2,6 +2,7 @@
 #include "pedronet/logger/logger.h"
 
 namespace pedronet {
+
 void TcpConnection::Start() {
   auto conn = shared_from_this();
 
@@ -67,6 +68,7 @@ void TcpConnection::handleError(Error err) {
   }
   PEDRONET_ERROR("{}::handleError(): [{}]", *this, err);
 }
+
 void TcpConnection::handleWrite() {
   if (!channel_.Writable()) {
     PEDRONET_TRACE("{} is down, no more writing", *this);
@@ -92,6 +94,7 @@ void TcpConnection::handleWrite() {
     }
   }
 }
+
 void TcpConnection::Close() {
   State s = State::kConnected;
   if (!state_.compare_exchange_strong(s, State::kDisconnected)) {
@@ -107,10 +110,12 @@ void TcpConnection::Close() {
     }
   });
 }
+
 std::string TcpConnection::String() const {
   return fmt::format("TcpConnection[local={}, peer={}, channel={}]", local_,
                      peer_, channel_);
 }
+
 TcpConnection::TcpConnection(EventLoop& eventloop, Socket socket)
     : channel_(std::move(socket)),
       local_(channel_.GetLocalAddress()),
@@ -123,6 +128,7 @@ TcpConnection::TcpConnection(EventLoop& eventloop, Socket socket)
   channel_.OnError([this](auto, auto) { handleError(channel_.GetError()); });
   channel_.SetSelector(eventloop.GetSelector());
 }
+
 TcpConnection::~TcpConnection() {
   PEDRONET_TRACE("{}::~TcpConnection()", *this);
 }
@@ -140,16 +146,16 @@ void TcpConnection::handleSend(std::string_view buffer) {
     return;
   }
 
-//  ssize_t snd = trySendingDirect(buffer);
-//  if (snd < 0) {
-//    auto err = channel_.GetError();
-//    if (err.GetCode() != EWOULDBLOCK) {
-//      handleError(err);
-//      return;
-//    }
-//  }
-//
-//  buffer = buffer.substr(snd);
+  ssize_t snd = trySendingDirect(buffer);
+  if (snd < 0) {
+    auto err = channel_.GetError();
+    if (err.GetCode() != EWOULDBLOCK) {
+      handleError(err);
+      return;
+    }
+  }
+
+  buffer = buffer.substr(snd);
 
   size_t w = output_.WritableBytes();
   if (w < buffer.size()) {
@@ -217,6 +223,7 @@ void TcpConnection::ForceShutdown() {
     channel_.CloseWrite();
   });
 }
+
 void TcpConnection::handleClose() {
   if (state_ == State::kDisconnected) {
     return;
@@ -224,6 +231,12 @@ void TcpConnection::handleClose() {
   PEDRONET_INFO("{}::handleClose()", *this);
   state_ = State::kDisconnected;
   eventloop_.Deregister(&channel_);
+}
+
+void TcpConnection::handleSend(ArrayBuffer* buffer) {
+  std::string_view sv{buffer->ReadIndex(), buffer->ReadableBytes()};
+  handleSend(sv);
+  buffer->Retrieve(sv.size());
 }
 
 }  // namespace pedronet

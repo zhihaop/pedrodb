@@ -68,7 +68,5 @@ struct Response {
   }
 };
 
-using ResponseView = Response<std::string_view>;
-
 }  // namespace pedrokv
 #endif  // PEDROKV_CODEC_RESPONSE_H

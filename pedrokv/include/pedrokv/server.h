@@ -24,7 +24,7 @@ class Server : nonmovable,
   std::shared_ptr<pedrodb::DB> db_;
   ServerCodec codec_;
 
-  void HandleRequest(const std::shared_ptr<TcpConnection>& conn,
+  void HandleRequest(const TcpConnectionPtr& conn, const ResponseSender& sender,
                      const RequestView& requests);
 
  public:

@@ -11,8 +11,8 @@ pedrokv::Server::Server(pedronet::InetAddress address,
     PEDROKV_FATAL("failed to open db {}", options_.db_path);
   }
 
-  codec_.OnMessage([this](const auto& conn, auto&& requests) {
-    HandleRequest(conn, requests);
+  codec_.OnMessage([this](auto&& conn, auto&& sender, auto&& requests) {
+    HandleRequest(conn, sender, requests);
   });
 
   codec_.OnConnect([](const pedronet::TcpConnectionPtr& conn) {
@@ -32,11 +32,11 @@ pedrokv::Server::Server(pedronet::InetAddress address,
   server_.OnMessage(codec_.GetOnMessage());
 }
 
-void Server::HandleRequest(const std::shared_ptr<TcpConnection>& conn,
+void Server::HandleRequest(const TcpConnectionPtr&,
+                           const ResponseSender& sender,
                            const RequestView& request) {
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>();
-  Response response;
 
+  Response response;
   response.id = request.id;
   pedrodb::Status status = pedrodb::Status::kOk;
   switch (request.type) {
@@ -65,7 +65,6 @@ void Server::HandleRequest(const std::shared_ptr<TcpConnection>& conn,
     response.type = ResponseType::kOk;
   }
 
-  response.Pack(buffer.get());
-  conn->Send(buffer);
+  sender(std::move(response));
 }
 }  // namespace pedrokv

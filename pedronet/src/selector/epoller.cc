@@ -13,7 +13,7 @@ inline static File CreateEpollFile() {
   return File{fd};
 }
 
-EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(8192) {}
+EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(1024) {}
 
 EpollSelector::~EpollSelector() = default;
 

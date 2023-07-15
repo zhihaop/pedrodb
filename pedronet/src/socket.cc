@@ -7,6 +7,7 @@
 namespace pedronet {
 
 namespace {
+
 struct OnInitialStartUp {
   OnInitialStartUp() { ::signal(SIGPIPE, SIG_IGN); }
 } initialStartUp;
@@ -76,6 +77,7 @@ void Socket::SetReusePort(bool on) {
   int val = on ? 1 : 0;
   ::setsockopt(fd_, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
 }
+
 void Socket::SetKeepAlive(bool on) {
   int val = on ? 1 : 0;
   ::setsockopt(fd_, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
@@ -116,6 +118,7 @@ Error Socket::Accept(const InetAddress& local, Socket* socket) {
   *socket = std::move(file);
   return Error::Success();
 }
+
 std::string Socket::String() const {
   return fmt::format("Socket[fd={}]", fd_);
 }
@@ -123,6 +126,7 @@ std::string Socket::String() const {
 ssize_t Socket::Write(const void* buf, size_t size) noexcept {
   return ::send(fd_, buf, size, MSG_NOSIGNAL);
 }
+
 Socket& Socket::operator=(Socket&& other) noexcept {
   if (this == &other) {
     return *this;
@@ -132,15 +136,21 @@ Socket& Socket::operator=(Socket&& other) noexcept {
   std::swap(fd_, other.fd_);
   return *this;
 }
+
 Socket::~Socket() {
   if (fd_ != kInvalid) {
     PEDRONET_TRACE("{}::~Socket()", *this);
   }
 }
+
 void Socket::Shutdown() {
   if (::shutdown(fd_, SHUT_RDWR) < 0) {
     PEDRONET_FATAL("failed to close write end");
   }
+}
+
+ssize_t Socket::Read(void* buf, size_t n) noexcept {
+  return ::recv(fd_, buf, n, MSG_DONTWAIT);
 }
 
 }  // namespace pedronet

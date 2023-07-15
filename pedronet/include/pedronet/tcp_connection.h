@@ -69,11 +69,21 @@ class TcpConnection : pedrolib::noncopyable,
         [this, buf = std::move(buffer)]() mutable { handleSend(buf.get()); });
   }
 
-  void handleSend(ArrayBuffer* buffer) {
-    std::string_view sv{buffer->ReadIndex(), buffer->ReadableBytes()};
-    handleSend(sv);
-    buffer->Retrieve(sv.size());
+  template <class Packable>
+  void Write(Packable&& packable) {
+    if (eventloop_.CheckUnderLoop()) {
+      packable.Pack(&output_);
+      channel_.SetWritable(true);
+      return;
+    }
+
+    eventloop_.Schedule([this, clone = std::forward<Packable>(packable)]() {
+      clone.Pack(&output_);
+      channel_.SetWritable(true);
+    });
   }
+
+  void handleSend(ArrayBuffer* buffer);
 
   void Send(ArrayBuffer* buffer) {
     if (eventloop_.CheckUnderLoop()) {
