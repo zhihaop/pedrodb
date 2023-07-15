@@ -52,9 +52,6 @@ class Client : nonmovable, noncopyable {
     connect_callback_ = std::move(callback);
   }
 
-  void SendRequest(std::shared_ptr<ArrayBuffer> buffer, uint32_t id,
-                   ResponseCallback callback);
-
   Response<> Get(std::string_view key);
 
   Response<> Put(std::string_view key, std::string_view value);
@@ -77,6 +74,7 @@ class Client : nonmovable, noncopyable {
   }
 
   void Start();
+  void SendRequest(Request<> request, uint32_t id, ResponseCallback callback);
 };
 }  // namespace pedrokv
 

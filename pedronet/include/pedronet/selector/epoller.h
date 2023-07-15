@@ -14,7 +14,7 @@ namespace pedronet {
 
 class EpollSelector : public File, public Selector {
   std::vector<struct epoll_event> buf_;
-
+  std::atomic_bool waiting_{};
   void internalUpdate(Channel* channel, int op, SelectEvents events);
 
  public:
@@ -27,6 +27,8 @@ class EpollSelector : public File, public Selector {
   void Update(Channel* channel, SelectEvents events) override;
 
   Error Wait(Duration timeout, SelectChannels* selected) override;
+
+  [[nodiscard]] bool Waiting() const noexcept override;
 };
 }  // namespace pedronet
 

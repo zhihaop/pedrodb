@@ -13,3 +13,7 @@ target_include_directories(pedrodb_test_basic PUBLIC include)
 target_link_libraries(pedrodb_test_basic PRIVATE pedrodb pedrolib)
 
 
+add_executable(pedrodb_test_disk_speed test/test_disk_speed.cc)
+target_compile_features(pedrodb_test_disk_speed PRIVATE cxx_std_17)
+target_include_directories(pedrodb_test_disk_speed PUBLIC include)
+target_link_libraries(pedrodb_test_disk_speed PRIVATE pedrodb pedrolib)

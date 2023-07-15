@@ -85,6 +85,7 @@ class EventLoop : public Executor {
   ~EventLoop() override = default;
 
   void Join() override;
+  void ProcessScheduleTask();
 };
 
 }  // namespace pedronet

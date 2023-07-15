@@ -3,6 +3,18 @@
 
 namespace pedronet {
 
+void EventLoop::ProcessScheduleTask() {
+  std::unique_lock<std::mutex> lock(mu_);
+  std::swap(running_tasks_, pending_tasks_);
+  lock.unlock();
+
+  for (auto& task : running_tasks_) {
+    task();
+  }
+
+  running_tasks_.clear();
+}
+
 void EventLoop::Loop() {
   PEDRONET_TRACE("EventLoop::Loop() running");
 
@@ -24,19 +36,12 @@ void EventLoop::Loop() {
       ch->HandleEvents(event, selected.now);
     }
 
-    std::unique_lock<std::mutex> lock(mu_);
-    std::swap(running_tasks_, pending_tasks_);
-    lock.unlock();
-
-    for (auto& task : running_tasks_) {
-      task();
-    }
-
-    running_tasks_.clear();
+    ProcessScheduleTask();
   }
 
   current.UnbindEventLoop(this);
 }
+
 void EventLoop::Close() {
   state_ = 0;
 
@@ -44,21 +49,23 @@ void EventLoop::Close() {
   event_channel_.WakeUp();
   // TODO: await shutdown ?
 }
+
 void EventLoop::Schedule(Callback cb) {
   PEDRONET_TRACE("submit task");
   std::unique_lock<std::mutex> lock(mu_);
-
-  bool wake_up = pending_tasks_.empty();
+  
   pending_tasks_.emplace_back(std::move(cb));
-  if (wake_up) {
+  if (pending_tasks_.size() == 1) {
     event_channel_.WakeUp();
   }
 }
+
 void EventLoop::AssertUnderLoop() const {
   if (!CheckUnderLoop()) {
     PEDRONET_FATAL("check in event loop failed");
   }
 }
+
 void EventLoop::Register(Channel* channel, Callback register_callback,
                          Callback deregister_callback) {
   PEDRONET_INFO("EventLoopImpl::Register({})", *channel);

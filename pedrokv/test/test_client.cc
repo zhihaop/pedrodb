@@ -15,6 +15,11 @@ auto options = ClientOptions{};
 std::atomic_size_t write_counts;
 std::atomic_size_t read_counts;
 
+struct TestOption {
+  bool enable_read = true;
+  bool enable_write = false;
+} test_option;
+
 std::string Repeat(std::string_view s, size_t n) {
   std::string t;
   t.reserve(s.size() * n);
@@ -25,6 +30,9 @@ std::string Repeat(std::string_view s, size_t n) {
 }
 
 void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
+  if (!test_option.enable_write) {
+    return;
+  }
   for (int i : data) {
     auto response =
         client.Put(fmt::format("hello{}", i),
@@ -38,6 +46,9 @@ void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
 }
 
 void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
+  if (!test_option.enable_write) {
+    return;
+  }
   pedrolib::Latch latch(data.size());
   for (int i : data) {
     client.Put(fmt::format("hello{}", i),
@@ -54,6 +65,9 @@ void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
 }
 
 void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
+  if (!test_option.enable_read) {
+    return;
+  }
   std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
   for (int i : data) {
     auto response = client.Get(fmt::format("hello{}", i));
@@ -68,6 +82,9 @@ void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
 }
 
 void TestAsyncGet(pedrokv::Client& client, std::vector<int> data) {
+  if (!test_option.enable_read) {
+    return;
+  }
   std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
   pedrolib::Latch latch(data.size());
   for (int i : data) {
@@ -87,22 +104,47 @@ void TestAsyncGet(pedrokv::Client& client, std::vector<int> data) {
 
 using namespace std::chrono_literals;
 
-void TestAsync(int n) {
-  pedrokv::Client client(address, options);
-  client.Start();
-
-  std::vector<int> data(n);
-  std::iota(data.begin(), data.end(), 0);
-
+void TestAsync(int n, int m, int c) {
+  std::vector<std::shared_ptr<pedrokv::Client>> clients(c);
+  for (int i = 0; i < c; ++i) {
+    clients[i] = std::make_shared<pedrokv::Client>(address, options);
+    clients[i]->Start();
+  }
+  std::vector<std::vector<int>> data(m);
+  for (int i = 0; i < n;) {
+    for (int j = 0; j < m; ++j, ++i) {
+      data[j].emplace_back(i);
+    }
+  }
+  
   logger.Info("test async put start");
-  { TestAsyncPut(client, data); }
-  logger.Info("test async end");
+  {
+    std::vector<std::future<void>> ctx;
+    ctx.reserve(m);
+    for (int j = 0; j < m; ++j) {
+      ctx.emplace_back(std::async(std::launch::async, [&, j] {
+        TestAsyncPut(*clients[j % clients.size()], data[j]);
+      }));
+    }
+  }
+  logger.Info("test async put end");
 
   logger.Info("test async get start");
-  { TestAsyncGet(client, data); }
+  {
+    std::vector<std::future<void>> ctx;
+    ctx.reserve(m);
+    for (int j = 0; j < m; ++j) {
+      ctx.emplace_back(std::async(std::launch::async, [&, j] {
+        TestAsyncGet(*clients[j % clients.size()], data[j]);
+      }));
+    }
+  }
   logger.Info("test async get end");
 
-  client.Close();
+  for (auto& client : clients) {
+    client->Close();
+    client.reset();
+  }
 }
 
 void TestSync(int n, int m, int c) {
@@ -128,7 +170,7 @@ void TestSync(int n, int m, int c) {
       }));
     }
   }
-  logger.Info("test sync end");
+  logger.Info("test sync put end");
 
   logger.Info("test sync get start");
   {
@@ -154,16 +196,17 @@ int main() {
 
   logger.SetLevel(Logger::Level::kTrace);
   options.worker_group = EventLoopGroup::Create();
-  options.max_inflight = 1024;
+  options.max_inflight = 512;
 
   options.worker_group->ScheduleEvery(1s, 1s, [] {
     logger.Info("Puts: {}/s, Gets: {}/s", write_counts.exchange(0),
                 read_counts.exchange(0));
   });
 
+  // test_option.enable_write = true;
   int n = 2000000;
-  TestAsync(n);
-  TestSync(n, 50, 50);
+  TestAsync(n, 1, 1);
+  TestSync(n, 50, 1);
 
   options.worker_group->Close();
   return 0;

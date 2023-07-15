@@ -86,6 +86,15 @@ class TcpClient : pedrolib::noncopyable, pedrolib::nonmovable {
     return false;
   }
 
+  template <class Packable>
+  bool Write(Packable&& packable) {
+    if (state_ == State::kConnected) {
+      connection_->Write(std::forward<Packable>(packable));
+      return true;
+    }
+    return false;
+  }
+
   void OnWriteComplete(WriteCompleteCallback callback) {
     write_complete_callback_ = std::move(callback);
   }

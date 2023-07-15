@@ -41,7 +41,11 @@ void EpollSelector::Remove(Channel* channel) {
 }
 
 Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
-  int n = ::epoll_wait(fd_, buf_.data(), buf_.size(), timeout.Milliseconds());
+  waiting_.store(true);
+  int n = ::epoll_wait(fd_, buf_.data(), (int)buf_.size(),
+                       (int)timeout.Milliseconds());
+  waiting_.store(false);
+  
   selected->now = Timestamp::Now();
   selected->channels.clear();
   selected->events.clear();
@@ -65,5 +69,9 @@ Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
 
 void EpollSelector::SetBufferSize(size_t size) {
   buf_.resize(size);
+}
+
+bool EpollSelector::Waiting() const noexcept {
+  return waiting_.load();
 }
 }  // namespace pedronet

@@ -2,7 +2,7 @@
 
 namespace pedrokv {
 
-void Client::SendRequest(std::shared_ptr<ArrayBuffer> buffer, uint32_t id,
+void Client::SendRequest(Request<> request, uint32_t id,
                          ResponseCallback callback) {
   std::unique_lock lock{mu_};
 
@@ -21,7 +21,7 @@ void Client::SendRequest(std::shared_ptr<ArrayBuffer> buffer, uint32_t id,
   responses_[id] = std::move(callback);
   lock.unlock();
 
-  if (!client_.Send(std::move(buffer))) {
+  if (!client_.Write(std::move(request))) {
     Response response;
     response.id = id;
     response.type = ResponseType::kError;
@@ -108,35 +108,32 @@ Response<> Client::Delete(std::string_view key) {
 }
 
 void Client::Get(std::string_view key, ResponseCallback callback) {
-  RequestView request;
+  auto id = request_id_.fetch_add(1);
+  Request request;
   request.type = RequestType::kGet;
-  request.id = request_id_.fetch_add(1);
+  request.id = id;
   request.key = key;
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
-  request.Pack(buffer.get());
-  return SendRequest(buffer, request.id, std::move(callback));
+  return SendRequest(std::move(request), id, std::move(callback));
 }
 
 void Client::Put(std::string_view key, std::string_view value,
                  ResponseCallback callback) {
-  RequestView request;
+  auto id = request_id_.fetch_add(1);
+  Request request;
   request.type = RequestType::kPut;
-  request.id = request_id_.fetch_add(1);
+  request.id = id;
   request.key = key;
   request.value = value;
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
-  request.Pack(buffer.get());
-  return SendRequest(buffer, request.id, std::move(callback));
+  return SendRequest(std::move(request), id, std::move(callback));
 }
 
 void Client::Delete(std::string_view key, ResponseCallback callback) {
-  RequestView request;
+  auto id = request_id_.fetch_add(1);
+  Request request;
   request.type = RequestType::kDelete;
-  request.id = request_id_.fetch_add(1);
+  request.id = id;
   request.key = key;
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
-  request.Pack(buffer.get());
-  return SendRequest(buffer, request.id, std::move(callback));
+  return SendRequest(std::move(request), id, std::move(callback));
 }
 
 void Client::HandleResponse(std::queue<Response<>>& responses) {

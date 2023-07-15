@@ -21,7 +21,7 @@ class RecordIterator {
       return;
     }
 
-    fetch = std::max((size_t)kBlockSize, fetch);
+    fetch = std::max((size_t)kPageSize, fetch);
     fetch = std::min(fetch, size_ - buffer_offset_);
 
     buffer_->EnsureWriteable(fetch);

@@ -29,7 +29,7 @@ using noncopyable = pedrolib::noncopyable;
 using file_t = uint32_t;
 
 // the maximum size of file is 32MB.
-const uint64_t kMaxFileBytes = 32ULL << 20;
+const uint64_t kMaxFileBytes = 128ULL << 20;
 
 // the erase block size of SSD is 512KB.
 const uint32_t kBlockSize = 512 << 10;
