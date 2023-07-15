@@ -25,7 +25,7 @@ class Server : nonmovable,
   ServerCodec codec_;
 
   void HandleRequest(const std::shared_ptr<TcpConnection>& conn,
-                     std::queue<Request<>>& requests);
+                     const RequestView& requests);
 
  public:
   Server(pedronet::InetAddress address, ServerOptions options);

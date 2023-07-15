@@ -12,33 +12,45 @@
 namespace pedrokv {
 
 class ServerCodecContext;
-using ServerMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection>&, std::queue<Request<>>&)>;
+using ServerMessageCallback =
+    std::function<void(const TcpConnectionPtr&, const RequestView&)>;
 
 class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
   pedrolib::ArrayBuffer buffer_;
-  std::queue<Request<>> request_;
   ServerMessageCallback callback_;
 
  public:
   explicit ServerCodecContext(ServerMessageCallback callback)
       : callback_(std::move(callback)) {}
 
-  void HandleMessage(const std::shared_ptr<TcpConnection>& conn,
-                     ArrayBuffer* buffer) {
-
-    buffer_.Append(buffer);
+  void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
 
     while (true) {
-      Request request;
-      if (!request.UnPack(&buffer_)) {
-        break;
-      }
-      request_.emplace(std::move(request));
-    }
+      RequestView request;
+      if (buffer_.ReadableBytes()) {
+        if (request.UnPack(&buffer_)) {
+          callback_(conn, request);
+          continue;
+        }
 
-    if (!request_.empty()) {
-      callback_(conn, request_);
+        uint16_t len;
+        if (!PeekInt(&buffer_, &len)) {
+          buffer_.Append(buffer);
+          continue;
+        }
+
+        len = std::min(len - buffer_.ReadableBytes(), buffer->ReadableBytes());
+        buffer_.Append(buffer->ReadIndex(), len);
+        buffer->Retrieve(len);
+        continue;
+      }
+
+      if (request.UnPack(buffer)) {
+        callback_(conn, request);
+        continue;
+      }
+
+      break;
     }
   }
 };

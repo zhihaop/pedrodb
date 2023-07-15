@@ -13,7 +13,7 @@
 
 namespace pedrokv {
 
-using ResponseCallback = std::function<void(const Response<>&)>;
+using ResponseCallback = std::function<void(Response<>)>;
 
 class Client : nonmovable, noncopyable {
   pedronet::TcpClient client_;

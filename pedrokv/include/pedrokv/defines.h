@@ -25,9 +25,9 @@ using pedrolib::AppendInt;
 using pedrolib::PeekInt;
 using pedrolib::RetrieveInt;
 
+using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 using pedronet::TcpConnection;
-
-using pedronet::EventLoopGroup;
+using pedronet::TcpConnectionPtr;
 }  // namespace pedrokv
 #endif  // PEDROKV_DEFINES_H

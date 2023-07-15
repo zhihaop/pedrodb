@@ -15,25 +15,42 @@ using ClientMessageCallback = std::function<void(
     const std::shared_ptr<TcpConnection>&, std::queue<Response<>>&)>;
 
 class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
-  std::queue<Response<>> response_;
   ClientMessageCallback callback_;
   ArrayBuffer buffer_;
+  std::queue<Response<>> response_;
 
  public:
   explicit ClientCodecContext(ClientMessageCallback callback)
       : callback_(std::move(callback)) {}
 
-  void HandleMessage(const std::shared_ptr<TcpConnection>& conn,
-                     ArrayBuffer* buffer) {
-
-    buffer_.Append(buffer);
+  void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
 
     while (true) {
       Response response;
-      if (!response.UnPack(&buffer_)) {
-        break;
+      if (buffer_.ReadableBytes()) {
+        if (response.UnPack(&buffer_)) {
+          response_.emplace(std::move(response));
+          continue;
+        }
+
+        uint16_t len;
+        if (!PeekInt(&buffer_, &len)) {
+          buffer_.Append(buffer);
+          continue;
+        }
+
+        len = std::min(len - buffer_.ReadableBytes(), buffer->ReadableBytes());
+        buffer_.Append(buffer->ReadIndex(), len);
+        buffer->Retrieve(len);
+        continue;
       }
-      response_.emplace(std::move(response));
+
+      if (response.UnPack(buffer)) {
+        response_.emplace(std::move(response));
+        continue;
+      }
+
+      break;
     }
 
     if (!response_.empty()) {

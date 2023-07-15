@@ -77,8 +77,8 @@ void Client::Start() {
 Response<> Client::Get(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Get(key, [&](const auto& resp) mutable {
-    response = resp;
+  Get(key, [&](auto resp) mutable {
+    response = std::move(resp);
     latch.CountDown();
   });
   latch.Await();
@@ -88,8 +88,8 @@ Response<> Client::Get(std::string_view key) {
 Response<> Client::Put(std::string_view key, std::string_view value) {
   pedrolib::Latch latch(1);
   Response response;
-  Put(key, value, [&](const auto& resp) mutable {
-    response = resp;
+  Put(key, value, [&](auto resp) mutable {
+    response = std::move(resp);
     latch.CountDown();
   });
   latch.Await();
@@ -99,8 +99,8 @@ Response<> Client::Put(std::string_view key, std::string_view value) {
 Response<> Client::Delete(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Delete(key, [&](const auto& resp) mutable {
-    response = resp;
+  Delete(key, [&](auto resp) mutable {
+    response = std::move(resp);
     latch.CountDown();
   });
   latch.Await();
@@ -152,7 +152,7 @@ void Client::HandleResponse(std::queue<Response<>>& responses) {
 
     auto callback = std::move(it->second);
     if (callback) {
-      callback(response);
+      callback(std::move(response));
     }
     responses_.erase(it);
   }
