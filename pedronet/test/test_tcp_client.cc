@@ -7,10 +7,12 @@
 using namespace std::chrono_literals;
 using pedrolib::Duration;
 using pedrolib::StaticVector;
+using pedronet::ArrayBuffer;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 using pedronet::TcpClient;
+using pedronet::TcpConnectionPtr;
 namespace logger = pedronet::logger;
 
 void ClientReport(size_t bps, size_t ops, size_t, size_t max_bytes) {
@@ -28,7 +30,7 @@ int main() {
   reporter.SetCallback(ClientReport);
   reporter.Start(*worker_group, Duration::Seconds(1));
 
-  auto buf = std::string(1 << 20, 'a');
+  auto buf = std::string(2 << 20, 'a');
 
   size_t n_clients = 128;
   StaticVector<TcpClient> clients(n_clients);
@@ -36,11 +38,12 @@ int main() {
   for (size_t i = 0; i < n_clients; ++i) {
     TcpClient& client = clients.emplace_back(address);
     client.SetGroup(worker_group);
-    client.OnConnect([buf](const auto& conn) { conn->Send(buf); });
-    client.OnMessage([&reporter](const auto& conn, auto& buffer, auto) {
-      reporter.Trace(buffer.ReadableBytes());
-      conn->Send(&buffer);
-    });
+    client.OnConnect([buf](const TcpConnectionPtr& conn) { conn->Send(buf); });
+    client.OnMessage(
+        [&](const TcpConnectionPtr& conn, ArrayBuffer& buffer, auto) {
+          reporter.Trace(buffer.ReadableBytes());
+          conn->Send(&buffer);
+        });
     client.Start();
   }
 

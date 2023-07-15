@@ -19,14 +19,12 @@ void Client::SendRequest(Request<> request, uint32_t id,
   }
 
   responses_[id] = std::move(callback);
-  lock.unlock();
 
   if (!client_.Write(std::move(request))) {
     Response response;
     response.id = id;
     response.type = ResponseType::kError;
-
-    lock.lock();
+    
     responses_[id](response);
     responses_.erase(id);
   }

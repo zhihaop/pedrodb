@@ -76,20 +76,11 @@ class TcpClient : pedrolib::noncopyable, pedrolib::nonmovable {
   [[nodiscard]] TcpConnectionPtr GetConnection() const noexcept {
     return connection_;
   }
-
-  template <class BufferPtr>
-  bool Send(BufferPtr buffer) {
-    if (state_ == State::kConnected) {
-      connection_->Send(std::move(buffer));
-      return true;
-    }
-    return false;
-  }
-
+  
   template <class Packable>
   bool Write(Packable&& packable) {
     if (state_ == State::kConnected) {
-      connection_->Write(std::forward<Packable>(packable));
+      connection_->SendPackable(std::forward<Packable>(packable));
       return true;
     }
     return false;

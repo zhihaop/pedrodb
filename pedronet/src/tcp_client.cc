@@ -42,7 +42,11 @@ void TcpClient::raiseConnection() {
     return;
   }
 
-  Socket socket = Socket::Create(address_.Family());
+  Socket socket = Socket::Create(address_.Family(), true);
+  socket.SetKeepAlive(true);
+  socket.SetReuseAddr(true);
+  socket.SetReusePort(true);
+  socket.SetTcpNoDelay(true);
 
   auto err = socket.Connect(address_);
   switch (err.GetCode()) {

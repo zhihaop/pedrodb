@@ -8,28 +8,25 @@
 namespace pedronet {
 
 class EventChannel final : public Channel {
-  SelectorCallback event_callback_;
+  Callback event_callback_;
   File file_;
 
  public:
   EventChannel();
   ~EventChannel() override = default;
 
-  void SetEventCallBack(SelectorCallback cb) {
+  void SetEventCallBack(Callback cb) {
     event_callback_ = std::move(cb);
   }
 
   void HandleEvents(ReceiveEvents event, Timestamp now) override;
 
   File& GetFile() noexcept override { return file_; }
-  const File& GetFile() const noexcept override { return file_; }
+  [[nodiscard]] const File& GetFile() const noexcept override { return file_; }
 
-  std::string String() const override;
+  [[nodiscard]] std::string String() const override;
 
-  void WakeUp() {
-    uint64_t val = 1;
-    file_.Write(&val, sizeof(val));
-  }
+  void WakeUp();
 };
 }  // namespace pedronet
 

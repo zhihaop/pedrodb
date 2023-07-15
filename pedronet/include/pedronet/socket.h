@@ -5,6 +5,13 @@
 
 namespace pedronet {
 
+struct Option {
+  bool reuse_addr = true;
+  bool reuse_port = true;
+  bool keep_alive = true;
+  bool tcp_no_delay = true;
+};
+
 class Socket : public File {
   explicit Socket(int fd) : File(fd) {}
 
@@ -13,7 +20,7 @@ class Socket : public File {
   ~Socket() override;
   Socket(Socket&& other) noexcept : Socket(other.fd_) { other.fd_ = kInvalid; }
   Socket& operator=(Socket&& other) noexcept;
-  static Socket Create(int family);
+  static Socket Create(int family, bool nonblocking);
 
   void Bind(const InetAddress& address);
   Error Accept(const InetAddress& local, Socket* socket);
@@ -35,10 +42,6 @@ class Socket : public File {
   [[nodiscard]] Error GetError() const noexcept override;
 
   [[nodiscard]] std::string String() const override;
-
-  ssize_t Read(void* buf, size_t n) noexcept override;
-
-  ssize_t Write(const void* buf, size_t size) noexcept override;
 };
 }  // namespace pedronet
 

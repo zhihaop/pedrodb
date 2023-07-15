@@ -102,7 +102,7 @@ server.OnError([](const TcpConnectionPtr &conn, Error what) {
 
 server.OnMessage([=](const TcpConnectionPtr &conn, Buffer &buffer, Timestamp now) {
     // Echo to peer.
-    conn->Send(&buffer);
+    conn->SendPackable(&buffer);
 });
 
 server.Bind(InetAddress::Create("0.0.0.0", 1082));
@@ -120,7 +120,7 @@ server.SetGroup(boss_group, worker_group);
 
 server.OnMessage([=](const TcpConnectionPtr &conn, Buffer &buffer, Timestamp now) {
     // Echo to peer.
-    conn->Send(&buffer);
+    conn->SendPackable(&buffer);
 });
 
 server.Bind(InetAddress::Create("0.0.0.0", 1082));
@@ -138,10 +138,10 @@ auto worker_group = EventLoopGroup::Create();
 TcpClient client(InetAddress::Create("127.0.0.1", 1082));
 client.SetGroup(worker_group);
 
-client.OnConnect([](const TcpConnectionPtr &conn) { conn->Send("hello"); });
+client.OnConnect([](const TcpConnectionPtr &conn) { conn->SendPackable("hello"); });
 
 client.OnMessage([&reporter](const TcpConnectionPtr &conn, Buffer &buffer, auto) {
-    conn->Send(&buffer);
+    conn->SendPackable(&buffer);
 });
 
 client.Start();
@@ -625,7 +625,7 @@ TCP 连接是一个 `SocketChannel`，它绑定到某个 `EventLoop` 上，由�
 - `kConnected`：用户处理连接事件后，TCP 连接 将会和 `EventLoop` 绑定，并在 `Selector` 中注册。现在，当 TCP
   连接可读或发生错误时，就会触发相应的事件，并回调相应的接口。
 - `kDisconnecting`：当用户主动调用 `Shutdown` 或 `Close` 接口时，TCP 连接将会进入 `kDisconnecting`
-  状态。此时，所有 `TcpConnection::Send` 操作都不能进行，TCP
+  状态。此时，所有 `TcpConnection::SendPackable` 操作都不能进行，TCP
   连接将会将未发送的数据发送完成后，关闭写端或关闭连接，进入 `kDisconnected` 状态
 - `kDisconnected`：此时，TCP 连接 将会和 `EventLoop` 解绑，并从 `Selector` 中注销。情况有四种
     - 对端主动关闭写端，并且对端的数据处理完成，TCP 连接将会关闭
@@ -703,11 +703,11 @@ void TcpConnection::handleRead(Timestamp now) {
 
 #### 发送数据
 
-用户通过 `TcpConnection::Send` 接口向对端发送数据。为了保证线程安全，如果调用者在 EventLoop
+用户通过 `TcpConnection::SendPackable` 接口向对端发送数据。为了保证线程安全，如果调用者在 EventLoop
 线程内，可以安全地发送数据，否则需要将发送请求调度到 `EventLoop` 内部再进行发送。
 
 ```cpp
-template <class BufferPtr> void Send(BufferPtr buffer) {
+template <class BufferPtr> void SendPackable(BufferPtr buffer) {
     if (eventloop_.CheckUnderLoop()) {
         handleSend(buffer.get());
         return;
@@ -727,7 +727,7 @@ void TcpConnection::handleSend(Buffer *buffer) {
 
   State s = state_;
   if (s != State::kConnected) {
-    PEDRONET_WARN("{}::Send(): give up sending buffer", *this);
+    PEDRONET_WARN("{}::SendPackable(): give up sending buffer", *this);
     return;
   }
 
@@ -799,7 +799,7 @@ void TcpConnection::ForceClose();		// 强制关闭连接，可能有剩余读写
 
 以`TcpConnection::Shutdown` 为例：
 
-- 它会将 TCP 连接的状态设置为 `kDisconnecting`，后续对 `TcpConnection::Send` 的操作将被丢弃
+- 它会将 TCP 连接的状态设置为 `kDisconnecting`，后续对 `TcpConnection::SendPackable` 的操作将被丢弃
 - 如果没有尚未处理的数据，就关闭写端。反之，就继续处理仍在缓冲区中的请求
 - 当缓冲的数据发送完毕时（见发送数据一章），就会触发连接的关闭
     - 将 TCP 连接的状态设置为 `kDisconnected`
@@ -1082,12 +1082,12 @@ void TcpClient::retry(Socket socket, Error reason) {
 
 #### 发送请求
 
-`TcpClient::Send` 实际上调用的是 `TcpConnection::Send` 接口。如果客户端的状态不是 `kConnected`，那么发送请求将会失败。
+`TcpClient::SendPackable` 实际上调用的是 `TcpConnection::SendPackable` 接口。如果客户端的状态不是 `kConnected`，那么发送请求将会失败。
 
 ```cpp
-template <class BufferPtr> bool Send(BufferPtr buffer) {
+template <class BufferPtr> bool SendPackable(BufferPtr buffer) {
     if (state_ == State::kConnected) {
-        connection_->Send(std::move(buffer));
+        connection_->SendPackable(std::move(buffer));
         return true;
     }
     return false;

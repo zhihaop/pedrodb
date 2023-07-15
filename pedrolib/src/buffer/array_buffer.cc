@@ -28,7 +28,7 @@ void ArrayBuffer::EnsureWriteable(size_t n, bool fixed) {
 
 ssize_t ArrayBuffer::Append(File* source) {
   const size_t kMaxReadBytes = 65536;
-
+  
   if (WritableBytes() >= kMaxReadBytes) {
     ssize_t r = source->Read(WriteIndex(), kMaxReadBytes);
     if (r > 0) {

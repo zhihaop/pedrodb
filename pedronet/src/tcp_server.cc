@@ -63,7 +63,7 @@ void TcpServer::Bind(const pedronet::InetAddress& address) {
   }
 
   acceptor_ = std::make_shared<Acceptor>(boss_group_->Next(), address,
-                                         Acceptor::Option{});
+                                         Option{});
   acceptor_->Bind();
 }
 }  // namespace pedronet

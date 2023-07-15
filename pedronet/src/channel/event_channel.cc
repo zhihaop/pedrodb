@@ -14,17 +14,23 @@ static File CreateEventFile() {
 
 EventChannel::EventChannel() : Channel(), file_(CreateEventFile()) {}
 
-void EventChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
+void EventChannel::HandleEvents(ReceiveEvents, Timestamp) {
   uint64_t val;
   if (file_.Read(&val, sizeof(val)) != sizeof(val)) {
     PEDRONET_FATAL("failed to read event fd: ", file_.GetError());
   }
+
   if (event_callback_) {
-    event_callback_(events, now);
+    event_callback_();
   }
 }
 
 std::string EventChannel::String() const {
   return fmt::format("EventChannel[fd={}]", file_.Descriptor());
+}
+
+void EventChannel::WakeUp() {
+  uint64_t val = 1;
+  file_.Write(&val, sizeof(val));
 }
 }  // namespace pedronet

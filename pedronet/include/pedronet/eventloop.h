@@ -25,8 +25,8 @@ class EventLoop : public Executor {
   TimerQueue timer_queue_;
 
   std::mutex mu_;
-  std::vector<Callback> pending_tasks_;
-  std::vector<Callback> running_tasks_;
+  std::queue<Callback> pending_tasks_;
+  std::queue<Callback> running_tasks_;
 
   std::atomic_int32_t state_{1};
   std::unordered_map<Channel*, Callback> channels_;
@@ -36,6 +36,8 @@ class EventLoop : public Executor {
   int32_t state() const noexcept {
     return state_.load(std::memory_order_acquire);
   }
+  
+  void ProcessScheduleTask();
 
  public:
   explicit EventLoop(std::unique_ptr<Selector> selector);
@@ -85,7 +87,6 @@ class EventLoop : public Executor {
   ~EventLoop() override = default;
 
   void Join() override;
-  void ProcessScheduleTask();
 };
 
 }  // namespace pedronet

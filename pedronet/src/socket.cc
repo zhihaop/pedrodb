@@ -13,8 +13,11 @@ struct OnInitialStartUp {
 } initialStartUp;
 }  // namespace
 
-Socket Socket::Create(int family) {
-  int type = SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC;
+Socket Socket::Create(int family, bool nonblocking) {
+  int type = SOCK_STREAM | SOCK_CLOEXEC;
+  if (nonblocking) {
+    type |= SOCK_NONBLOCK;
+  }
   int protocol = IPPROTO_TCP;
   int fd = ::socket(family, type, protocol);
   if (fd < 0) {
@@ -123,9 +126,6 @@ std::string Socket::String() const {
   return fmt::format("Socket[fd={}]", fd_);
 }
 
-ssize_t Socket::Write(const void* buf, size_t size) noexcept {
-  return ::send(fd_, buf, size, MSG_NOSIGNAL);
-}
 
 Socket& Socket::operator=(Socket&& other) noexcept {
   if (this == &other) {
@@ -147,10 +147,6 @@ void Socket::Shutdown() {
   if (::shutdown(fd_, SHUT_RDWR) < 0) {
     PEDRONET_FATAL("failed to close write end");
   }
-}
-
-ssize_t Socket::Read(void* buf, size_t n) noexcept {
-  return ::recv(fd_, buf, n, MSG_DONTWAIT);
 }
 
 }  // namespace pedronet

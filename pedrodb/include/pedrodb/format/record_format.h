@@ -146,32 +146,32 @@ struct Dir {
   using Key = std::unique_ptr<char, Cleaner>;
 
   uint32_t h{};
-  Key key;
+  mutable uint32_t key_size : 8;
+  mutable uint32_t entry_size : 24;
   mutable Location loc;
-  mutable uint32_t size{};
+  Key key;
 
-  Dir() = default;
-  explicit Dir(uint32_t h) : h(h) {}
+  Dir() : key_size(0), entry_size(0) {}
+  explicit Dir(uint32_t h) : h(h), key_size(0), entry_size(0) {}
+
   Dir(uint32_t h, std::string_view k, const Location& loc, uint32_t size)
-      : h(h), loc(loc), size(size) {
-    key = Key((char*)malloc(k.size() + 1), Cleaner{});
-    key.get()[k.size()] = 0;
+      : h(h), loc(loc), key_size(k.size()), entry_size(size) {
+    key = Key((char*)malloc(k.size()), {});
     memcpy(key.get(), k.data(), k.size());
   }
 
   int CompareKey(std::string_view k) const noexcept {
-    size_t i;
     const char* buf = key.get();
-    for (i = 0; buf[i] && i < k.size(); ++i) {
+    for (size_t i = 0; i < key_size && i < k.size(); ++i) {
       if (buf[i] < k[i])
         return -1;
       else if (buf[i] > k[i])
         return 1;
     }
-    if (i == k.size() && buf[i] == 0) {
+    if (key_size == k.size()) {
       return 0;
     }
-    return i == k.size() ? 1 : -1;
+    return key_size > k.size() ? 1 : -1;
   }
 
   ~Dir() = default;

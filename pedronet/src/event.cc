@@ -4,8 +4,9 @@
 
 namespace pedronet {
 const SelectEvents SelectEvents::kNoneEvent{0};
-const SelectEvents SelectEvents::kReadEvent{POLLIN | POLLPRI | EPOLLET};
+const SelectEvents SelectEvents::kReadEvent{POLLIN | POLLPRI};
 const SelectEvents SelectEvents::kWriteEvent{POLLOUT};
+const SelectEvents SelectEvents::kTriggerEdge{EPOLLET};
 
 const ReceiveEvents ReceiveEvents::kHangUp{POLLHUP};
 const ReceiveEvents ReceiveEvents::kInvalid{POLLNVAL};

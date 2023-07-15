@@ -26,7 +26,6 @@ struct Selector : pedrolib::noncopyable, pedrolib::nonmovable {
   virtual void Remove(Channel* channel) = 0;
   virtual void Update(Channel* channel, SelectEvents events) = 0;
   virtual Error Wait(Duration timeout, SelectChannels* selected) = 0;
-  [[nodiscard]] virtual bool Waiting() const noexcept = 0;
   virtual ~Selector() = default;
 };
 }  // namespace pedronet

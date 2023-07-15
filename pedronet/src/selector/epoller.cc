@@ -12,7 +12,7 @@ inline static File CreateEpollFile() {
   return File{fd};
 }
 
-EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(1024) {}
+EpollSelector::EpollSelector() : File(CreateEpollFile()), buf_(4096) {}
 
 EpollSelector::~EpollSelector() = default;
 
@@ -41,25 +41,17 @@ void EpollSelector::Remove(Channel* channel) {
 }
 
 Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
-  waiting_.store(true);
   int n = ::epoll_wait(fd_, buf_.data(), (int)buf_.size(),
                        (int)timeout.Milliseconds());
-  waiting_.store(false);
-  
-  selected->now = Timestamp::Now();
-  selected->channels.clear();
-  selected->events.clear();
-
-  if (n == 0) {
-    return Error::Success();
-  }
-
   if (n < 0) {
     return Error{errno};
   }
+  
+  selected->now = Timestamp::Now();
 
   selected->channels.resize(n);
   selected->events.resize(n);
+
   for (int i = 0; i < n; ++i) {
     selected->channels[i] = static_cast<Channel*>(buf_[i].data.ptr);
     selected->events[i] = ReceiveEvents{buf_[i].events};
@@ -69,9 +61,5 @@ Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
 
 void EpollSelector::SetBufferSize(size_t size) {
   buf_.resize(size);
-}
-
-bool EpollSelector::Waiting() const noexcept {
-  return waiting_.load();
 }
 }  // namespace pedronet

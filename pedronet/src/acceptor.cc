@@ -6,9 +6,9 @@
 namespace pedronet {
 
 Acceptor::Acceptor(EventLoop& eventloop, const InetAddress& address,
-                   const Acceptor::Option& option)
+                   const Option& option)
     : address_(address),
-      channel_(Socket::Create(address.Family())),
+      channel_(Socket::Create(address.Family(), true)),
       eventloop_(eventloop) {
   PEDRONET_TRACE("Acceptor::Acceptor()");
 

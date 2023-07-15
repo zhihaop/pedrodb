@@ -8,6 +8,7 @@
 #include "pedronet/event.h"
 #include "pedronet/eventloop.h"
 #include "pedronet/inetaddress.h"
+#include "pedronet/logger/logger.h"
 #include "pedronet/selector/selector.h"
 #include "pedronet/socket.h"
 
@@ -58,46 +59,39 @@ class TcpConnection : pedrolib::noncopyable,
 
   void Start();
 
-  template <class BufferPtr>
-  void Send(BufferPtr buffer) {
-    if (eventloop_.CheckUnderLoop()) {
-      handleSend(buffer.get());
-      return;
-    }
-
-    eventloop_.Schedule(
-        [this, buf = std::move(buffer)]() mutable { handleSend(buf.get()); });
-  }
-
   template <class Packable>
-  void Write(Packable&& packable) {
+  void SendPackable(Packable&& packable) {
     if (eventloop_.CheckUnderLoop()) {
+      if (GetState() != State::kConnected) {
+        return;
+      }
       packable.Pack(&output_);
-      if (!channel_.Writable()) {
+
+      if (output_.ReadableBytes()) {
         channel_.SetWritable(true);
       }
+      handleWrite();
       return;
     }
 
     eventloop_.Schedule(
         [this, clone = std::forward<Packable>(packable)]() mutable {
-          Write(std::forward<Packable>(clone));
+          SendPackable(std::forward<Packable>(clone));
         });
   }
 
-  void handleSend(ArrayBuffer* buffer);
-
-  void Send(ArrayBuffer* buffer) {
+  void Send(ArrayBuffer* buf) {
     if (eventloop_.CheckUnderLoop()) {
-      handleSend(buffer);
+      std::string_view view{buf->ReadIndex(), buf->ReadableBytes()};
+      handleSend(view);
+      buf->Reset();
       return;
     }
 
-    ArrayBuffer clone(buffer->ReadableBytes());
-    clone.Append(buffer);
-
-    eventloop_.Schedule(
-        [this, buf = std::move(clone)]() mutable { handleSend(&buf); });
+    PEDRONET_ERROR("schedule!");
+    std::string clone(buf->ReadIndex(), buf->ReadableBytes());
+    buf->Reset();
+    eventloop_.Schedule([this, clone = std::move(clone)]() { Send(clone); });
   }
 
   void Send(std::string_view buffer) {
@@ -142,7 +136,6 @@ class TcpConnection : pedrolib::noncopyable,
   EventLoop& GetEventLoop() noexcept { return eventloop_; }
 
   std::string String() const;
-  ssize_t trySendingDirect(std::string_view buffer);
   void handleSend(std::string_view buffer);
 };
 }  // namespace pedronet

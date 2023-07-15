@@ -12,12 +12,13 @@
 namespace pedrokv {
 
 class ServerCodecContext;
-using ResponseSender = std::function<void(Response<>)>;
+using ResponseSender = std::function<void(const Response<>&)>;
 using ServerMessageCallback = std::function<void(
     const TcpConnectionPtr&, const ResponseSender&, const RequestView&)>;
 
 class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
   ArrayBuffer buffer_;
+  std::mutex mu_;
   ArrayBuffer output_;
   ServerMessageCallback callback_;
 
@@ -26,8 +27,10 @@ class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
-    ResponseSender sender(
-        [conn](Response<> response) { conn->Write(std::move(response)); });
+    ResponseSender sender([&](const Response<>& response) {
+      std::unique_lock lock{mu_};
+      response.Pack(&output_);
+    });
 
     while (true) {
       RequestView request;
@@ -56,7 +59,8 @@ class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
 
       break;
     }
-
+    
+    std::unique_lock lock{mu_};
     if (output_.ReadableBytes()) {
       conn->Send(&output_);
     }

@@ -18,10 +18,13 @@ void SocketChannel::SetWritable(bool on) {
 
 void SocketChannel::SetReadable(bool on) {
   auto ev = events_;
+  SelectEvents events = SelectEvents::kReadEvent;
+  events.Add(SelectEvents::kTriggerEdge);
+
   if (on) {
-    events_.Add(SelectEvents::kReadEvent);
+    events_.Add(events);
   } else {
-    events_.Remove(SelectEvents::kReadEvent);
+    events_.Remove(events);
   }
   if (ev != events_) {
     selector_->Update(this, events_);

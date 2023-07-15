@@ -8,11 +8,12 @@ void EventLoop::ProcessScheduleTask() {
   std::swap(running_tasks_, pending_tasks_);
   lock.unlock();
 
-  for (auto& task : running_tasks_) {
+  while (!running_tasks_.empty()) {
+    auto task = std::move(running_tasks_.front());
+    running_tasks_.pop();
+
     task();
   }
-
-  running_tasks_.clear();
 }
 
 void EventLoop::Loop() {
@@ -35,8 +36,6 @@ void EventLoop::Loop() {
       ReceiveEvents event = selected.events[i];
       ch->HandleEvents(event, selected.now);
     }
-
-    ProcessScheduleTask();
   }
 
   current.UnbindEventLoop(this);
@@ -53,9 +52,10 @@ void EventLoop::Close() {
 void EventLoop::Schedule(Callback cb) {
   PEDRONET_TRACE("submit task");
   std::unique_lock<std::mutex> lock(mu_);
-  
-  pending_tasks_.emplace_back(std::move(cb));
-  if (pending_tasks_.size() == 1) {
+  pending_tasks_.emplace(std::move(cb));
+  size_t n = pending_tasks_.size();
+
+  if (n == 1) {
     event_channel_.WakeUp();
   }
 }
@@ -105,8 +105,10 @@ void EventLoop::Deregister(Channel* channel) {
     callback();
   }
 }
+
 EventLoop::EventLoop(std::unique_ptr<Selector> selector)
     : selector_(std::move(selector)), timer_queue_(timer_channel_, *this) {
+  event_channel_.SetEventCallBack([this]() { ProcessScheduleTask(); });
   selector_->Add(&event_channel_, SelectEvents::kReadEvent);
   selector_->Add(&timer_channel_, SelectEvents::kReadEvent);
 

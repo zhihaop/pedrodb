@@ -48,20 +48,20 @@ class SocketChannel final : public Socket, public Channel {
 
   void SetReadable(bool on);
 
-  bool Readable() const noexcept {
+  [[nodiscard]] bool Readable() const noexcept {
     return events_.Contains(SelectEvents::kReadEvent);
   }
 
-  bool Writable() const noexcept {
+  [[nodiscard]] bool Writable() const noexcept {
     return events_.Contains(SelectEvents::kWriteEvent);
   }
 
   void SetWritable(bool on);
 
   Socket& GetFile() noexcept final { return *this; }
-  const Socket& GetFile() const noexcept final { return *this; }
+  [[nodiscard]] const Socket& GetFile() const noexcept final { return *this; }
 
-  std::string String() const override {
+  [[nodiscard]] std::string String() const override {
     return fmt::format("SocketChannel[fd={}]", fd_);
   }
 };

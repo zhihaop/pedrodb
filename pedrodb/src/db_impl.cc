@@ -155,7 +155,7 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
     }
 
     it->loc = loc;
-    it->size = entry.SizeOf();
+    it->entry_size = entry.SizeOf();
   }
   return Status::kOk;
 }
@@ -245,7 +245,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, uint32_t h,
     read_cache_->Remove(it->loc);
 
     // update compact hints.
-    UpdateUnused(it->loc.id, it->size);
+    UpdateUnused(it->loc.id, it->entry_size);
 
     if (value.empty()) {
       // delete.
@@ -253,13 +253,19 @@ Status DBImpl::HandlePut(const WriteOptions& options, uint32_t h,
     } else {
       // replace.
       it->loc = loc;
-      it->size = entry.SizeOf();
+      it->entry_size = entry.SizeOf();
     }
     return Status::kOk;
   }
 
   // insert.
   indices_.emplace(h, std::string{key}, loc, entry.SizeOf());
+  lock.unlock();
+
+  if (options.sync) {
+    file_manager_->Sync();
+  }
+
   return Status::kOk;
 }
 
@@ -318,7 +324,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, uint32_t h,
       return Status::kNotFound;
     }
     loc = it->loc;
-    size = it->size;
+    size = it->entry_size;
   }
 
   if (read_cache_->Read(loc, value)) {
@@ -357,11 +363,11 @@ Status DBImpl::Recovery(record::Location loc, record::EntryView entry) {
     }
 
     // indices has the elder version data.
-    UpdateUnused(it->loc.id, it->size);
+    UpdateUnused(it->loc.id, it->entry_size);
 
     // update indices.
     it->loc = loc;
-    it->size = entry.SizeOf();
+    it->entry_size = entry.SizeOf();
   }
 
   // a tombstone of deletion.
@@ -378,7 +384,7 @@ Status DBImpl::Recovery(record::Location loc, record::EntryView entry) {
       return Status::kOk;
     }
 
-    UpdateUnused(it->loc.id, it->size);
+    UpdateUnused(it->loc.id, it->entry_size);
     indices_.erase(it);
   }
 

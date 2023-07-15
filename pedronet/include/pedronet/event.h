@@ -14,14 +14,15 @@ class SelectEvents {
   static const SelectEvents kNoneEvent;
   static const SelectEvents kReadEvent;
   static const SelectEvents kWriteEvent;
+  static const SelectEvents kTriggerEdge;
 
   SelectEvents() = default;
 
   explicit SelectEvents(uint32_t events) : events_(events) {}
 
-  uint32_t Value() const noexcept { return events_; }
+  [[nodiscard]] uint32_t Value() const noexcept { return events_; }
 
-  bool Contains(SelectEvents other) const noexcept {
+  [[nodiscard]] bool Contains(SelectEvents other) const noexcept {
     return events_ & other.events_;
   }
 
@@ -37,7 +38,7 @@ class SelectEvents {
     return events_ != other.events_;
   }
 
-  std::string String() const noexcept {
+  [[nodiscard]] std::string String() const noexcept {
     char buf[3]{};
     buf[0] = Contains(kReadEvent) ? 'r' : '-';
     buf[1] = Contains(kWriteEvent) ? 'w' : '-';
@@ -61,13 +62,13 @@ class ReceiveEvents {
 
   explicit ReceiveEvents(uint32_t events) : events_(events) {}
 
-  uint32_t Value() const noexcept { return events_; }
+  [[nodiscard]] uint32_t Value() const noexcept { return events_; }
 
-  bool Contains(ReceiveEvents other) const noexcept {
+  [[nodiscard]] bool Contains(ReceiveEvents other) const noexcept {
     return events_ & other.events_;
   }
 
-  bool OneOf(const std::initializer_list<ReceiveEvents>& events) {
+  [[nodiscard]] bool OneOf(const std::initializer_list<ReceiveEvents>& events) const {
     for (auto e : events) {
       if (Contains(e)) {
         return true;
@@ -80,6 +81,7 @@ class ReceiveEvents {
     events_ |= other.events_;
     return *this;
   }
+  
   ReceiveEvents& Remove(ReceiveEvents other) noexcept {
     events_ &= ~other.events_;
     return *this;

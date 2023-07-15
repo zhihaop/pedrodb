@@ -13,14 +13,6 @@ class EventLoop;
 using AcceptorCallback = std::function<void(Socket)>;
 
 class Acceptor : pedrolib::noncopyable, pedrolib::nonmovable {
- public:
-  struct Option {
-    bool reuse_addr = true;
-    bool reuse_port = true;
-    bool keep_alive = true;
-    bool tcp_no_delay = true;
-  };
-
  protected:
   AcceptorCallback acceptor_callback_;
   InetAddress address_;
@@ -44,7 +36,7 @@ class Acceptor : pedrolib::noncopyable, pedrolib::nonmovable {
 
   void Close();
 
-  std::string String() const;
+  [[nodiscard]] std::string String() const;
 };
 }  // namespace pedronet
 
