@@ -1,6 +1,5 @@
 #include "pedronet/selector/epoller.h"
 #include <sys/epoll.h>
-#include <memory>
 #include "pedronet/logger/logger.h"
 
 namespace pedronet {

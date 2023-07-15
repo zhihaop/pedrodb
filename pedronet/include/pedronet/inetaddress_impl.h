@@ -11,15 +11,15 @@ union InetAddressImpl {
   struct sockaddr_in6 in6;
   struct sockaddr_in in4;
 
-  sa_family_t family() const noexcept { return in4.sin_family; }
-  uint16_t port() const noexcept {
+  [[nodiscard]] sa_family_t family() const noexcept { return in4.sin_family; }
+  [[nodiscard]] uint16_t port() const noexcept {
     if (family() == AF_INET) {
       return htobe16(in4.sin_port);
     } else {
       return htobe16(in6.sin6_port);
     }
   }
-  std::string host() const noexcept {
+  [[nodiscard]] std::string host() const noexcept {
     if (family() == AF_INET) {
       char buf[INET_ADDRSTRLEN];
       inet_ntop(AF_INET, &this->in4.sin_addr, buf, sizeof(buf));
@@ -30,7 +30,7 @@ union InetAddressImpl {
       return buf;
     }
   }
-  socklen_t size() const noexcept {
+  [[nodiscard]] socklen_t size() const noexcept {
     if (family() == AF_INET) {
       return sizeof(struct sockaddr_in);
     } else {

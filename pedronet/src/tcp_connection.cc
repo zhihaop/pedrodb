@@ -36,22 +36,29 @@ void TcpConnection::Start() {
 }
 
 void TcpConnection::handleRead(Timestamp now) {
-  ssize_t n = input_.Append(&channel_.GetFile());
-  PEDRONET_TRACE("read {} bytes", n);
-  if (n < 0) {
-    PEDRONET_ERROR("failed to read buffer");
-    handleError(channel_.GetError());
-    return;
-  }
+  for (;;) {
+    ssize_t n = input_.Append(&channel_.GetFile());
+    PEDRONET_TRACE("read {} bytes", n);
+    if (n < 0) {
+      auto err = Error{errno};
+      if (err.GetCode() == EWOULDBLOCK || err.GetCode() == EAGAIN) {
+        break;
+      }
 
-  if (n == 0) {
-    PEDRONET_INFO("close because no data");
-    handleClose();
-    return;
-  }
-
-  if (message_callback_) {
-    message_callback_(shared_from_this(), input_, now);
+      PEDRONET_ERROR("failed to read buffer");
+      handleError(err);
+      break;
+    }
+    
+    if (n == 0) {
+      PEDRONET_INFO("close because no data");
+      handleClose();
+      return;
+    }
+    
+    if (message_callback_) {
+      message_callback_(shared_from_this(), input_, now);
+    }
   }
 }
 

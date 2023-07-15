@@ -1,9 +1,10 @@
 #include "pedronet/event.h"
 #include <poll.h>
+#include <sys/epoll.h>
 
 namespace pedronet {
 const SelectEvents SelectEvents::kNoneEvent{0};
-const SelectEvents SelectEvents::kReadEvent{POLLIN | POLLPRI};
+const SelectEvents SelectEvents::kReadEvent{POLLIN | POLLPRI | EPOLLET};
 const SelectEvents SelectEvents::kWriteEvent{POLLOUT};
 
 const ReceiveEvents ReceiveEvents::kHangUp{POLLHUP};

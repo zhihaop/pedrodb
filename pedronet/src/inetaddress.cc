@@ -72,6 +72,9 @@ bool InetAddress::IPv6() const noexcept {
 }
 
 uint16_t InetAddress::Port() const noexcept {
+  if (impl_ == nullptr) {
+    return 0;
+  }
   return impl_->port();
 }
 
