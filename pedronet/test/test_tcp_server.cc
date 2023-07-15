@@ -4,9 +4,8 @@
 #include <pedronet/tcp_server.h>
 
 using namespace std::chrono_literals;
-using pedrolib::Buffer;
 using pedrolib::Timestamp;
-using pedronet::BufferView;
+using pedronet::ArrayBuffer;
 using pedronet::EpollSelector;
 using pedronet::Error;
 using pedronet::EventLoopGroup;
@@ -17,9 +16,8 @@ using pedronet::TcpServer;
 int main() {
   TcpServer server;
 
-  size_t n_workers = std::thread::hardware_concurrency();
-  auto boss_group = EventLoopGroup::Create<EpollSelector>(1);
-  auto worker_group = EventLoopGroup::Create<EpollSelector>(n_workers);
+  auto boss_group = EventLoopGroup::Create(1);
+  auto worker_group = EventLoopGroup::Create();
 
   server.SetGroup(boss_group, worker_group);
   server.OnConnect([](const TcpConnectionPtr& conn) {
@@ -33,7 +31,7 @@ int main() {
   });
 
   server.OnMessage(
-      [=](const TcpConnectionPtr& conn, Buffer& buffer, Timestamp now) {
+      [=](const TcpConnectionPtr& conn, ArrayBuffer& buffer, Timestamp now) {
         // Echo to peer.
         conn->Send(&buffer);
       });

@@ -2,66 +2,118 @@
 #define PEDROKV_CODEC_REQUEST_H
 #include <string>
 #include "pedrokv/defines.h"
+#include "pedrokv/logger/logger.h"
 namespace pedrokv {
 
+enum class RequestType {
+  kGet = 1,
+  kPut = 2,
+  kDelete = 3,
+};
+
+template <typename Key = std::string, typename Value = std::string>
 struct Request {
-  enum Type {
-    kGet,
-    kSet,
-    kDelete,
-  };
 
-  Type type;
+  RequestType type;
   uint32_t id;
-  std::string key;
-  std::string value;
+  Key key;
+  Value value;
 
-  [[nodiscard]] uint16_t SizeOf() const noexcept { return SizeOf(key, value); }
-
-  void Pack(Buffer* buffer) const { Pack(type, id, key, value, buffer); }
-
-  static uint16_t SizeOf(std::string_view key,
-                         std::string_view value) noexcept {
-    return sizeof(uint8_t) +   // type
+  [[nodiscard]] size_t SizeOf() const noexcept {
+    return sizeof(uint16_t) +  // content size
+           sizeof(uint8_t) +   // key size
+           sizeof(uint8_t) +   // type
            sizeof(uint32_t) +  // id
-           sizeof(uint16_t) +  // key size
-           sizeof(uint16_t) +  // value size
-           key.size() +        // key
-           value.size();       // value
+           std::size(key) +    // key
+           std::size(value);   // value
   }
 
-  static void Pack(Type type, uint32_t id, std::string_view key,
-                   std::string_view value, Buffer* buffer) {
-    auto u8_type = static_cast<uint8_t>(type);
-    uint16_t key_size = key.size();
-    uint16_t value_size = value.size();
-
-    buffer->AppendInt(u8_type);
-    buffer->AppendInt(id);
-    buffer->AppendInt(key_size);
-    buffer->AppendInt(value_size);
-    buffer->Append(key.data(), key.size());
-    buffer->Append(value.data(), value.size());
+  static uint16_t ValueSize(uint16_t content_size, uint8_t key_size) {
+    return content_size -      // content size
+           sizeof(uint16_t) -  // content size field
+           sizeof(uint8_t) -   // key size field
+           sizeof(uint8_t) -   // type field
+           sizeof(id) -        // id field
+           key_size;           // key size
   }
 
-  void UnPack(Buffer* buffer) {
+  void Pack(ArrayBuffer* buffer) const {
+    if (SizeOf() > std::numeric_limits<uint16_t>::max()) {
+      PEDROKV_FATAL("request size too big");
+    }
+    AppendInt(buffer, (uint16_t) SizeOf());
+    AppendInt(buffer, (uint8_t)std::size(key));
+    AppendInt(buffer, (uint8_t)type);
+    AppendInt(buffer, id);
+    buffer->Append(std::data(key), std::size(key));
+    buffer->Append(std::data(value), std::size(value));
+  }
+
+  bool UnPack(ArrayBuffer* buffer) {
+
     uint8_t u8_type;
-    uint16_t key_size;
-    uint16_t value_size;
+    uint8_t u8_key_size;
+    uint16_t u16_value_size;
+    uint16_t u16_content_size;
 
-    buffer->RetrieveInt(&u8_type);
-    buffer->RetrieveInt(&id);
-    buffer->RetrieveInt(&key_size);
-    buffer->RetrieveInt(&value_size);
+    if (!PeekInt(buffer, &u16_content_size)) {
+      return false;
+    }
 
-    type = static_cast<Type>(u8_type);
-    key.resize(key_size);
-    value.resize(value_size);
+    if (buffer->ReadableBytes() < u16_content_size) {
+      return false;
+    }
 
-    buffer->Retrieve(key.data(), key.size());
-    buffer->Retrieve(value.data(), value.size());
+    RetrieveInt(buffer, &u16_content_size);
+    RetrieveInt(buffer, &u8_key_size);
+    RetrieveInt(buffer, &u8_type);
+    RetrieveInt(buffer, &id);
+
+    u16_value_size = ValueSize(u16_content_size, u8_key_size);
+
+    type = static_cast<RequestType>(u8_type);
+
+    key = Key{buffer->ReadIndex(), (size_t)u8_key_size};
+    buffer->Retrieve(std::size(key));
+
+    value = Value{buffer->ReadIndex(), (size_t)u16_value_size};
+    buffer->Retrieve(std::size(value));
+
+    return true;
+  }
+
+  template <typename K, typename V>
+  Request& operator=(const Request<K, V>& other) {
+    if (reinterpret_cast<const void*>(this) ==
+        reinterpret_cast<const void*>(&other)) {
+      return *this;
+    }
+
+    type = other.type;
+    id = other.id;
+    key = other.key;
+    value = other.value;
+    return *this;
+  }
+
+  template <typename K, typename V>
+  bool operator==(const Request<K, V>& other) const noexcept {
+    if (reinterpret_cast<const void*>(this) ==
+        reinterpret_cast<const void*>(&other)) {
+      return true;
+    }
+
+    return type == other.type && id == other.id && key == other.key &&
+           value == other.value;
+  }
+
+  template <typename K, typename V>
+  bool operator!=(const Request<K, V>& other) const noexcept {
+    return !((*this) == other);
   }
 };
+
+using RequestView = Request<std::string_view, std::string_view>;
 
 }  // namespace pedrokv
 #endif  // PEDROKV_CODEC_REQUEST_H

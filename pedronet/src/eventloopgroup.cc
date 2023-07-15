@@ -3,7 +3,7 @@
 namespace pedronet {
 
 size_t EventLoopGroup::next() noexcept {
-  return next_.fetch_add(std::memory_order_relaxed) % size_;
+  return next_.fetch_add(1, std::memory_order_relaxed) % size_;
 }
 
 void EventLoopGroup::Join() {

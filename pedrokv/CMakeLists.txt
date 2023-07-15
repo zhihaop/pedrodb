@@ -16,3 +16,7 @@ target_link_libraries(pedrokv_test_server PRIVATE pedrodb pedrolib pedronet pedr
 add_executable(pedrokv_test_client test/test_client.cc)
 target_compile_features(pedrokv_test_client PRIVATE cxx_std_17)
 target_link_libraries(pedrokv_test_client PRIVATE pedrodb pedrolib pedronet pedrokv)
+
+add_executable(pedrokv_test_request test/codec/test_request.cc)
+target_compile_features(pedrokv_test_request PRIVATE cxx_std_17)
+target_link_libraries(pedrokv_test_request PRIVATE pedrodb pedrolib pedronet pedrokv)

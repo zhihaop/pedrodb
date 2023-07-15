@@ -30,7 +30,7 @@ void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
         client.Put(fmt::format("hello{}", i),
                    fmt::format("world{}{}", i, Repeat("0", 1 << 10)));
 
-    if (response.type != pedrokv::Response::Type::kOk) {
+    if (response.type != pedrokv::ResponseType::kOk) {
       logger.Fatal("error");
     }
     write_counts++;
@@ -43,7 +43,7 @@ void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
     client.Put(fmt::format("hello{}", i),
                fmt::format("world{}{}", i, Repeat("0", 1 << 10)),
                [&latch](const auto& resp) {
-                 if (resp.type != pedrokv::Response::Type::kOk) {
+                 if (resp.type != pedrokv::ResponseType::kOk) {
                    logger.Fatal("error");
                  }
                  write_counts++;
@@ -57,7 +57,7 @@ void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
   std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
   for (int i : data) {
     auto response = client.Get(fmt::format("hello{}", i));
-    if (response.type != pedrokv::Response::Type::kOk) {
+    if (response.type != pedrokv::ResponseType::kOk) {
       logger.Fatal("error type");
     }
     if (response.data.find(fmt::format("world{}", i)) == -1) {
@@ -72,7 +72,7 @@ void TestAsyncGet(pedrokv::Client& client, std::vector<int> data) {
   pedrolib::Latch latch(data.size());
   for (int i : data) {
     client.Get(fmt::format("hello{}", i), [i, &latch](auto&& response) {
-      if (response.type != pedrokv::Response::Type::kOk) {
+      if (response.type != pedrokv::ResponseType::kOk) {
         logger.Fatal("error type");
       }
       if (response.data.find(fmt::format("world{}", i)) == -1) {

@@ -14,17 +14,19 @@
 #include <pedronet/eventloopgroup.h>
 
 namespace pedrokv {
-using noncopyable = pedrolib::noncopyable;
-using nonmovable = pedrolib::nonmovable;
+using pedrolib::ArrayBuffer;
+using pedrolib::Duration;
+using pedrolib::Error;
+using pedrolib::noncopyable;
+using pedrolib::nonmovable;
+using pedrolib::Timestamp;
 
-using Timestamp = pedrolib::Timestamp;
-using Duration = pedrolib::Duration;
+using pedrolib::AppendInt;
+using pedrolib::PeekInt;
+using pedrolib::RetrieveInt;
 
-using Buffer = pedrolib::Buffer;
-using Error = pedrolib::Error;
-
-using TcpConnection = pedronet::TcpConnection;
-using InetAddress = pedronet::InetAddress;
+using pedronet::InetAddress;
+using pedronet::TcpConnection;
 
 using pedronet::EventLoopGroup;
 }  // namespace pedrokv

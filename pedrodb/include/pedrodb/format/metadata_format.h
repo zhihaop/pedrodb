@@ -13,13 +13,13 @@ struct Header {
     return sizeof(uint32_t) + name_length;
   }
 
-  bool UnPack(Buffer* buffer) {
+  bool UnPack(ArrayBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf(0)) {
       return false;
     }
 
     uint32_t length;
-    buffer->RetrieveInt(&length);
+    RetrieveInt(buffer, &length);
 
     if (buffer->ReadableBytes() < length) {
       return false;
@@ -30,8 +30,8 @@ struct Header {
     return true;
   }
 
-  bool Pack(Buffer* buffer) const {
-    buffer->AppendInt(static_cast<uint32_t>(name.size()));
+  bool Pack(ArrayBuffer* buffer) const {
+    AppendInt(buffer, static_cast<uint32_t>(name.size()));
     buffer->Append(name.data(), name.size());
     return true;
   }
@@ -51,25 +51,25 @@ struct LogEntry {
 
   static size_t SizeOf() noexcept { return sizeof(uint8_t) + sizeof(file_t); }
 
-  bool UnPack(Buffer* buffer) {
+  bool UnPack(ArrayBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
 
     uint8_t u8_type;
-    buffer->RetrieveInt(&u8_type);
-    buffer->RetrieveInt(&id);
+    RetrieveInt(buffer, &u8_type);
+    RetrieveInt(buffer, &id);
     type = static_cast<LogType>(u8_type);
     return true;
   }
 
-  bool Pack(Buffer* buffer) const {
+  bool Pack(ArrayBuffer* buffer) const {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
 
-    buffer->AppendInt(static_cast<uint8_t>(type));
-    buffer->AppendInt(id);
+    AppendInt(buffer, static_cast<uint8_t>(type));
+    AppendInt(buffer, id);
     return true;
   }
 };

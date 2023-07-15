@@ -12,37 +12,28 @@ namespace pedrokv {
 
 class ClientCodecContext;
 using ClientMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection>&, std::queue<Response>&)>;
+    const std::shared_ptr<TcpConnection>&, std::queue<Response<>>&)>;
 
 class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
-  uint16_t len_{};
-  std::queue<Response> response_;
-  pedrolib::ArrayBuffer buf_;
+  std::queue<Response<>> response_;
   ClientMessageCallback callback_;
+  ArrayBuffer buffer_;
 
  public:
   explicit ClientCodecContext(ClientMessageCallback callback)
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const std::shared_ptr<TcpConnection>& conn,
-                     Buffer* buffer) {
-    PEDROKV_TRACE("client codec handle bytes: {}", buffer->ReadableBytes());
-    while (buffer->ReadableBytes() >= sizeof(len_)) {
-      if (len_ == 0) {
-        buffer->RetrieveInt(&len_);
-        buf_.Reset();
-        buf_.EnsureWriteable(len_);
-        continue;
-      }
+                     ArrayBuffer* buffer) {
 
-      size_t w = std::min(buffer->ReadableBytes(), len_ - buf_.ReadableBytes());
-      buf_.Append(buffer->ReadIndex(), w);
-      buffer->Retrieve(w);
+    buffer_.Append(buffer);
 
-      if (buf_.ReadableBytes() == len_) {
-        response_.emplace().UnPack(&buf_);
-        len_ = 0;
+    while (true) {
+      Response response;
+      if (!response.UnPack(&buffer_)) {
+        break;
       }
+      response_.emplace(std::move(response));
     }
 
     if (!response_.empty()) {
@@ -89,8 +80,8 @@ class ClientCodec {
   }
 
   pedronet::MessageCallback GetOnMessage() {
-    return [](const pedronet::TcpConnectionPtr& conn, pedronet::Buffer& buffer,
-              pedrolib::Timestamp now) {
+    return [](const pedronet::TcpConnectionPtr& conn, ArrayBuffer& buffer,
+              Timestamp now) {
       auto ctx = std::any_cast<std::shared_ptr<ClientCodecContext>>(
           conn->GetContext());
       ctx->HandleMessage(conn, &buffer);

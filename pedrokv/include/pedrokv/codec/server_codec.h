@@ -1,6 +1,5 @@
 #ifndef PEDROKV_CODEC_CODEC_H
 #define PEDROKV_CODEC_CODEC_H
-#include <pedrolib/buffer/buffer_view.h>
 #include <pedronet/callbacks.h>
 #include <pedronet/tcp_connection.h>
 #include "pedrokv/codec/request.h"
@@ -14,12 +13,11 @@ namespace pedrokv {
 
 class ServerCodecContext;
 using ServerMessageCallback = std::function<void(
-    const std::shared_ptr<TcpConnection>&, std::queue<Request>&)>;
+    const std::shared_ptr<TcpConnection>&, std::queue<Request<>>&)>;
 
 class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
-  uint16_t len_{};
-  pedrolib::ArrayBuffer buf_;
-  std::queue<Request> request_;
+  pedrolib::ArrayBuffer buffer_;
+  std::queue<Request<>> request_;
   ServerMessageCallback callback_;
 
  public:
@@ -27,25 +25,16 @@ class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const std::shared_ptr<TcpConnection>& conn,
-                     pedrolib::Buffer* buffer) {
-    PEDROKV_TRACE("server codec: Read");
+                     ArrayBuffer* buffer) {
 
-    while (buffer->ReadableBytes() > sizeof(len_)) {
-      if (len_ == 0) {
-        buffer->RetrieveInt(&len_);
-        buf_.Reset();
-        buf_.EnsureWriteable(len_);
-        continue;
+    buffer_.Append(buffer);
+
+    while (true) {
+      Request request;
+      if (!request.UnPack(&buffer_)) {
+        break;
       }
-
-      size_t w = std::min(buffer->ReadableBytes(), len_ - buf_.ReadableBytes());
-      buf_.Append(buffer->ReadIndex(), w);
-      buffer->Retrieve(w);
-
-      if (buf_.ReadableBytes() == len_) {
-        request_.emplace().UnPack(&buf_);
-        len_ = 0;
-      }
+      request_.emplace(std::move(request));
     }
 
     if (!request_.empty()) {
@@ -92,8 +81,8 @@ class ServerCodec {
   }
 
   pedronet::MessageCallback GetOnMessage() {
-    return [](const pedronet::TcpConnectionPtr& conn, pedronet::Buffer& buffer,
-              pedrolib::Timestamp now) {
+    return [](const pedronet::TcpConnectionPtr& conn, ArrayBuffer& buffer,
+              Timestamp now) {
       auto ctx = std::any_cast<std::shared_ptr<ServerCodecContext>>(
           conn->GetContext());
       ctx->HandleMessage(conn, &buffer);

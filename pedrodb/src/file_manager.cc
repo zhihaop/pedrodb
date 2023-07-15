@@ -44,13 +44,17 @@ Status FileManager::Init() {
 
 Status FileManager::CreateActiveFile() {
   WritableFileGuard active;
-
-  auto err = active_->Sync();
-  if (err != Error::kOk) {
-    return Status::kIOError;
+  
+  file_t id = 0;
+  if (active_) {
+    id = active_->GetFile();
+    auto err = active_->Sync();
+    if (err != Error::kOk) {
+      return Status::kIOError;
+    }
   }
 
-  auto stat = OpenActiveFile(&active, active_->GetFile() + 1);
+  auto stat = OpenActiveFile(&active, id + 1);
   if (stat != Status::kOk) {
     return stat;
   }

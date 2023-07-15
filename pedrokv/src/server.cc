@@ -33,7 +33,7 @@ pedrokv::Server::Server(pedronet::InetAddress address,
 }
 
 void Server::HandleRequest(const std::shared_ptr<TcpConnection>& conn,
-                           std::queue<Request>& requests) {
+                           std::queue<Request<>>& requests) {
   auto buffer = std::make_shared<pedrolib::ArrayBuffer>();
   Response response;
 
@@ -44,32 +44,31 @@ void Server::HandleRequest(const std::shared_ptr<TcpConnection>& conn,
     response.id = request.id;
     pedrodb::Status status = pedrodb::Status::kOk;
     switch (request.type) {
-      case Request::Type::kGet: {
+      case RequestType::kGet: {
         status = db_->Get({}, request.key, &response.data);
         break;
       }
-      case Request::Type::kDelete: {
+      case RequestType::kDelete: {
         status = db_->Delete({}, request.key);
         break;
       }
-      case Request::Type::kSet: {
+      case RequestType::kPut: {
         status = db_->Put({}, request.key, request.value);
         break;
       }
       default: {
-        PEDROKV_WARN("invalid request receive");
+        PEDROKV_WARN("invalid request receive, {}", (uint32_t)response.type);
         break;
       }
     }
 
     if (status != pedrodb::Status::kOk) {
-      response.type = Response::Type::kError;
+      response.type = ResponseType::kError;
       response.data = fmt::format("err: {}", status);
     } else {
-      response.type = Response::Type::kOk;
+      response.type = ResponseType::kOk;
     }
 
-    buffer->AppendInt(response.SizeOf());
     response.Pack(buffer.get());
   }
   conn->Send(buffer);

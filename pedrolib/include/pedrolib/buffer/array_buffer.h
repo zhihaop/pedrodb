@@ -7,7 +7,7 @@
 #include "pedrolib/file/file.h"
 
 namespace pedrolib {
-class ArrayBuffer final : public Buffer {
+class ArrayBuffer final {
   static const size_t kInitialSize = 1024;
 
   std::vector<char> buf_;
@@ -18,43 +18,41 @@ class ArrayBuffer final : public Buffer {
   explicit ArrayBuffer(size_t capacity) : buf_(capacity) {}
   ArrayBuffer() : ArrayBuffer(kInitialSize) {}
 
-  [[nodiscard]] size_t Capacity() const noexcept override {
-    return buf_.size();
-  }
+  [[nodiscard]] size_t Capacity() const noexcept { return buf_.size(); }
 
-  [[nodiscard]] size_t ReadableBytes() const noexcept override {
+  [[nodiscard]] size_t ReadableBytes() const noexcept {
     return write_index_ - read_index_;
   }
 
-  void Append(size_t n) override {
+  void Append(size_t n) {
     write_index_ = std::min(write_index_ + n, buf_.size());
   }
 
-  [[nodiscard]] size_t WritableBytes() const noexcept override {
+  [[nodiscard]] size_t WritableBytes() const noexcept {
     return buf_.size() - write_index_;
   }
 
-  void Retrieve(size_t n) override;
+  void Retrieve(size_t n);
 
-  void Reset() override { read_index_ = write_index_ = 0; }
+  void Reset() { read_index_ = write_index_ = 0; }
 
-  size_t Append(const char* data, size_t n) override;
+  void Append(const char* data, size_t n);
 
-  size_t Retrieve(char* data, size_t n) override;
+  size_t Retrieve(char* data, size_t n);
 
-  void EnsureWriteable(size_t n) override;
+  void EnsureWriteable(size_t n);
 
-  ssize_t Append(File* source) override;
+  ssize_t Append(File* source);
 
-  ssize_t Retrieve(File* target) override;
+  ssize_t Retrieve(File* target);
 
-  size_t Append(Buffer* buffer) override;
+  void Append(ArrayBuffer* buffer);
 
-  size_t Retrieve(Buffer* buffer) override;
+  void Retrieve(ArrayBuffer* buffer);
 
-  const char* ReadIndex() override { return buf_.data() + read_index_; }
+  const char* ReadIndex() { return buf_.data() + read_index_; }
 
-  char* WriteIndex() override { return buf_.data() + write_index_; }
+  char* WriteIndex() { return buf_.data() + write_index_; }
 };
 }  // namespace pedrolib
 

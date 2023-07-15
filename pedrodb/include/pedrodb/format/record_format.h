@@ -27,29 +27,29 @@ struct Header {
            sizeof(uint32_t);   // timestamp
   }
 
-  bool UnPack(Buffer* buffer) {
+  bool UnPack(ArrayBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
     uint8_t u8_type;
-    buffer->RetrieveInt(&crc32);
-    buffer->RetrieveInt(&u8_type);
-    buffer->RetrieveInt(&key_size);
-    buffer->RetrieveInt(&value_size);
-    buffer->RetrieveInt(&timestamp);
+    RetrieveInt(buffer, &crc32);
+    RetrieveInt(buffer, &u8_type);
+    RetrieveInt(buffer, &key_size);
+    RetrieveInt(buffer, &value_size);
+    RetrieveInt(buffer, &timestamp);
     type = static_cast<Type>(u8_type);
     return true;
   }
 
-  bool Pack(Buffer* buffer) const noexcept {
+  bool Pack(ArrayBuffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
-    buffer->AppendInt(crc32);
-    buffer->AppendInt((uint8_t)type);
-    buffer->AppendInt(key_size);
-    buffer->AppendInt(value_size);
-    buffer->AppendInt(timestamp);
+    AppendInt(buffer, crc32);
+    AppendInt(buffer, (uint8_t)type);
+    AppendInt(buffer, key_size);
+    AppendInt(buffer, value_size);
+    AppendInt(buffer, timestamp);
     return true;
   }
 };
@@ -66,7 +66,7 @@ struct Entry {
     return Header::SizeOf() + std::size(key) + std::size(value);
   }
 
-  bool UnPack(Buffer* buffer) {
+  bool UnPack(ArrayBuffer* buffer) {
     Header header;
     if (!header.UnPack(buffer)) {
       return false;
@@ -87,7 +87,7 @@ struct Entry {
     return true;
   }
 
-  bool Pack(Buffer* buffer) const noexcept {
+  bool Pack(ArrayBuffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
@@ -106,10 +106,6 @@ struct Entry {
 };
 
 using EntryView = Entry<std::string_view, std::string_view>;
-
-constexpr static size_t SizeOf(uint8_t key_size, uint32_t value_size) {
-  return Header::SizeOf() + key_size + value_size;
-}
 
 struct Location : public pedrolib::Comparable<Location> {
   struct Hash {

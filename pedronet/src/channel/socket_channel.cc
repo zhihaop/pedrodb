@@ -15,6 +15,7 @@ void SocketChannel::SetWritable(bool on) {
     selector_->Update(this, events_);
   }
 }
+
 void SocketChannel::SetReadable(bool on) {
   auto ev = events_;
   if (on) {
@@ -26,6 +27,7 @@ void SocketChannel::SetReadable(bool on) {
     selector_->Update(this, events_);
   }
 }
+
 void SocketChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
   PEDRONET_TRACE("{} handel events[{}]", *this, events.Value());
   if (events.Contains(ReceiveEvents::kHangUp) &&

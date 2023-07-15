@@ -3,43 +3,72 @@
 
 namespace pedrokv {
 
-struct Response {
-  enum Type { kOk, kError };
+enum class ResponseType { kOk, kError };
 
-  Type type;
-  uint32_t id;
-  std::string data;
+template <typename Value = std::string>
+struct Response {
+  ResponseType type{};
+  uint32_t id{};
+  Value data;
 
   [[nodiscard]] uint16_t SizeOf() const noexcept {
-    return sizeof(uint8_t) +   // type
+    return sizeof(uint16_t) +  // content size
+           sizeof(uint8_t) +   // type
            sizeof(uint32_t) +  // id
-           sizeof(uint16_t) +  // data size
-           data.size();        // data
+           std::size(data);    // data
   }
 
-  void Pack(Buffer* buffer) const {
-    auto u8_type = static_cast<uint8_t>(type);
-    uint16_t size = data.size();
-
-    buffer->AppendInt(u8_type);
-    buffer->AppendInt(id);
-    buffer->AppendInt(size);
-    buffer->Append(data.data(), data.size());
+  static uint16_t DataSize(uint16_t content_size) {
+    return content_size -      // content size
+           sizeof(uint16_t) -  // content size field
+           sizeof(uint8_t) -   // type field
+           sizeof(uint32_t);   // id field
   }
 
-  void UnPack(Buffer* buffer) {
+  void Pack(ArrayBuffer* buffer) const {
+    AppendInt(buffer, SizeOf());
+    AppendInt(buffer, (uint8_t)type);
+    AppendInt(buffer, id);
+    buffer->Append(std::data(data), std::size(data));
+  }
+
+  bool UnPack(ArrayBuffer* buffer) {
     uint8_t u8_type;
-    uint16_t size;
+    uint16_t u16_content_size;
 
-    buffer->RetrieveInt(&u8_type);
-    buffer->RetrieveInt(&id);
-    buffer->RetrieveInt(&size);
+    if (!PeekInt(buffer, &u16_content_size)) {
+      return false;
+    }
+    
+    if (buffer->ReadableBytes() < u16_content_size) {
+      return false;
+    }
 
-    type = static_cast<Type>(u8_type);
-    data.resize(size);
-    buffer->Retrieve(data.data(), data.size());
+    RetrieveInt(buffer, &u16_content_size);
+    RetrieveInt(buffer, &u8_type);
+    RetrieveInt(buffer, &id);
+
+    type = static_cast<ResponseType>(u8_type);
+    data = Value{buffer->ReadIndex(), (size_t)DataSize(u16_content_size)};
+    buffer->Retrieve(std::size(data));
+    return true;
+  }
+
+  template <typename V>
+  Response& operator=(const Response<V>& other) {
+    if (reinterpret_cast<const void*>(this) ==
+        reinterpret_cast<const void*>(&other)) {
+      return *this;
+    }
+
+    type = other.type;
+    id = other.id;
+    data = other.data;
+    return *this;
   }
 };
+
+using ResponseView = Response<std::string_view>;
 
 }  // namespace pedrokv
 #endif  // PEDROKV_CODEC_RESPONSE_H

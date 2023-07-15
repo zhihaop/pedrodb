@@ -37,44 +37,44 @@ ssize_t ArrayBuffer::Append(File* source) {
     return r;
   }
 
-  EnsureWriteable(r);
   Append(writable);
+
+  EnsureWriteable(r - writable);
   Append(buf, r - writable);
   return r;
 }
 
-size_t ArrayBuffer::Append(const char* data, size_t n) {
+void ArrayBuffer::Append(const char* data, size_t n) {
   EnsureWriteable(n);
-  memcpy(buf_.data() + write_index_, data, n);
+  memcpy(WriteIndex(), data, n);
   Append(n);
-  return n;
 }
+
 size_t ArrayBuffer::Retrieve(char* data, size_t n) {
   n = std::min(n, ReadableBytes());
-  memcpy(data, buf_.data() + read_index_, n);
+  memcpy(data, ReadIndex(), n);
   Retrieve(n);
   return n;
 }
 
 ssize_t ArrayBuffer::Retrieve(File* target) {
-  ssize_t w = target->Write(buf_.data() + read_index_, ReadableBytes());
+  ssize_t w = target->Write(ReadIndex(), ReadableBytes());
   if (w > 0) {
     Retrieve(w);
   }
   return w;
 }
 
-size_t ArrayBuffer::Append(Buffer* buffer) {
-  EnsureWriteable(buffer->ReadableBytes());
-  size_t r = buffer->Retrieve(buf_.data() + write_index_, WritableBytes());
+void ArrayBuffer::Append(ArrayBuffer* buffer) {
+  size_t r = buffer->ReadableBytes();
+  EnsureWriteable(r);
+  buffer->Retrieve(WriteIndex(), r);
   Append(r);
-  return r;
 }
 
-size_t ArrayBuffer::Retrieve(Buffer* buffer) {
-  size_t w = buffer->Append(buf_.data() + read_index_, ReadableBytes());
-  Retrieve(w);
-  return w;
+void ArrayBuffer::Retrieve(ArrayBuffer* buffer) {
+  buffer->Append(ReadIndex(), ReadableBytes());
+  Retrieve(ReadableBytes());
 }
 
 void ArrayBuffer::Retrieve(size_t n) {

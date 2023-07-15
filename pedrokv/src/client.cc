@@ -2,7 +2,7 @@
 
 namespace pedrokv {
 
-void Client::SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
+void Client::SendRequest(std::shared_ptr<ArrayBuffer> buffer, uint32_t id,
                          ResponseCallback callback) {
   std::unique_lock lock{mu_};
 
@@ -13,7 +13,7 @@ void Client::SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
   if (responses_.count(id)) {
     Response response;
     response.id = id;
-    response.type = Response::Type::kError;
+    response.type = ResponseType::kError;
     callback(response);
     return;
   }
@@ -24,7 +24,7 @@ void Client::SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
   if (!client_.Send(std::move(buffer))) {
     Response response;
     response.id = id;
-    response.type = Response::Type::kError;
+    response.type = ResponseType::kError;
 
     lock.lock();
     responses_[id](response);
@@ -46,7 +46,7 @@ void Client::Start() {
     {
       std::unique_lock lock{mu_};
       Response response;
-      response.type = Response::Type::kError;
+      response.type = ResponseType::kError;
       for (auto& [_, callback] : responses_) {
         if (callback) {
           callback(response);
@@ -74,10 +74,10 @@ void Client::Start() {
   latch->Await();
 }
 
-Response Client::Get(std::string_view key) {
+Response<> Client::Get(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Get(key, [&](const Response& resp) mutable {
+  Get(key, [&](const auto& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -85,10 +85,10 @@ Response Client::Get(std::string_view key) {
   return response;
 }
 
-Response Client::Put(std::string_view key, std::string_view value) {
+Response<> Client::Put(std::string_view key, std::string_view value) {
   pedrolib::Latch latch(1);
   Response response;
-  Put(key, value, [&](const Response& resp) mutable {
+  Put(key, value, [&](const auto& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -96,10 +96,10 @@ Response Client::Put(std::string_view key, std::string_view value) {
   return response;
 }
 
-Response Client::Delete(std::string_view key) {
+Response<> Client::Delete(std::string_view key) {
   pedrolib::Latch latch(1);
   Response response;
-  Delete(key, [&](const Response& resp) mutable {
+  Delete(key, [&](const auto& resp) mutable {
     response = resp;
     latch.CountDown();
   });
@@ -108,34 +108,38 @@ Response Client::Delete(std::string_view key) {
 }
 
 void Client::Get(std::string_view key, ResponseCallback callback) {
-  auto len = Request::SizeOf(key, {});
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
-  uint32_t id = request_id_.fetch_add(1);
-  buffer->AppendInt(len);
-  Request::Pack(Request::kGet, id, key, {}, buffer.get());
-  return SendRequest(buffer, id, std::move(callback));
+  RequestView request;
+  request.type = RequestType::kGet;
+  request.id = request_id_.fetch_add(1);
+  request.key = key;
+  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
+  request.Pack(buffer.get());
+  return SendRequest(buffer, request.id, std::move(callback));
 }
 
 void Client::Put(std::string_view key, std::string_view value,
                  ResponseCallback callback) {
-  auto len = Request::SizeOf(key, value);
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
-  uint32_t id = request_id_.fetch_add(1);
-  buffer->AppendInt(len);
-  Request::Pack(Request::kSet, id, key, value, buffer.get());
-  return SendRequest(buffer, id, std::move(callback));
+  RequestView request;
+  request.type = RequestType::kPut;
+  request.id = request_id_.fetch_add(1);
+  request.key = key;
+  request.value = value;
+  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
+  request.Pack(buffer.get());
+  return SendRequest(buffer, request.id, std::move(callback));
 }
 
 void Client::Delete(std::string_view key, ResponseCallback callback) {
-  auto len = Request::SizeOf(key, {});
-  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(len);
-  uint32_t id = request_id_.fetch_add(1);
-  buffer->AppendInt(len);
-  Request::Pack(Request::kDelete, id, key, {}, buffer.get());
-  return SendRequest(buffer, id, std::move(callback));
+  RequestView request;
+  request.type = RequestType::kDelete;
+  request.id = request_id_.fetch_add(1);
+  request.key = key;
+  auto buffer = std::make_shared<pedrolib::ArrayBuffer>(request.SizeOf());
+  request.Pack(buffer.get());
+  return SendRequest(buffer, request.id, std::move(callback));
 }
 
-void Client::HandleResponse(std::queue<Response>& responses) {
+void Client::HandleResponse(std::queue<Response<>>& responses) {
   std::unique_lock lock{mu_};
 
   while (!responses.empty()) {

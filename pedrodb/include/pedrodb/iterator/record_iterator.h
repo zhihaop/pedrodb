@@ -14,7 +14,7 @@ class RecordIterator {
   size_t offset_{};
   size_t size_{};
   size_t buffer_offset_{};
-  Buffer* buffer_;
+  ArrayBuffer* buffer_;
 
   void FetchBuffer(size_t fetch) {
     if (buffer_->ReadableBytes() >= fetch) {
@@ -31,7 +31,7 @@ class RecordIterator {
   }
 
  public:
-  explicit RecordIterator(ReadableFile* file, Buffer* buffer)
+  explicit RecordIterator(ReadableFile* file, ArrayBuffer* buffer)
       : file_(file), size_(file_->Size()), buffer_(buffer) {}
 
   bool Valid() noexcept {

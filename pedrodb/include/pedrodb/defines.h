@@ -4,8 +4,6 @@
 
 #include <pedrolib/buffer/array_buffer.h>
 #include <pedrolib/buffer/buffer.h>
-#include <pedrolib/buffer/buffer_slice.h>
-#include <pedrolib/buffer/buffer_view.h>
 
 #include <pedrolib/duration.h>
 #include <pedrolib/file/error.h>
@@ -16,9 +14,6 @@
 
 namespace pedrodb {
 using ArrayBuffer = pedrolib::ArrayBuffer;
-using Buffer = pedrolib::Buffer;
-using BufferView = pedrolib::BufferView;
-using BufferSlice = pedrolib::BufferSlice;
 
 using Executor = pedrolib::Executor;
 using DefaultExecutor = pedrolib::ThreadPoolExecutor;

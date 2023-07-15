@@ -13,7 +13,7 @@
 
 namespace pedrokv {
 
-using ResponseCallback = std::function<void(const Response&)>;
+using ResponseCallback = std::function<void(const Response<>&)>;
 
 class Client : nonmovable, noncopyable {
   pedronet::TcpClient client_;
@@ -31,7 +31,7 @@ class Client : nonmovable, noncopyable {
 
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
-  void HandleResponse(std::queue<Response>& responses);
+  void HandleResponse(std::queue<Response<>>& responses);
 
  public:
   Client(InetAddress address, ClientOptions options)
@@ -52,14 +52,14 @@ class Client : nonmovable, noncopyable {
     connect_callback_ = std::move(callback);
   }
 
-  void SendRequest(std::shared_ptr<Buffer> buffer, uint32_t id,
+  void SendRequest(std::shared_ptr<ArrayBuffer> buffer, uint32_t id,
                    ResponseCallback callback);
 
-  Response Get(std::string_view key);
+  Response<> Get(std::string_view key);
 
-  Response Put(std::string_view key, std::string_view value);
+  Response<> Put(std::string_view key, std::string_view value);
 
-  Response Delete(std::string_view key);
+  Response<> Delete(std::string_view key);
 
   void Get(std::string_view key, ResponseCallback callback);
 

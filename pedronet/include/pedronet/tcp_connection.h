@@ -3,7 +3,6 @@
 
 #include "pedrolib/buffer/array_buffer.h"
 #include "pedrolib/buffer/buffer.h"
-#include "pedrolib/buffer/buffer_view.h"
 #include "pedronet/callbacks.h"
 #include "pedronet/channel/socket_channel.h"
 #include "pedronet/event.h"
@@ -41,11 +40,10 @@ class TcpConnection : pedrolib::noncopyable,
   InetAddress peer_;
   EventLoop& eventloop_;
 
-  ssize_t trySendingDirect(Buffer* buffer);
   void handleRead(Timestamp now);
   void handleError(Error);
   void handleWrite();
-  void handleSend(Buffer* buffer);
+
   void handleClose();
 
  public:
@@ -71,7 +69,13 @@ class TcpConnection : pedrolib::noncopyable,
         [this, buf = std::move(buffer)]() mutable { handleSend(buf.get()); });
   }
 
-  void Send(Buffer* buffer) {
+  void handleSend(ArrayBuffer* buffer) {
+    std::string_view sv{buffer->ReadIndex(), buffer->ReadableBytes()};
+    handleSend(sv);
+    buffer->Retrieve(sv.size());
+  }
+
+  void Send(ArrayBuffer* buffer) {
     if (eventloop_.CheckUnderLoop()) {
       handleSend(buffer);
       return;
@@ -84,17 +88,17 @@ class TcpConnection : pedrolib::noncopyable,
         [this, buf = std::move(clone)]() mutable { handleSend(&buf); });
   }
 
-  void Send(const char* buf, size_t n) {
-    BufferView view{buf, n};
-    handleSend(&view);
+  void Send(std::string_view buffer) {
+    if (eventloop_.CheckUnderLoop()) {
+      handleSend(buffer);
+      return;
+    }
+
+    eventloop_.Run([this, clone = std::string(buffer)] { handleSend(clone); });
   }
 
-  void Send(std::string_view sv) {
-    eventloop_.Run([=] { Send(sv.data(), sv.size()); });
-  }
-
-  void Send(std::string s) {
-    eventloop_.Run([this, s = std::move(s)] { Send(s.data(), s.size()); });
+  void Send(std::string buffer) {
+    eventloop_.Run([this, clone = std::move(buffer)] { handleSend(clone); });
   }
 
   void OnMessage(MessageCallback cb) { message_callback_ = std::move(cb); }
@@ -126,6 +130,8 @@ class TcpConnection : pedrolib::noncopyable,
   EventLoop& GetEventLoop() noexcept { return eventloop_; }
 
   std::string String() const;
+  ssize_t trySendingDirect(std::string_view buffer);
+  void handleSend(std::string_view buffer);
 };
 }  // namespace pedronet
 

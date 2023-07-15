@@ -127,8 +127,12 @@ TcpConnection::~TcpConnection() {
   PEDRONET_TRACE("{}::~TcpConnection()", *this);
 }
 
-void TcpConnection::handleSend(Buffer* buffer) {
+void TcpConnection::handleSend(std::string_view buffer) {
   eventloop_.AssertUnderLoop();
+
+  if (buffer.empty()) {
+    return;
+  }
 
   State s = state_;
   if (s != State::kConnected) {
@@ -136,29 +140,32 @@ void TcpConnection::handleSend(Buffer* buffer) {
     return;
   }
 
-  if (trySendingDirect(buffer) < 0) {
-    auto err = channel_.GetError();
-    if (err.GetCode() != EWOULDBLOCK) {
-      handleError(err);
-      return;
-    }
-  }
+//  ssize_t snd = trySendingDirect(buffer);
+//  if (snd < 0) {
+//    auto err = channel_.GetError();
+//    if (err.GetCode() != EWOULDBLOCK) {
+//      handleError(err);
+//      return;
+//    }
+//  }
+//
+//  buffer = buffer.substr(snd);
 
   size_t w = output_.WritableBytes();
-  size_t r = buffer->ReadableBytes();
-  if (w < r) {
-    output_.EnsureWriteable(r);
+  if (w < buffer.size()) {
     if (high_watermark_callback_) {
-      high_watermark_callback_(shared_from_this(), r - w);
+      high_watermark_callback_(shared_from_this(), buffer.size() - w);
     }
+    output_.EnsureWriteable(buffer.size());
   }
 
-  if (output_.Append(buffer) > 0) {
+  if (!buffer.empty()) {
+    output_.Append(buffer.data(), buffer.size());
     channel_.SetWritable(true);
   }
 }
 
-ssize_t TcpConnection::trySendingDirect(Buffer* buffer) {
+ssize_t TcpConnection::trySendingDirect(std::string_view buffer) {
   eventloop_.AssertUnderLoop();
   if (channel_.Writable()) {
     return 0;
@@ -166,8 +173,10 @@ ssize_t TcpConnection::trySendingDirect(Buffer* buffer) {
   if (output_.ReadableBytes() != 0) {
     return 0;
   }
-  return buffer->Retrieve(&channel_.GetFile());
+
+  return channel_.Write(buffer.data(), buffer.size());
 }
+
 void TcpConnection::ForceClose() {
   if (state_ == State::kDisconnected) {
     return;

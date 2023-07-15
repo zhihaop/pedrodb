@@ -7,7 +7,6 @@
 using namespace std::chrono_literals;
 using pedrolib::Duration;
 using pedrolib::StaticVector;
-using pedronet::BufferView;
 using pedronet::EpollSelector;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
@@ -22,8 +21,7 @@ void ClientReport(size_t bps, size_t ops, size_t, size_t) {
 int main() {
   logger::SetLevel(logger::Level::kInfo);
 
-  size_t n_workers = std::thread::hardware_concurrency();
-  auto worker_group = EventLoopGroup::Create(n_workers);
+  auto worker_group = EventLoopGroup::Create();
 
   Reporter reporter;
   reporter.SetCallback(ClientReport);
