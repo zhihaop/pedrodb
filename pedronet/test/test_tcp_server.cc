@@ -38,9 +38,8 @@ int main() {
 
   server.Bind(InetAddress::Create("0.0.0.0", 1082));
   server.Start();
-
-  boss_group->Join();
-  worker_group->Join();
+  
+  EventLoopGroup::Joins(boss_group, worker_group);
 
   return 0;
 }

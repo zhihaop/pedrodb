@@ -76,10 +76,20 @@ class ReceiveEvents {
     return events_ & other.events_;
   }
 
-  [[nodiscard]] bool OneOf(
-      const std::initializer_list<ReceiveEvents>& events) const {
-    return std::any_of(events.begin(), events.end(),
-                       [this](auto e) { return Contains(e); });
+  template <typename... Events>
+  bool OneOf(Events... events) const noexcept {
+    if ((Contains(events) || ...)) {
+      return true;
+    }
+    return false;
+  }
+
+  template <typename... Events>
+  bool AllOf(Events... events) const noexcept {
+    if ((Contains(events) && ...)) {
+      return true;
+    }
+    return false;
   }
 
   ReceiveEvents& Add(ReceiveEvents other) noexcept {

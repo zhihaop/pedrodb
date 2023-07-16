@@ -197,7 +197,7 @@ int main() {
   // pedronet::logger::SetLevel(Logger::Level::kInfo);
 
   logger.SetLevel(Logger::Level::kTrace);
-  options.worker_group = EventLoopGroup::Create();
+  options.worker_group = EventLoopGroup::Create(1);
   options.max_inflight = 1024;
 
   options.worker_group->ScheduleEvery(1s, 1s, [] {
@@ -207,8 +207,8 @@ int main() {
 
   // test_option.enable_write = true;
   int n = 2000000;
-  // TestAsync(n, 16, 16);
-  TestSync(n, 1, 50);
+  TestAsync(n, 1, 1);
+  TestSync(n, 50, 50);
 
   options.worker_group->Close();
   return 0;

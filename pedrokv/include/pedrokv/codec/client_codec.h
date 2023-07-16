@@ -14,7 +14,8 @@ class ClientCodecContext;
 using ClientMessageCallback = std::function<void(
     const std::shared_ptr<TcpConnection>&, std::queue<Response<>>&)>;
 
-class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
+class ClientCodecContext : public ChannelContext,
+                           std::enable_shared_from_this<ClientCodecContext> {
   ClientMessageCallback callback_;
   ArrayBuffer buffer_;
   std::queue<Response<>> response_;
@@ -24,7 +25,7 @@ class ClientCodecContext : std::enable_shared_from_this<ClientCodecContext> {
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
-    
+
     while (true) {
       Response response;
       if (buffer_.ReadableBytes()) {
@@ -99,9 +100,8 @@ class ClientCodec {
   pedronet::MessageCallback GetOnMessage() {
     return [](const pedronet::TcpConnectionPtr& conn, ArrayBuffer& buffer,
               Timestamp now) {
-      auto ctx = std::any_cast<std::shared_ptr<ClientCodecContext>>(
-          conn->GetContext());
-      ctx->HandleMessage(conn, &buffer);
+      auto ctx = conn->GetContext().get();
+      ((ClientCodecContext*)ctx)->HandleMessage(conn, &buffer);
     };
   }
 };

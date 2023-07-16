@@ -39,14 +39,14 @@ void SocketChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
     }
   }
 
-  if (events.OneOf({ReceiveEvents::kError, ReceiveEvents::kInvalid})) {
+  if (events.OneOf(ReceiveEvents::kError, ReceiveEvents::kInvalid)) {
     if (error_callback_) {
       error_callback_(events, now);
     }
   }
 
-  if (events.OneOf({ReceiveEvents::kReadable, ReceiveEvents::kPriorReadable,
-                    ReceiveEvents::kReadHangUp})) {
+  if (events.OneOf(ReceiveEvents::kReadable, ReceiveEvents::kPriorReadable,
+                    ReceiveEvents::kReadHangUp)) {
     if (read_callback_) {
       read_callback_(events, now);
     }

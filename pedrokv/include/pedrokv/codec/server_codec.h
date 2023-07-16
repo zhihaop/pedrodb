@@ -16,7 +16,8 @@ using ResponseSender = std::function<void(const Response<>&)>;
 using ServerMessageCallback = std::function<void(
     const TcpConnectionPtr&, const ResponseSender&, const RequestView&)>;
 
-class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
+class ServerCodecContext : public ChannelContext,
+                           std::enable_shared_from_this<ServerCodecContext> {
   ArrayBuffer buffer_;
   std::mutex mu_;
   ArrayBuffer output_;
@@ -59,7 +60,7 @@ class ServerCodecContext : std::enable_shared_from_this<ServerCodecContext> {
 
       break;
     }
-    
+
     std::unique_lock lock{mu_};
     if (output_.ReadableBytes()) {
       conn->Send(&output_);
@@ -107,9 +108,8 @@ class ServerCodec {
   pedronet::MessageCallback GetOnMessage() {
     return [](const pedronet::TcpConnectionPtr& conn, ArrayBuffer& buffer,
               Timestamp now) {
-      auto ctx = std::any_cast<std::shared_ptr<ServerCodecContext>>(
-          conn->GetContext());
-      ctx->HandleMessage(conn, &buffer);
+      auto ctx = conn->GetContext().get();
+      ((ServerCodecContext*)ctx)->HandleMessage(conn, &buffer);
     };
   }
 };

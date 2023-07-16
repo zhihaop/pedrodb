@@ -31,6 +31,11 @@ class EventLoopGroup : public Executor {
     return Create<Selector>(std::thread::hardware_concurrency());
   }
 
+  template <typename... Executor>
+  static void Joins(Executor&&... executor) {
+    (executor->Join(), ...);
+  }
+
   template <typename Selector = EpollSelector>
   static EventLoopGroupPtr Create(size_t threads) {
     auto group = std::make_shared<EventLoopGroup>(threads);
@@ -46,7 +51,10 @@ class EventLoopGroup : public Executor {
     return group;
   }
 
-  ~EventLoopGroup() override { HandleJoin(); }
+  ~EventLoopGroup() override {
+    Close();
+    HandleJoin();
+  }
 
   EventLoop& Next() { return loops_[next()]; }
 

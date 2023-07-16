@@ -20,9 +20,8 @@ int main() {
   auto server = pedrokv::Server(address, options);
   server.Bind();
   server.Start();
-
-  options.worker_group->Join();
-  options.boss_group->Join();
+  
+  EventLoopGroup::Joins(options.worker_group, options.boss_group);
 
   return 0;
 }

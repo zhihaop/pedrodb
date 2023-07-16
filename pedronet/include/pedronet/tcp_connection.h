@@ -16,6 +16,11 @@
 #include <memory>
 
 namespace pedronet {
+
+class TcpConnection;
+
+struct ChannelContext {};
+
 class TcpConnection : pedrolib::noncopyable,
                       pedrolib::nonmovable,
                       public std::enable_shared_from_this<TcpConnection> {
@@ -31,7 +36,7 @@ class TcpConnection : pedrolib::noncopyable,
   ErrorCallback error_callback_;
   CloseCallback close_callback_;
   ConnectionCallback connection_callback_{};
-  std::any ctx_{};
+  std::shared_ptr<ChannelContext> ctx_;
 
   ArrayBuffer output_;
   ArrayBuffer input_;
@@ -52,8 +57,8 @@ class TcpConnection : pedrolib::noncopyable,
 
   ~TcpConnection();
 
-  void SetContext(const std::any& ctx) { ctx_ = ctx; }
-  std::any& GetContext() { return ctx_; }
+  void SetContext(const std::shared_ptr<ChannelContext>& ctx) { ctx_ = ctx; }
+  const auto& GetContext() const noexcept { return ctx_; }
 
   State GetState() const noexcept { return state_; }
 

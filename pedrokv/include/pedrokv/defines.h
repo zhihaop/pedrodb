@@ -25,6 +25,7 @@ using pedrolib::AppendInt;
 using pedrolib::PeekInt;
 using pedrolib::RetrieveInt;
 
+using pedronet::ChannelContext;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 using pedronet::TcpConnection;

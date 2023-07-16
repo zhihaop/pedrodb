@@ -33,6 +33,7 @@ void EventLoopGroup::Close() {
     loop.Close();
   }
 }
+
 void EventLoopGroup::HandleJoin() {
   for (auto& t : threads_) {
     if (t.joinable()) {
