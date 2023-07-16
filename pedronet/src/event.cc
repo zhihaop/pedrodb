@@ -6,7 +6,14 @@ namespace pedronet {
 const SelectEvents SelectEvents::kNoneEvent{0};
 const SelectEvents SelectEvents::kReadEvent{POLLIN | POLLPRI};
 const SelectEvents SelectEvents::kWriteEvent{POLLOUT};
-const SelectEvents SelectEvents::kTriggerEdge{EPOLLET};
+
+SelectEvents SelectEvents::Trigger(SelectTrigger trigger) const noexcept {
+  SelectEvents events = *this;
+  if (trigger == SelectTrigger::kEdge) {
+    events.Add(SelectEvents{EPOLLET});
+  }
+  return events;
+}
 
 const ReceiveEvents ReceiveEvents::kHangUp{POLLHUP};
 const ReceiveEvents ReceiveEvents::kInvalid{POLLNVAL};

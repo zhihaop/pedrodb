@@ -2,10 +2,16 @@
 #define PEDRONET_EVENT_H
 
 #include <pedrolib/format/formatter.h>
+#include <algorithm>
 #include <initializer_list>
 #include <string>
 
 namespace pedronet {
+
+enum class SelectTrigger {
+  kLevel,
+  kEdge,
+};
 
 class SelectEvents {
   uint32_t events_{};
@@ -14,7 +20,6 @@ class SelectEvents {
   static const SelectEvents kNoneEvent;
   static const SelectEvents kReadEvent;
   static const SelectEvents kWriteEvent;
-  static const SelectEvents kTriggerEdge;
 
   SelectEvents() = default;
 
@@ -26,10 +31,13 @@ class SelectEvents {
     return events_ & other.events_;
   }
 
+  [[nodiscard]] SelectEvents Trigger(SelectTrigger trigger) const noexcept;
+
   SelectEvents& Add(SelectEvents other) noexcept {
     events_ |= other.events_;
     return *this;
   }
+
   SelectEvents& Remove(SelectEvents other) noexcept {
     events_ &= ~other.events_;
     return *this;
@@ -68,20 +76,17 @@ class ReceiveEvents {
     return events_ & other.events_;
   }
 
-  [[nodiscard]] bool OneOf(const std::initializer_list<ReceiveEvents>& events) const {
-    for (auto e : events) {
-      if (Contains(e)) {
-        return true;
-      }
-    }
-    return false;
+  [[nodiscard]] bool OneOf(
+      const std::initializer_list<ReceiveEvents>& events) const {
+    return std::any_of(events.begin(), events.end(),
+                       [this](auto e) { return Contains(e); });
   }
 
   ReceiveEvents& Add(ReceiveEvents other) noexcept {
     events_ |= other.events_;
     return *this;
   }
-  
+
   ReceiveEvents& Remove(ReceiveEvents other) noexcept {
     events_ &= ~other.events_;
     return *this;

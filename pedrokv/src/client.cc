@@ -72,39 +72,6 @@ void Client::Start() {
   latch->Await();
 }
 
-Response<> Client::Get(std::string_view key) {
-  pedrolib::Latch latch(1);
-  Response response;
-  Get(key, [&](auto resp) mutable {
-    response = std::move(resp);
-    latch.CountDown();
-  });
-  latch.Await();
-  return response;
-}
-
-Response<> Client::Put(std::string_view key, std::string_view value) {
-  pedrolib::Latch latch(1);
-  Response response;
-  Put(key, value, [&](auto resp) mutable {
-    response = std::move(resp);
-    latch.CountDown();
-  });
-  latch.Await();
-  return response;
-}
-
-Response<> Client::Delete(std::string_view key) {
-  pedrolib::Latch latch(1);
-  Response response;
-  Delete(key, [&](auto resp) mutable {
-    response = std::move(resp);
-    latch.CountDown();
-  });
-  latch.Await();
-  return response;
-}
-
 void Client::Get(std::string_view key, ResponseCallback callback) {
   auto id = request_id_.fetch_add(1);
   Request request;

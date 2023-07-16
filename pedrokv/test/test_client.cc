@@ -8,6 +8,8 @@ using pedrokv::ClientOptions;
 using pedrolib::Logger;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
+using pedrokv::SyncClient;
+using pedrokv::Client;
 
 static auto logger = Logger("test");
 auto address = InetAddress::Create("127.0.0.1", 1082);
@@ -29,7 +31,7 @@ std::string Repeat(std::string_view s, size_t n) {
   return t;
 }
 
-void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
+void TestSyncPut(SyncClient& client, const std::vector<int>& data) {
   if (!test_option.enable_write) {
     return;
   }
@@ -45,7 +47,7 @@ void TestSyncPut(pedrokv::Client& client, const std::vector<int>& data) {
   }
 }
 
-void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
+void TestAsyncPut(Client& client, const std::vector<int>& data) {
   if (!test_option.enable_write) {
     return;
   }
@@ -64,7 +66,7 @@ void TestAsyncPut(pedrokv::Client& client, const std::vector<int>& data) {
   latch.Await();
 }
 
-void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
+void TestSyncGet(SyncClient& client, std::vector<int> data) {
   if (!test_option.enable_read) {
     return;
   }
@@ -81,7 +83,7 @@ void TestSyncGet(pedrokv::Client& client, std::vector<int> data) {
   }
 }
 
-void TestAsyncGet(pedrokv::Client& client, std::vector<int> data) {
+void TestAsyncGet(Client& client, std::vector<int> data) {
   if (!test_option.enable_read) {
     return;
   }
@@ -148,9 +150,9 @@ void TestAsync(int n, int m, int c) {
 }
 
 void TestSync(int n, int m, int c) {
-  std::vector<std::shared_ptr<pedrokv::Client>> clients(c);
+  std::vector<std::shared_ptr<SyncClient>> clients(c);
   for (int i = 0; i < c; ++i) {
-    clients[i] = std::make_shared<pedrokv::Client>(address, options);
+    clients[i] = std::make_shared<SyncClient>(address, options);
     clients[i]->Start();
   }
   std::vector<std::vector<int>> data(m);
@@ -191,7 +193,7 @@ void TestSync(int n, int m, int c) {
 }
 
 int main() {
-  pedrokv::logger::SetLevel(Logger::Level::kError);
+  pedrokv::logger::SetLevel(Logger::Level::kInfo);
   // pedronet::logger::SetLevel(Logger::Level::kInfo);
 
   logger.SetLevel(Logger::Level::kTrace);
@@ -203,10 +205,10 @@ int main() {
                 read_counts.exchange(0));
   });
 
-  test_option.enable_write = true;
+  // test_option.enable_write = true;
   int n = 2000000;
-  TestAsync(n, 1, 1);
-  TestSync(n, 50, 50);
+  // TestAsync(n, 16, 16);
+  TestSync(n, 1, 50);
 
   options.worker_group->Close();
   return 0;

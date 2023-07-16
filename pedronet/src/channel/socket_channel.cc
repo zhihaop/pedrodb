@@ -18,8 +18,7 @@ void SocketChannel::SetWritable(bool on) {
 
 void SocketChannel::SetReadable(bool on) {
   auto ev = events_;
-  SelectEvents events = SelectEvents::kReadEvent;
-  events.Add(SelectEvents::kTriggerEdge);
+  auto events = SelectEvents::kReadEvent.Trigger(SelectTrigger::kEdge);
 
   if (on) {
     events_.Add(events);

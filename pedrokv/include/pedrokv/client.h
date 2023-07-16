@@ -52,12 +52,6 @@ class Client : nonmovable, noncopyable {
     connect_callback_ = std::move(callback);
   }
 
-  Response<> Get(std::string_view key);
-
-  Response<> Put(std::string_view key, std::string_view value);
-
-  Response<> Delete(std::string_view key);
-
   void Get(std::string_view key, ResponseCallback callback);
 
   void Put(std::string_view key, std::string_view value,
@@ -75,6 +69,86 @@ class Client : nonmovable, noncopyable {
 
   void Start();
   void SendRequest(Request<> request, uint32_t id, ResponseCallback callback);
+};
+
+class SyncClient {
+  InetAddress address_;
+  ClientOptions options_;
+  pedronet::SocketChannel channel_;
+  std::atomic_uint32_t request_id_{};
+  ArrayBuffer buffer_;
+
+  mutable std::mutex mu_;
+
+ public:
+  SyncClient(InetAddress address, ClientOptions options)
+      : address_(std::move(address)),
+        options_(std::move(options)),
+        channel_(pedronet::Socket::Create(address_.Family(), false)) {}
+
+  void Start() { 
+    Error error = channel_.Connect(address_);
+    if (error != Error::kOk) {
+      PEDROKV_ERROR("failed to connect to address {}", address_);
+    }
+  }
+
+  Response<> RequestResponse(RequestView request) {
+    Response response;
+    response.type = ResponseType::kError;
+
+    std::unique_lock lock{mu_};
+    request.Pack(&buffer_);
+    while (buffer_.ReadableBytes()) {
+      if (buffer_.Retrieve(&channel_) < 0) {
+        PEDROKV_ERROR("failed to send channel {} {}", channel_, Error{errno});
+        return response;
+      }
+    }
+
+    buffer_.EnsureWriteable(response.SizeOf());
+    while (!response.UnPack(&buffer_)) {
+      if (buffer_.Append(&channel_) < 0) {
+        PEDROKV_ERROR("failed to recv channel {} {}", channel_, Error{errno});
+        return response;
+      }
+    }
+
+    return response;
+  }
+
+  Response<> Get(std::string_view key) {
+    RequestView request;
+    request.type = RequestType::kGet;
+    request.key = key;
+    request.id = request_id_.fetch_add(1);
+
+    return RequestResponse(request);
+  }
+
+  Response<> Put(std::string_view key, std::string_view value) {
+    RequestView request;
+    request.type = RequestType::kPut;
+    request.key = key;
+    request.value = value;
+    request.id = request_id_.fetch_add(1);
+
+    return RequestResponse(request);
+  }
+
+  Response<> Delete(std::string_view key) {
+    RequestView request;
+    request.type = RequestType::kDelete;
+    request.key = key;
+    request.id = request_id_.fetch_add(1);
+
+    return RequestResponse(request);
+  }
+
+  void Close() {
+    std::unique_lock lock{mu_};
+    channel_.CloseWrite();
+  }
 };
 }  // namespace pedrokv
 
