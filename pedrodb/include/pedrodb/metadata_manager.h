@@ -14,7 +14,7 @@ class MetadataManager {
   mutable std::mutex mu_;
 
   std::string name_;
-  std::set<file_t> files_;
+  std::set<file_id_t> files_;
 
   File file_;
   const std::string path_;
@@ -31,28 +31,22 @@ class MetadataManager {
 
   Status Init();
 
-  std::vector<file_t> GetFiles() const noexcept {
+  std::vector<file_id_t> GetFiles() const noexcept {
     auto lock = AcquireLock();
-    auto files = std::vector<file_t>{files_.begin(), files_.end()};
+    auto files = std::vector<file_id_t>{files_.begin(), files_.end()};
     lock.unlock();
 
     std::sort(files.begin(), files.end());
     return files;
   }
 
-  Status CreateFile(file_t id);
+  Status CreateFile(file_id_t id);
 
-  Status DeleteFile(file_t id);
+  Status DeleteFile(file_id_t id);
 
-  bool isActiveFile(file_t id) {
-    auto lock = AcquireLock();
-    if (files_.empty()) {
-      return false;
-    }
-    return id == *files_.rbegin();
-  }
-
-  std::string GetDataFilePath(file_t id) const noexcept;
+  std::string GetDataFilePath(file_id_t id) const noexcept;
+  
+  std::string GetIndexFilePath(file_id_t id) const noexcept;
 };
 
 }  // namespace pedrodb

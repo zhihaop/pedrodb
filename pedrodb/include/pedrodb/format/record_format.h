@@ -112,11 +112,11 @@ struct Location : public pedrolib::Comparable<Location> {
     size_t operator()(const Location& v) const noexcept { return v.Hash(); }
   };
 
-  file_t id{};
+  file_id_t id{};
   uint32_t offset{};
 
   Location() = default;
-  Location(file_t id, uint32_t offset) : id(id), offset(offset) {}
+  Location(file_id_t id, uint32_t offset) : id(id), offset(offset) {}
   ~Location() = default;
 
   static int Compare(const Location& x, const Location& y) noexcept {
@@ -146,8 +146,8 @@ struct Dir {
   using Key = std::unique_ptr<char, Cleaner>;
 
   uint32_t h{};
-  mutable uint32_t key_size : 8;
-  mutable uint32_t entry_size : 24;
+  mutable uint8_t key_size;
+  mutable uint32_t entry_size;
   mutable Location loc;
   Key key;
 

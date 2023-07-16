@@ -18,7 +18,7 @@ Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
   return HandlePut(options, Hash(key), key, {});
 }
 
-void DBImpl::UpdateUnused(file_t id, size_t unused) {
+void DBImpl::UpdateUnused(file_id_t id, size_t unused) {
   auto& hint = compact_hints_[id];
   hint.unused += unused;
   if (hint.unused >= options_.compaction_threshold_bytes) {
@@ -34,15 +34,19 @@ Status DBImpl::Init() {
     return status;
   }
 
+  PEDRODB_INFO("metadata manager init success");
   status = file_manager_->Init();
   if (status != Status::kOk) {
     return status;
   }
 
+  PEDRODB_INFO("file manager init success");
   status = Recovery();
   if (status != Status::kOk) {
     return status;
   }
+
+  PEDRODB_INFO("recovery success");
 
   sync_worker_ = executor_->ScheduleEvery(
       options_.sync_interval, options_.sync_interval, [this] { Flush(); });
@@ -61,11 +65,11 @@ Status DBImpl::Init() {
   return Status::kOk;
 }
 
-std::vector<file_t> DBImpl::GetFiles() {
+std::vector<file_id_t> DBImpl::GetFiles() {
   return metadata_manager_->GetFiles();
 }
 
-std::vector<file_t> DBImpl::PollCompactTask() {
+std::vector<file_id_t> DBImpl::PollCompactTask() {
   auto tasks = compact_tasks_;
   compact_tasks_.clear();
   for (auto file : tasks) {
@@ -92,8 +96,8 @@ DBImpl::DBImpl(const Options& options, const std::string& name)
   read_cache_ = std::make_unique<ReadCache>(options_.read_cache_bytes);
   executor_ = options_.executor;
   metadata_manager_ = std::make_unique<MetadataManager>(name);
-  file_manager_ = std::make_unique<FileManager>(metadata_manager_.get(),
-                                                options.max_open_files);
+  file_manager_ = std::make_unique<FileManager>(
+      metadata_manager_.get(), executor_.get(), options.max_open_files);
 }
 
 DBImpl::~DBImpl() {
@@ -102,27 +106,25 @@ DBImpl::~DBImpl() {
   Flush();
 }
 
-Status DBImpl::Recovery(file_t id) {
+Status DBImpl::Recovery(file_id_t id) {
   ReadableFileGuard file;
-  auto status = file_manager_->AcquireDataFile(id, &file);
+  auto status = file_manager_->AcquireIndexFile(id, &file);
   if (status != Status::kOk) {
     return status;
   }
 
-  ArrayBuffer buffer(kMaxFileBytes);
-  auto iter = RecordIterator(file.get(), &buffer);
+  auto iter = IndexIterator(file.get());
   while (iter.Valid()) {
-    record::Location loc{id, iter.GetOffset()};
-    PEDRODB_IGNORE_ERROR(Recovery(loc, iter.Next()));
+    Recovery(id, iter.Next());
   }
 
-  PEDRODB_TRACE("crash recover success: file[{}], record[{}]", id,
+  PEDRODB_INFO("crash recover success: file[{}], record[{}]", id,
                 indices_.size());
   file_manager_->ReleaseDataFile(id);
   return Status::kOk;
 }
 
-Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
+Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
   auto lock = AcquireLock();
   compact_hints_[id].state = CompactState::kCompacting;
 
@@ -160,7 +162,7 @@ Status DBImpl::CompactBatch(file_t id, const std::vector<Record>& records) {
   return Status::kOk;
 }
 
-void DBImpl::Compact(file_t id) {
+void DBImpl::Compact(file_id_t id) {
   ReadableFileGuard file;
   auto stat = file_manager_->AcquireDataFile(id, &file);
   if (stat != Status::kOk) {
@@ -172,8 +174,7 @@ void DBImpl::Compact(file_t id) {
   std::vector<Record> batch;
   size_t batch_bytes = 0;
 
-  ArrayBuffer buffer;
-  for (auto iter = RecordIterator(file.get(), &buffer); iter.Valid();) {
+  for (auto iter = RecordIterator(file.get()); iter.Valid();) {
     uint32_t offset = iter.GetOffset();
     auto next = iter.Next();
     if (next.type != record::Type::kSet) {
@@ -204,7 +205,7 @@ void DBImpl::Compact(file_t id) {
   }
 
   // remove file.
-  PEDRODB_IGNORE_ERROR(file_manager_->RemoveDataFile(id));
+  PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
 
   PEDRODB_TRACE("end compacting: {}", id);
 }
@@ -341,20 +342,21 @@ Status DBImpl::HandleGet(const ReadOptions& options, uint32_t h,
   return FetchRecord(file.get(), loc, size, value);
 }
 
-Status DBImpl::Recovery(record::Location loc, record::EntryView entry) {
+void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
   uint32_t h = Hash(entry.key);
+  record::Location loc(id, entry.offset);
   auto it = GetMetadataIterator(h, entry.key);
 
   if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      indices_.emplace(h, std::string{entry.key}, loc, entry.SizeOf());
-      return Status::kOk;
+      indices_.emplace(h, std::string{entry.key}, loc, entry.len);
+      return;
     }
 
     // indices has the newer version data.
     if (it->loc > loc) {
-      UpdateUnused(loc.id, entry.SizeOf());
-      return Status::kOk;
+      UpdateUnused(loc.id, entry.len);
+      return;
     }
 
     // never happen.
@@ -367,28 +369,26 @@ Status DBImpl::Recovery(record::Location loc, record::EntryView entry) {
 
     // update indices.
     it->loc = loc;
-    it->entry_size = entry.SizeOf();
+    it->entry_size = entry.len;
   }
 
   // a tombstone of deletion.
   if (entry.type == record::Type::kDelete) {
-    UpdateUnused(loc.id, entry.SizeOf());
+    UpdateUnused(loc.id, entry.len);
     if (it == indices_.end()) {
-      return Status::kOk;
+      return;
     }
 
-    // Recover(file_t) should be called monotonously,
+    // Recover(file_id_t) should be called monotonously,
     // therefore entry.loc is always monotonously increased.
     // should not delete the latest version data.
     if (it->loc > loc) {
-      return Status::kOk;
+      return;
     }
 
     UpdateUnused(it->loc.id, it->entry_size);
     indices_.erase(it);
   }
-
-  return Status::kOk;
 }
 
 Record::Record(uint32_t h, std::string key, std::string value,

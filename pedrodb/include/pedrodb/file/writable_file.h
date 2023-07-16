@@ -5,21 +5,22 @@
 #include "pedrodb/logger/logger.h"
 
 namespace pedrodb {
+
 class WritableFile final : public ReadableFile {
   File file_{};
   ArrayBuffer buf_;
   size_t offset_{};
   const size_t capacity_{};
-  const file_t id_{};
 
-  WritableFile(file_t id, size_t capacity)
-      : buf_(capacity), capacity_(capacity), id_(id) {}
+  explicit WritableFile(size_t capacity)
+      : buf_(capacity), capacity_(capacity) {}
 
  public:
   ~WritableFile() override { Flush(true); }
 
-  static Status Open(const std::string& filename, file_t id, size_t capacity,
-                     WritableFile** f) {
+  template <class WritableFilePtr>
+  static Status Open(const std::string& filename, size_t capacity,
+                     WritableFilePtr* f) {
     File::OpenOption option{.mode = File ::OpenMode::kReadWrite,
                             .create = 0777};
     auto file = File::Open(filename.c_str(), option);
@@ -42,18 +43,22 @@ class WritableFile final : public ReadableFile {
       return Status::kIOError;
     }
 
-    auto ptr = *f = new WritableFile(id, capacity);
+    f->reset(new WritableFile(capacity));
+
+    auto& ptr = *f;
     ptr->file_ = std::move(file);
     ptr->offset_ = buf.size();
     ptr->buf_.Append(buf.data(), buf.size());
     return Status::kOk;
   }
 
-  [[nodiscard]] uint64_t Size() const noexcept override { return buf_.ReadableBytes(); }
+  [[nodiscard]] uint64_t Size() const noexcept override {
+    return buf_.ReadableBytes();
+  }
 
-  [[nodiscard]] Error GetError() const noexcept override { return file_.GetError(); }
-
-  [[nodiscard]] file_t GetFile() const noexcept { return id_; }
+  [[nodiscard]] Error GetError() const noexcept override {
+    return file_.GetError();
+  }
 
   ssize_t Read(uint64_t offset, char* buf, size_t n) override {
     memcpy(buf, buf_.ReadIndex() + offset, n);
@@ -81,8 +86,8 @@ class WritableFile final : public ReadableFile {
     return Error::kOk;
   }
 
-  template <typename Key, typename Value>
-  size_t Write(const record::Entry<Key, Value>& entry) {
+  template <typename Packable>
+  size_t Write(Packable&& entry) {
     if (buf_.ReadableBytes() + entry.SizeOf() > capacity_) {
       return -1;
     }

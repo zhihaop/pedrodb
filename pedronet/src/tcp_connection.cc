@@ -164,7 +164,7 @@ void TcpConnection::handleSend(std::string_view buffer) {
       if (high_watermark_callback_) {
         high_watermark_callback_(shared_from_this(), buffer.size() - w);
       }
-      output_.EnsureWriteable(buffer.size());
+      output_.EnsureWritable(buffer.size());
     }
     output_.Append(buffer.data(), buffer.size());
     channel_.SetWritable(true);

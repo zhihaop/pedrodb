@@ -10,7 +10,7 @@ struct Header {
   std::string name;
 
   static size_t SizeOf(size_t name_length) {
-    return sizeof(uint32_t) + name_length;
+    return sizeof(uint16_t) + name_length;
   }
 
   bool UnPack(ArrayBuffer* buffer) {
@@ -18,7 +18,7 @@ struct Header {
       return false;
     }
 
-    uint32_t length;
+    uint16_t length;
     RetrieveInt(buffer, &length);
 
     if (buffer->ReadableBytes() < length) {
@@ -30,10 +30,9 @@ struct Header {
     return true;
   }
 
-  bool Pack(ArrayBuffer* buffer) const {
-    AppendInt(buffer, static_cast<uint32_t>(name.size()));
+  void Pack(ArrayBuffer* buffer) const {
+    AppendInt(buffer, (uint16_t)(name.size()));
     buffer->Append(name.data(), name.size());
-    return true;
   }
 };
 
@@ -44,12 +43,13 @@ enum class LogType {
 
 struct LogEntry {
   LogType type{};
-  file_t id{};
+  file_id_t id{};
   LogEntry() = default;
-  LogEntry(LogType type, file_t id) : type(type), id(id) {}
   ~LogEntry() = default;
 
-  static size_t SizeOf() noexcept { return sizeof(uint8_t) + sizeof(file_t); }
+  static size_t SizeOf() noexcept {
+    return sizeof(uint8_t) + sizeof(file_id_t);
+  }
 
   bool UnPack(ArrayBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
@@ -63,14 +63,9 @@ struct LogEntry {
     return true;
   }
 
-  bool Pack(ArrayBuffer* buffer) const {
-    if (buffer->WritableBytes() < SizeOf()) {
-      return false;
-    }
-
-    AppendInt(buffer, static_cast<uint8_t>(type));
+  void Pack(ArrayBuffer* buffer) const {
+    AppendInt(buffer, (uint8_t)type);
     AppendInt(buffer, id);
-    return true;
   }
 };
 }  // namespace pedrodb::metadata

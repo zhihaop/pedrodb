@@ -13,20 +13,23 @@
 #include <pedrolib/timestamp.h>
 
 namespace pedrodb {
-using ArrayBuffer = pedrolib::ArrayBuffer;
+using pedrolib::ArrayBuffer;
 
-using Executor = pedrolib::Executor;
+using pedrolib::Executor;
 using DefaultExecutor = pedrolib::ThreadPoolExecutor;
 
-using Timestamp = pedrolib::Timestamp;
-using Duration = pedrolib::Duration;
-using File = pedrolib::File;
-using Error = pedrolib::Error;
+using pedrolib::Duration;
+using pedrolib::Error;
+using pedrolib::File;
+using pedrolib::Timestamp;
 
-using nonmovable = pedrolib::nonmovable;
-using noncopyable = pedrolib::noncopyable;
+using pedrolib::AppendInt;
+using pedrolib::noncopyable;
+using pedrolib::nonmovable;
+using pedrolib::PeekInt;
+using pedrolib::RetrieveInt;
 
-using file_t = uint32_t;
+using file_id_t = uint32_t;
 
 // the maximum size of file is 32MB.
 const uint64_t kMaxFileBytes = 128ULL << 20;

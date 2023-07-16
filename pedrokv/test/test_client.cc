@@ -92,7 +92,7 @@ void TestAsyncGet(Client& client, std::vector<int> data) {
   for (int i : data) {
     client.Get(fmt::format("hello{}", i), [i, &latch](auto&& response) {
       if (response.type != pedrokv::ResponseType::kOk) {
-        logger.Fatal("error type");
+        logger.Fatal("error type, msg: {}", response.data);
       }
       if (response.data.find(fmt::format("world{}", i)) == -1) {
         logger.Fatal("error value");
@@ -205,7 +205,7 @@ int main() {
                 read_counts.exchange(0));
   });
 
-  // test_option.enable_write = true;
+  test_option.enable_write = true;
   int n = 2000000;
   TestAsync(n, 1, 1);
   TestSync(n, 50, 50);

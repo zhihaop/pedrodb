@@ -2,7 +2,7 @@
 
 namespace pedrolib {
 
-void ArrayBuffer::EnsureWriteable(size_t n, bool fixed) {
+void ArrayBuffer::EnsureWritable(size_t n, bool fixed) {
   size_t w = WritableBytes();
   if (n <= w) {
     return;
@@ -54,13 +54,13 @@ ssize_t ArrayBuffer::Append(File* source) {
 
   Append(writable);
 
-  EnsureWriteable(r - writable, true);
+  EnsureWritable(r - writable, true);
   Append(buf, r - writable);
   return r;
 }
 
 void ArrayBuffer::Append(const char* data, size_t n) {
-  EnsureWriteable(n, false);
+  EnsureWritable(n, false);
   memcpy(WriteIndex(), data, n);
   Append(n);
 }
@@ -82,7 +82,7 @@ ssize_t ArrayBuffer::Retrieve(File* target) {
 
 void ArrayBuffer::Append(ArrayBuffer* buffer) {
   size_t r = buffer->ReadableBytes();
-  EnsureWriteable(r, false);
+  EnsureWritable(r, false);
   buffer->Retrieve(WriteIndex(), r);
   Append(r);
 }

@@ -40,7 +40,7 @@ class ArrayBuffer final {
 
   size_t Retrieve(char* data, size_t n);
 
-  void EnsureWriteable(size_t n, bool fixed = true);
+  void EnsureWritable(size_t n, bool fixed = true);
 
   ssize_t Append(File* source);
 

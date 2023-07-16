@@ -6,7 +6,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <shared_mutex>
 #include <unordered_set>
 #include <vector>
 
@@ -17,6 +16,7 @@
 #include "pedrodb/file_manager.h"
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/format/record_format.h"
+#include "pedrodb/iterator/index_iterator.h"
 #include "pedrodb/iterator/record_iterator.h"
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
@@ -58,16 +58,17 @@ class DBImpl : public DB {
   std::unordered_multiset<record::Dir, record::Dir::Hash> indices_;
 
   // for compaction.
-  std::unordered_set<file_t> compact_tasks_;
-  std::unordered_map<file_t, CompactHint> compact_hints_;
+  std::unordered_set<file_id_t> compact_tasks_;
+  std::unordered_map<file_id_t, CompactHint> compact_hints_;
 
-  Status Recovery(file_t id);
+  void Recovery(file_id_t id, index::EntryView entry);
+  Status Recovery(file_id_t id);
 
-  void Compact(file_t id);
+  void Compact(file_id_t id);
 
   auto GetMetadataIterator(uint32_t h, std::string_view key)
       -> decltype(indices_.begin());
-  
+
   Status FetchRecord(ReadableFile* file, const record::Location& loc,
                      size_t size, std::string* value);
 
@@ -102,14 +103,14 @@ class DBImpl : public DB {
 
   Status Delete(const WriteOptions& options, std::string_view key) override;
 
-  std::vector<file_t> GetFiles();
+  std::vector<file_id_t> GetFiles();
 
-  void UpdateUnused(file_t id, size_t unused);
+  void UpdateUnused(file_id_t id, size_t unused);
 
-  std::vector<file_t> PollCompactTask();
+  std::vector<file_id_t> PollCompactTask();
 
-  Status CompactBatch(file_t id, const std::vector<Record>& records);
-  Status Recovery(record::Location loc, record::EntryView entry);
+  Status CompactBatch(file_id_t id, const std::vector<Record>& records);
+  
 };
 }  // namespace pedrodb
 

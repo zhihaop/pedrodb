@@ -35,7 +35,7 @@ int main() {
 
   logger.SetLevel(Logger::Level::kTrace);
 
-  std::string path = "/home/zhihaop/db/test.db";
+  std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
   if (status != Status::kOk) {

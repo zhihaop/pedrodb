@@ -35,17 +35,19 @@ class ReadonlyFile : public ReadableFile {
   uint64_t Size() const noexcept override { return File::Size(file_); }
 
   Error GetError() const noexcept override { return file_.GetError(); }
-
-  static Status Open(const std::string& filename, ReadonlyFile* file) {
+  
+  static Status Open(const std::string& filename, std::shared_ptr<ReadableFile>* file) {
     File::OpenOption option{.mode = File ::OpenMode::kRead};
     auto f = File::Open(filename.c_str(), option);
     if (!f.Valid()) {
-      PEDRODB_ERROR("failed to create active file {}: {}", filename,
+      PEDRODB_ERROR("failed to open active file {}: {}", filename,
                     f.GetError());
       return Status::kIOError;
     }
-
-    file->file_ = std::move(f);
+    
+    auto ptr = new ReadonlyFile();
+    ptr->file_ = std::move(f);
+    file->reset(ptr);
     return Status::kOk;
   }
 };

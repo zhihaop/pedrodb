@@ -32,6 +32,7 @@ Status MetadataManager::Recovery() {
 
   return Status::kOk;
 }
+
 Status MetadataManager::CreateDatabase() {
   metadata::Header header;
   header.name = name_;
@@ -73,7 +74,7 @@ Status MetadataManager::Init() {
   return CreateDatabase();
 }
 
-Status MetadataManager::CreateFile(file_t id) {
+Status MetadataManager::CreateFile(file_id_t id) {
   auto lock = AcquireLock();
   if (files_.count(id)) {
     return Status::kOk;
@@ -88,11 +89,13 @@ Status MetadataManager::CreateFile(file_t id) {
   entry.Pack(&slice);
   slice.Retrieve(&file_);
 
-  PEDRODB_IGNORE_ERROR(file_.Sync());
+  if (file_.Sync() != Error::kOk) {
+    return Status::kIOError;
+  }
   return Status::kOk;
 }
 
-Status MetadataManager::DeleteFile(file_t id) {
+Status MetadataManager::DeleteFile(file_id_t id) {
   auto lock = AcquireLock();
   auto it = files_.find(id);
   if (it == files_.end()) {
@@ -108,11 +111,17 @@ Status MetadataManager::DeleteFile(file_t id) {
   entry.Pack(&slice);
   slice.Retrieve(&file_);
 
-  PEDRODB_IGNORE_ERROR(file_.Sync());
+  if (file_.Sync() != Error::kOk) {
+    return Status::kIOError;
+  }
   return Status::kOk;
 }
 
-std::string MetadataManager::GetDataFilePath(file_t id) const noexcept {
-  return fmt::format("{}_{}.data", name_, id);
+std::string MetadataManager::GetDataFilePath(file_id_t id) const noexcept {
+  return fmt::format("{}.{}.data", name_, id);
+}
+
+std::string MetadataManager::GetIndexFilePath(file_id_t id) const noexcept {
+  return fmt::format("{}.{}.index", name_, id);
 }
 }  // namespace pedrodb

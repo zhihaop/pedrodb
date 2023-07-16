@@ -9,7 +9,7 @@ using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
 
 int main() {
-  pedrokv::logger::SetLevel(Logger::Level::kInfo);
+  pedrokv::logger::SetLevel(Logger::Level::kTrace);
   pedrodb::logger::SetLevel(Logger::Level::kInfo);
   pedronet::logger::SetLevel(Logger::Level::kInfo);
 

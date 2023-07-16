@@ -106,7 +106,7 @@ class SyncClient {
       }
     }
 
-    buffer_.EnsureWriteable(response.SizeOf());
+    buffer_.EnsureWritable(response.SizeOf());
     while (!response.UnPack(&buffer_)) {
       if (buffer_.Append(&channel_) < 0) {
         PEDROKV_ERROR("failed to recv channel {} {}", channel_, Error{errno});

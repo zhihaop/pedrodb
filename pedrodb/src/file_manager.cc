@@ -2,37 +2,18 @@
 
 namespace pedrodb {
 
-Status FileManager::OpenActiveFile(WritableFileGuard* f, file_t id) {
-  PEDRODB_INFO("create active file {}", id);
-  WritableFile* file = nullptr;
-  auto path = metadata_manager_->GetDataFilePath(id);
-  auto status = WritableFile::Open(path, id, kMaxFileBytes, &file);
-  if (status != Status::kOk) {
-    PEDRODB_ERROR("failed to load active file: {}",
-                  metadata_manager_->GetDataFilePath(id));
-    return status;
-  }
-  f->reset(file);
-  PEDRODB_INFO("open file: {}", metadata_manager_->GetDataFilePath(id));
-  return status;
-}
-
-Status FileManager::Recovery(file_t active) {
-  WritableFileGuard file;
-  auto status = OpenActiveFile(&file, active);
+Status FileManager::Recovery(file_id_t id) {
+  auto status = CreateFile(id);
   if (status != Status::kOk) {
     return status;
   }
-
-  active_ = std::move(file);
-
   return Status::kOk;
 }
 
 Status FileManager::Init() {
   auto files = metadata_manager_->GetFiles();
   if (files.empty()) {
-    auto status = CreateActiveFile();
+    auto status = CreateFile(1);
     if (status != Status::kOk) {
       return status;
     }
@@ -42,95 +23,112 @@ Status FileManager::Init() {
   return Recovery(files.back());
 }
 
-Status FileManager::CreateActiveFile() {
-  WritableFileGuard active;
-  
-  file_t id = 0;
-  if (active_) {
-    id = active_->GetFile();
-    auto err = active_->Sync();
-    if (err != Error::kOk) {
-      return Status::kIOError;
-    }
+void SyncRunner(Executor* executor, file_id_t id, WritableFileGuard file) {
+  auto err = file->Sync();
+  if (err != Error::kOk) {
+    PEDRODB_WARN("failed to sync active file to disk");
+    executor->ScheduleAfter(Duration::Seconds(1), [executor, id, file] {
+      SyncRunner(executor, id, file);
+    });
+  }
+  PEDRODB_INFO("flush file {} success", id);
+}
+
+Status FileManager::CreateFile(file_id_t id) {
+
+  if (active_data_file_) {
+    PEDRODB_IGNORE_ERROR(active_data_file_->Flush(true));
+    PEDRODB_IGNORE_ERROR(active_index_file_->Flush(true));
+    
+    io_executor_->Schedule(
+        [=] { SyncRunner(io_executor_, active_file_id_, active_data_file_); });
+
+    io_executor_->Schedule(
+        [=] { SyncRunner(io_executor_, active_file_id_, active_index_file_); });
   }
 
-  auto stat = OpenActiveFile(&active, id + 1);
+  WritableFileGuard data_file;
+  WritableFileGuard index_file;
+
+  auto data_file_path = metadata_manager_->GetDataFilePath(id);
+  auto index_file_path = metadata_manager_->GetIndexFilePath(id);
+
+  auto err = WritableFile::Open(data_file_path, kMaxFileBytes, &data_file);
+  if (err != Status::kOk) {
+    return err;
+  }
+
+  err = WritableFile::Open(index_file_path, kMaxFileBytes, &index_file);
+  if (err != Status::kOk) {
+    return err;
+  }
+
+  metadata_manager_->CreateFile(id);
+  active_data_file_ = data_file;
+  active_index_file_ = index_file;
+  active_file_id_ = id;
+
+  return Status::kOk;
+}
+
+void FileManager::ReleaseDataFile(file_id_t id) {
+  auto lock = AcquireLock();
+  open_data_files_.erase(id);
+}
+
+Status FileManager::AcquireDataFile(file_id_t id, ReadableFileGuard* file) {
+  auto lock = AcquireLock();
+  if (id == active_file_id_) {
+    *file = active_data_file_;
+    return Status::kOk;
+  }
+
+  auto it = open_data_files_.find(id);
+  if (it != open_data_files_.end()) {
+    *file = it->second;
+    return Status::kOk;
+  }
+
+  lock.unlock();
+  std::string filename = metadata_manager_->GetDataFilePath(id);
+  auto stat = ReadonlyFile::Open(filename, file);
   if (stat != Status::kOk) {
+    PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
     return stat;
   }
+  lock.lock();
 
-  metadata_manager_->CreateFile(active->GetFile());
-  active_ = std::move(active);
+  if (open_data_files_.size() == max_open_files_) {
+    open_data_files_.erase(open_data_files_.begin());
+  }
+  open_data_files_.emplace(id, *file);
 
   return Status::kOk;
 }
 
-void FileManager::ReleaseDataFile(file_t id) {
-  auto lock = AcquireLock();
-  auto pred = [id](const OpenFile& file) {
-    return file.id == id;
-  };
-  auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
-  open_files_.erase(it, open_files_.end());
-}
+Status FileManager::RemoveFile(file_id_t id) {
+  ReleaseDataFile(id);
 
-Status FileManager::AcquireDataFile(file_t id, ReadableFileGuard* file) {
-  auto lock = AcquireLock();
-  if (id == active_->GetFile()) {
-    *file = active_;
-    return Status::kOk;
+  auto data_file_path = metadata_manager_->GetDataFilePath(id);
+  auto index_file_path = metadata_manager_->GetIndexFilePath(id);
+  auto status = metadata_manager_->DeleteFile(id);
+  if (status != Status::kOk) {
+    return status;
   }
 
-  // find the opened file with id
-  auto pred = [id](const OpenFile& file) {
-    return file.id == id;
-  };
-  auto it = std::find_if(open_files_.begin(), open_files_.end(), pred);
-  if (it != open_files_.end()) {
-    // lru strategy.
-    auto open_file = std::move(*it);
-    open_files_.erase(it);
-    *file = open_files_.emplace_back(std::move(open_file)).file;
-    return Status::kOk;
-  }
-
-  ReadonlyFile f;
-  {
-    lock.unlock();
-    std::string filename = metadata_manager_->GetDataFilePath(id);
-    auto stat = ReadonlyFile::Open(filename, &f);
-    if (stat != Status::kOk) {
-      PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
-      return stat;
-    }
-    lock.lock();
-  }
-  *file = std::make_shared<ReadonlyFile>(std::move(f));
-
-  OpenFile open_file{id, *file};
-  if (open_files_.size() == max_open_files_) {
-    open_files_.erase(open_files_.begin());
-    open_files_.emplace_back(std::move(open_file));
-  }
-
+  PEDRODB_IGNORE_ERROR(File::Remove(data_file_path.c_str()));
+  PEDRODB_IGNORE_ERROR(File::Remove(index_file_path.c_str()));
   return Status::kOk;
-}
-
-Error FileManager::RemoveDataFile(file_t id) {
-  auto lock = AcquireLock();
-  auto pred = [id](const OpenFile& file) {
-    return file.id == id;
-  };
-  auto it = std::remove_if(open_files_.begin(), open_files_.end(), pred);
-  open_files_.erase(it, open_files_.end());
-  PEDRODB_IGNORE_ERROR(metadata_manager_->DeleteFile(id));
-  return File::Remove(metadata_manager_->GetDataFilePath(id).c_str());
 }
 
 Status FileManager::Flush(bool force) {
   auto lock = AcquireLock();
-  auto active = active_;
+  auto active = active_data_file_;
   lock.unlock();
+
+  if (active == nullptr) {
+    return Status::kOk;
+  }
 
   auto err = active->Flush(force);
   if (err != Error::kOk) {
@@ -141,8 +139,12 @@ Status FileManager::Flush(bool force) {
 
 Status FileManager::Sync() {
   std::unique_lock lock{mu_};
-  auto active = active_;
+  auto active = active_data_file_;
   lock.unlock();
+
+  if (active == nullptr) {
+    return Status::kOk;
+  }
 
   if (auto err = active->Flush(true); err != Error::kOk) {
     return Status::kIOError;
@@ -150,6 +152,16 @@ Status FileManager::Sync() {
 
   if (auto err = active->Sync(); err != Error::kOk) {
     return Status::kIOError;
+  }
+  return Status::kOk;
+}
+
+Status FileManager::AcquireIndexFile(file_id_t id, ReadableFileGuard* file) {
+  std::string filename = metadata_manager_->GetIndexFilePath(id);
+  auto stat = ReadonlyFile::Open(filename, file);
+  if (stat != Status::kOk) {
+    PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
+    return stat;
   }
   return Status::kOk;
 }

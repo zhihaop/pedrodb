@@ -494,7 +494,7 @@ Buffer 是一个用户态缓冲区。它借鉴了 io.netty.ByteBuf 的设计，�
 struct Buffer {
   [[nodiscard]] virtual size_t ReadableBytes() const noexcept = 0;
   [[nodiscard]] virtual size_t WritableBytes() const noexcept = 0;
-  virtual void EnsureWriteable(size_t) = 0;
+  virtual void EnsureWritable(size_t) = 0;
 
   [[nodiscard]] virtual size_t Capacity() const noexcept = 0;
   virtual void Retrieve(size_t) = 0;
@@ -550,7 +550,7 @@ class ArrayBuffer final : public Buffer {
 当空间不足时，它首先将会尝试删除 `DiscardableBytes`，如果空间仍然不够，将会把容量调整为原有的两倍
 
 ```cpp
-void ArrayBuffer::EnsureWriteable(size_t n) {
+void ArrayBuffer::EnsureWritable(size_t n) {
   size_t w = WritableBytes();
   if (n <= w) {
     return;
@@ -590,7 +590,7 @@ ssize_t ArrayBuffer::Append(File *source) {
     return r;
   }
 
-  EnsureWriteable(r);
+  EnsureWritable(r);
   Append(writable);
   Append(buf, r - writable);
   return r;
@@ -742,7 +742,7 @@ void TcpConnection::handleSend(Buffer *buffer) {
   size_t w = output_.WritableBytes();
   size_t r = buffer->ReadableBytes();
   if (w < r) {
-    output_.EnsureWriteable(r);
+    output_.EnsureWritable(r);
     if (high_watermark_callback_) {
       high_watermark_callback_(shared_from_this(), r - w);
     }
