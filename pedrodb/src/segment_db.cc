@@ -16,7 +16,7 @@ Status SegmentDB::Open(const Options& options, const std::string& path,
   std::vector<Status> status(n, Status::kOk);
   for (int i = 0; i < n; ++i) {
     std::shared_ptr<DB> raw;
-    std::string segment_name = fmt::format("{}_segment_{}.db", path, i);
+    std::string segment_name = fmt::format("{}.seg.{}.db", path, i);
     segments[i] = std::make_shared<DBImpl>(options, segment_name);
 
     executor->Schedule([i, &segments, &status, &latch] {
@@ -38,22 +38,16 @@ Status SegmentDB::Open(const Options& options, const std::string& path,
 
 Status SegmentDB::Get(const ReadOptions& options, std::string_view key,
                       std::string* value) {
-  auto h = Hash(key);
-  auto db = GetDB(h);
-  return db->HandleGet(options, h, key, value);
+  return GetDB(Hash(key))->Get(options, key, value);
 }
 
 Status SegmentDB::Put(const WriteOptions& options, std::string_view key,
                       std::string_view value) {
-  auto h = Hash(key);
-  auto db = GetDB(h);
-  return db->HandlePut(options, h, key, value);
+  return GetDB(Hash(key))->Put(options, key, value);
 }
 
 Status SegmentDB::Delete(const WriteOptions& options, std::string_view key) {
-  auto h = Hash(key);
-  auto db = GetDB(h);
-  return db->HandlePut(options, h, key, {});
+  return GetDB(Hash(key))->Delete(options, key);
 }
 
 Status SegmentDB::Compact() {

@@ -13,7 +13,6 @@ struct Options {
   size_t compaction_batch_bytes = 4 << 20;
   Duration compact_interval = Duration::Seconds(5);
   Duration sync_interval = Duration::Seconds(10);
-  bool enable_hints{false};
 
   std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>()};
 };

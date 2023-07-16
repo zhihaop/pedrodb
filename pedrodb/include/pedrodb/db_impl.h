@@ -55,7 +55,7 @@ class DBImpl : public DB {
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
-  std::unordered_multiset<record::Dir, record::Dir::Hash> indices_;
+  std::unordered_map<std::string, record::Dir> indices_;
 
   // for compaction.
   std::unordered_set<file_id_t> compact_tasks_;
@@ -66,9 +66,6 @@ class DBImpl : public DB {
 
   void Compact(file_id_t id);
 
-  auto GetMetadataIterator(uint32_t h, std::string_view key)
-      -> decltype(indices_.begin());
-
   Status FetchRecord(ReadableFile* file, const record::Location& loc,
                      size_t size, std::string* value);
 
@@ -77,10 +74,10 @@ class DBImpl : public DB {
 
   explicit DBImpl(const Options& options, const std::string& name);
 
-  Status HandlePut(const WriteOptions& options, uint32_t h,
-                   std::string_view key, std::string_view value);
+  Status HandlePut(const WriteOptions& options, const std::string& key,
+                   std::string_view value);
 
-  Status HandleGet(const ReadOptions& options, uint32_t h, std::string_view key,
+  Status HandleGet(const ReadOptions& options, const std::string& key,
                    std::string* value);
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
@@ -110,7 +107,6 @@ class DBImpl : public DB {
   std::vector<file_id_t> PollCompactTask();
 
   Status CompactBatch(file_id_t id, const std::vector<Record>& records);
-  
 };
 }  // namespace pedrodb
 

@@ -54,7 +54,7 @@ struct Header {
   }
 };
 
-template <typename Key, typename Value>
+template <typename Key = std::string, typename Value = std::string>
 struct Entry {
   uint32_t crc32{};
   Type type{};
@@ -135,49 +135,10 @@ struct Location : public pedrolib::Comparable<Location> {
 };
 
 struct Dir {
-  struct Hash {
-    size_t operator()(const Dir& other) const noexcept { return other.h; }
-  };
-
-  struct Cleaner {
-    void operator()(const char* ptr) const noexcept { std::free((void*)ptr); }
-  };
-
-  using Key = std::unique_ptr<char, Cleaner>;
-
-  uint32_t h{};
-  mutable uint8_t key_size;
-  mutable uint32_t entry_size;
-  mutable Location loc;
-  Key key;
-
-  Dir() : key_size(0), entry_size(0) {}
-  explicit Dir(uint32_t h) : h(h), key_size(0), entry_size(0) {}
-
-  Dir(uint32_t h, std::string_view k, const Location& loc, uint32_t size)
-      : h(h), loc(loc), key_size(k.size()), entry_size(size) {
-    key = Key((char*)malloc(k.size()), {});
-    memcpy(key.get(), k.data(), k.size());
-  }
-
-  int CompareKey(std::string_view k) const noexcept {
-    const char* buf = key.get();
-    for (size_t i = 0; i < key_size && i < k.size(); ++i) {
-      if (buf[i] < k[i])
-        return -1;
-      else if (buf[i] > k[i])
-        return 1;
-    }
-    if (key_size == k.size()) {
-      return 0;
-    }
-    return key_size > k.size() ? 1 : -1;
-  }
-
-  ~Dir() = default;
-
-  bool operator==(const Dir& other) const noexcept { return h == other.h; }
+  uint32_t entry_size{};
+  Location loc;
 };
+
 }  // namespace pedrodb::record
 
 #endif  // PEDRODB_FORMAT_RECORD_FORMAT_H
