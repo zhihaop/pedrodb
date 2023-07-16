@@ -24,7 +24,7 @@ void EpollSelector::internalUpdate(Channel* channel, int op,
 
   int fd = channel->GetFile().Descriptor();
   if (::epoll_ctl(fd_, op, fd, op == EPOLL_CTL_DEL ? nullptr : &ev) < 0) {
-    PEDRONET_FATAL("failed to call epoll_ctl, reason[{}]", errno);
+    PEDRONET_FATAL("epoll_ctl({}) failed, reason[{}]", *channel, Error{errno});
   }
 }
 
@@ -46,7 +46,7 @@ Error EpollSelector::Wait(Duration timeout, SelectChannels* selected) {
   if (n < 0) {
     return Error{errno};
   }
-  
+
   selected->now = Timestamp::Now();
 
   selected->channels.resize(n);

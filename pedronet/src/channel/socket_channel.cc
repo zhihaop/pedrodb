@@ -18,12 +18,10 @@ void SocketChannel::SetWritable(bool on) {
 
 void SocketChannel::SetReadable(bool on) {
   auto ev = events_;
-  auto events = SelectEvents::kReadEvent.Trigger(SelectTrigger::kEdge);
-
   if (on) {
-    events_.Add(events);
+    events_.Add(SelectEvents::kReadEvent);
   } else {
-    events_.Remove(events);
+    events_.Remove(SelectEvents::kReadEvent);
   }
   if (ev != events_) {
     selector_->Update(this, events_);
@@ -46,7 +44,7 @@ void SocketChannel::HandleEvents(ReceiveEvents events, Timestamp now) {
   }
 
   if (events.OneOf(ReceiveEvents::kReadable, ReceiveEvents::kPriorReadable,
-                    ReceiveEvents::kReadHangUp)) {
+                   ReceiveEvents::kReadHangUp)) {
     if (read_callback_) {
       read_callback_(events, now);
     }
