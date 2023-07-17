@@ -24,7 +24,7 @@ Status FileManager::Init() {
 }
 
 void SyncRunner(Executor* executor, file_id_t id,
-                const WritableFileGuard& file) {
+                const WritableFile::Ptr& file) {
   auto err = file->Sync();
   if (err != Error::kOk) {
     PEDRODB_WARN("failed to sync active file to disk");
@@ -52,18 +52,18 @@ Status FileManager::CreateFile(file_id_t id) {
     });
   }
 
-  WritableFileGuard data_file;
-  WritableFileGuard index_file;
+  ReadWriteFile::Ptr data_file;
+  AppendOnlyFile::Ptr index_file;
 
   auto data_file_path = metadata_manager_->GetDataFilePath(id);
   auto index_file_path = metadata_manager_->GetIndexFilePath(id);
 
-  auto err = WritableFile::Open(data_file_path, kMaxFileBytes, &data_file);
+  auto err = ReadWriteFile::Open(data_file_path, kMaxFileBytes, &data_file);
   if (err != Status::kOk) {
     return err;
   }
 
-  err = WritableFile::Open(index_file_path, kMaxFileBytes, &index_file);
+  err = AppendOnlyFile::Open(index_file_path, &index_file);
   if (err != Status::kOk) {
     return err;
   }
@@ -81,7 +81,7 @@ void FileManager::ReleaseDataFile(file_id_t id) {
   open_data_files_.erase(id);
 }
 
-Status FileManager::AcquireDataFile(file_id_t id, ReadableFileGuard* file) {
+Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
   auto lock = AcquireLock();
   if (id == active_file_id_) {
     *file = active_data_file_;
@@ -161,7 +161,7 @@ Status FileManager::Sync() {
   return Status::kOk;
 }
 
-Status FileManager::AcquireIndexFile(file_id_t id, ReadableFileGuard* file) {
+Status FileManager::AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file) {
   std::string filename = metadata_manager_->GetIndexFilePath(id);
   auto stat = ReadonlyFile::Open(filename, file);
   if (stat != Status::kOk) {

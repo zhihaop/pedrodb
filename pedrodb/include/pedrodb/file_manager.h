@@ -3,30 +3,26 @@
 
 #include "pedrodb/cache/read_cache.h"
 #include "pedrodb/defines.h"
+#include "pedrodb/file/appendonly_file.h"
 #include "pedrodb/file/readonly_file.h"
-#include "pedrodb/file/writable_file.h"
+#include "pedrodb/file/readwrite_file.h"
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
 
 namespace pedrodb {
 
-using ReadableFileGuard = std::shared_ptr<ReadableFile>;
-using WritableFileGuard = std::shared_ptr<WritableFile>;
-
-class FileManager;
-
 class FileManager {
   mutable std::mutex mu_;
 
   MetadataManager* metadata_manager_;
 
-  std::unordered_map<file_id_t, ReadableFileGuard> open_data_files_;
+  std::unordered_map<file_id_t, ReadableFile::Ptr> open_data_files_;
   const uint8_t max_open_files_;
 
   // always in use.
-  std::shared_ptr<WritableFile> active_data_file_;
-  std::shared_ptr<WritableFile> active_index_file_;
+  ReadWriteFile::Ptr active_data_file_;
+  AppendOnlyFile::Ptr active_index_file_;
   file_id_t active_file_id_{};
 
   Executor* io_executor_{};
@@ -79,9 +75,9 @@ class FileManager {
 
   void ReleaseDataFile(file_id_t id);
 
-  Status AcquireDataFile(file_id_t id, ReadableFileGuard* file);
+  Status AcquireDataFile(file_id_t id, ReadableFile::Ptr* file);
 
-  Status AcquireIndexFile(file_id_t id, ReadableFileGuard* file);
+  Status AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file);
 
   Status RemoveFile(file_id_t id);
 };

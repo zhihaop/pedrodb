@@ -7,7 +7,11 @@
 #include "pedrodb/status.h"
 
 namespace pedrodb {
-class ReadonlyFile : public ReadableFile {
+class ReadonlyFile : public ReadableFile, noncopyable {
+ public:
+  using Ptr = std::shared_ptr<ReadonlyFile>;
+
+ private:
   uint64_t size_{};
   mutable File file_{};
 
@@ -35,8 +39,9 @@ class ReadonlyFile : public ReadableFile {
   uint64_t Size() const noexcept override { return File::Size(file_); }
 
   Error GetError() const noexcept override { return file_.GetError(); }
-  
-  static Status Open(const std::string& filename, std::shared_ptr<ReadableFile>* file) {
+
+  static Status Open(const std::string& filename,
+                     std::shared_ptr<ReadableFile>* file) {
     File::OpenOption option{.mode = File ::OpenMode::kRead};
     auto f = File::Open(filename.c_str(), option);
     if (!f.Valid()) {
@@ -44,7 +49,7 @@ class ReadonlyFile : public ReadableFile {
                     f.GetError());
       return Status::kIOError;
     }
-    
+
     auto ptr = new ReadonlyFile();
     ptr->file_ = std::move(f);
     file->reset(ptr);

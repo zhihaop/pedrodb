@@ -113,7 +113,7 @@ DBImpl::~DBImpl() {
 }
 
 Status DBImpl::Recovery(file_id_t id) {
-  ReadableFileGuard file;
+  ReadableFile::Ptr file;
   auto status = file_manager_->AcquireIndexFile(id, &file);
   if (status != Status::kOk) {
     return status;
@@ -170,7 +170,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
 }
 
 void DBImpl::Compact(file_id_t id) {
-  ReadableFileGuard file;
+  ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(id, &file);
   if (stat != Status::kOk) {
     return;
@@ -335,7 +335,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
     return Status::kOk;
   }
 
-  ReadableFileGuard file;
+  ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
   if (stat != Status::kOk) {
     PEDRODB_ERROR("cannot get file {}", dir.loc.id);

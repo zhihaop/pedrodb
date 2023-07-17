@@ -1,9 +1,12 @@
 #ifndef PEDRODB_FILE_READABLE_FILE_H
 #define PEDRODB_FILE_READABLE_FILE_H
 #include <pedrolib/noncopyable.h>
+#include <memory>
 namespace pedrodb {
 
-struct ReadableFile : pedrolib::noncopyable {
+struct ReadableFile {
+  using Ptr = std::shared_ptr<ReadableFile>;
+
   ReadableFile() = default;
   virtual ~ReadableFile() = default;
   [[nodiscard]] virtual uint64_t Size() const noexcept = 0;
