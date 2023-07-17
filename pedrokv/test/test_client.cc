@@ -205,7 +205,7 @@ int main() {
                 read_counts.exchange(0));
   });
 
-  // test_option.enable_write = true;
+  test_option.enable_write = true;
   int n = 2000000;
   TestAsync(n, 1, 1);
   TestSync(n, 50, 50);
