@@ -80,16 +80,22 @@ Status FileManager::CreateFile(file_id_t id) {
   record::EntryView entry;
   uint32_t offset = 0;
   active_index_log_ = std::make_shared<ArrayBuffer>();
-
-  while (entry.UnPack(data_file.get())) {
+  
+  auto buffer = data_file->GetReadonlyBuffer();
+  while (entry.UnPack(&buffer)) {
     index::EntryView index;
-    index.offset = 0;
+    index.offset = offset;
     index.len = entry.SizeOf();
     index.type = entry.type;
     index.key = entry.key;
 
-    offset += index.len;
-    index.UnPack(active_index_log_.get());
+    offset += entry.SizeOf();
+    index.Pack(active_index_log_.get());
+  }
+  
+  if (offset != 0) {
+    PEDRODB_WARN("last offset {}", offset);
+    data_file->SetWriteIndex(offset);
   }
 
   metadata_manager_->CreateFile(id);

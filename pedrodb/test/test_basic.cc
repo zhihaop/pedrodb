@@ -26,6 +26,7 @@ std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size);
 
 void TestPut(DB* db, const std::vector<KeyValue>& data);
+void TestGetAll(DB* db, const std::vector<KeyValue>& data);
 void TestScan(DB* db, size_t);
 void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n);
 
@@ -51,6 +52,8 @@ int main() {
   auto test_data = GenerateData(n_puts, 16, 100);
   TestPut(db.get(), test_data);
   TestRandomGet(db.get(), test_data, n_reads);
+  TestGetAll(db.get(), test_data);
+  db->Compact();
   TestScan(db.get(), 5);
   return 0;
 }
@@ -97,7 +100,7 @@ class Reporter {
       : logger_(log), topic_(std::move(topic)) {
     start_ = last_ = Timestamp::Now();
 
-    logger_->Info("Start reporting {}", topic);
+    logger_->Info("Start reporting {}", topic_);
   }
 
   ~Reporter() {
@@ -120,11 +123,11 @@ class Reporter {
 
 void TestScan(DB* db, size_t n) {
   Reporter reporter("Scan", &logger);
-  
+
   for (int i = 0; i < n; ++i) {
     pedrodb::EntryIterator::Ptr iterator;
     db->GetIterator(&iterator);
-    
+
     while (iterator->Valid()) {
       iterator->Next();
       reporter.Report();
@@ -134,14 +137,29 @@ void TestScan(DB* db, size_t n) {
 
 void TestPut(DB* db, const std::vector<KeyValue>& data) {
   Reporter reporter("Put", &logger);
-
-  // put
+  
   for (const auto& [key, value] : data) {
     auto stat = db->Put({}, key, value);
     if (stat != Status::kOk) {
       logger.Fatal("failed to write {}, {}: {}", key, value, stat);
     }
 
+    reporter.Report();
+  }
+}
+
+void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
+  Reporter reporter("GetAll", &logger);
+
+  std::string get;
+  for (const auto& [key, value] : data) {
+    auto stat = db->Get({}, key, &get);
+    if (stat != Status::kOk) {
+      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+    }
+    if (get != value) {
+      logger.Fatal("expected {}, shows {}", value, get);
+    }
     reporter.Report();
   }
 }

@@ -117,30 +117,28 @@ struct Entry {
 
 using EntryView = Entry<std::string_view, std::string_view>;
 
-struct Location : public pedrolib::Comparable<Location> {
-  struct Hash {
-    size_t operator()(const Location& v) const noexcept { return v.Hash(); }
-  };
-
+struct Location {
   file_id_t id{};
   uint32_t offset{};
 
   Location() = default;
   Location(file_id_t id, uint32_t offset) : id(id), offset(offset) {}
   ~Location() = default;
-
-  static int Compare(const Location& x, const Location& y) noexcept {
-    if (x.id != y.id) {
-      return x.id < y.id ? -1 : 1;
-    }
-    if (x.offset != y.offset) {
-      return x.offset < y.offset ? -1 : 1;
-    }
-    return 0;
+  
+  bool operator < (const Location& other) const noexcept {
+    return id != other.id ? id < other.id : offset < other.offset;
   }
-
-  [[nodiscard]] size_t Hash() const noexcept {
-    return (((uint64_t)id) << 32) | offset;
+  
+  bool operator == (const Location& other) const noexcept {
+    return id == other.id && offset == other.offset;
+  }
+  
+  bool operator != (const Location& other) const noexcept {
+    return id != other.id || offset != other.offset;
+  }
+  
+  bool operator > (const Location& other) const noexcept {
+    return id != other.id ? id > other.id : offset > other.offset;
   }
 };
 

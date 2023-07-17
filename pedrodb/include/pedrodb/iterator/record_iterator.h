@@ -39,12 +39,6 @@ class RecordIterator : public Iterator<record::EntryView> {
   explicit RecordIterator(ReadableFile* file)
       : file_(file), size_(file_->Size()) {}
 
-  RecordIterator(ReadableFile* file, size_t offset)
-      : file_(file),
-        read_index_(offset),
-        index_(offset),
-        size_(file_->Size()) {}
-
   bool Valid() noexcept override {
     if (index_ >= size_) {
       return false;

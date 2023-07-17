@@ -8,6 +8,25 @@
 #include <sys/mman.h>
 namespace pedrodb {
 
+class ReadonlyBuffer {
+  const char* data_{};
+  size_t read_index_{};
+  const size_t capacity_{};
+
+ public:
+  ReadonlyBuffer(const char* data, size_t capacity)
+      : data_(data), capacity_(capacity) {}
+  [[nodiscard]] const char* ReadIndex() const noexcept {
+    return data_ + read_index_;
+  }
+
+  [[nodiscard]] size_t ReadableBytes() const noexcept {
+    return capacity_ - read_index_;
+  }
+
+  void Retrieve(size_t n) noexcept { read_index_ += n; }
+};
+
 class ReadWriteFile final : public ReadableFile,
                             public WritableFile,
                             noncopyable,
@@ -18,7 +37,6 @@ class ReadWriteFile final : public ReadableFile,
  private:
   File file_;
   char* data_{};
-  size_t read_index_{};
   size_t write_index_{};
   const size_t capacity_{};
 
@@ -33,18 +51,16 @@ class ReadWriteFile final : public ReadableFile,
     }
   }
 
-  [[nodiscard]] const char* ReadIndex() const noexcept {
-    return data_ + read_index_;
-  }
-
   char* WriteIndex() noexcept { return data_ + write_index_; }
-
-  [[nodiscard]] size_t ReadableBytes() const noexcept {
-    return write_index_ - read_index_;
-  }
 
   [[nodiscard]] size_t WritableBytes() const noexcept {
     return capacity_ - write_index_;
+  }
+
+  void SetWriteIndex(size_t index) noexcept { write_index_ = index; }
+
+  [[nodiscard]] ReadonlyBuffer GetReadonlyBuffer() const noexcept {
+    return {data_, capacity_};
   }
 
   void Append(const char* data, size_t n) {
@@ -53,8 +69,6 @@ class ReadWriteFile final : public ReadableFile,
   }
 
   void Append(size_t n) noexcept { write_index_ += n; }
-
-  void Retrieve(size_t n) noexcept { read_index_ += n; }
 
   template <class WritableFilePtr>
   static Status Open(const std::string& path, size_t capacity,
@@ -120,11 +134,11 @@ class ReadWriteFile final : public ReadableFile,
 
   template <typename Packable>
   size_t Write(Packable&& entry) {
-    if (ReadableBytes() + entry.SizeOf() > capacity_) {
+    if (entry.SizeOf() > WritableBytes()) {
       return -1;
     }
 
-    size_t offset = ReadableBytes();
+    size_t offset = write_index_;
     entry.Pack(this);
 
     PEDRODB_IGNORE_ERROR(Flush(false));

@@ -25,12 +25,14 @@ Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
   return HandlePut(options, buffer, {});
 }
 
-void DBImpl::UpdateUnused(file_id_t id, size_t unused) {
-  auto& hint = compact_hints_[id];
+void DBImpl::UpdateUnused(record::Location loc, size_t unused) {
+  auto& hint = compact_hints_[loc.id];
   hint.unused += unused;
   if (hint.unused >= options_.compaction_threshold_bytes) {
     if (hint.state == CompactState::kNop) {
-      compact_tasks_.emplace(id);
+      if (!compact_tasks_.count(loc.id)) {
+        compact_tasks_.emplace(loc.id);
+      }
     }
   }
 }
@@ -143,7 +145,9 @@ Status DBImpl::Recovery(file_id_t id) {
 
 Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
   auto lock = AcquireLock();
-  compact_hints_[id].state = CompactState::kCompacting;
+
+  auto& hints = compact_hints_[id];
+  hints.state = CompactState::kCompacting;
 
   for (auto& r : records) {
     auto it = indices_.find(r.key);
@@ -164,9 +168,8 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     entry.key = r.key;
     entry.value = r.value;
     entry.timestamp = r.timestamp;
-
-    // remove cache.
-    // read_cache_->Remove(dir.loc);
+    
+    hints.unused += entry.SizeOf();
 
     record::Location loc;
     auto status = file_manager_->WriteActiveFile(entry, &loc);
@@ -220,10 +223,9 @@ void DBImpl::Compact(file_id_t id) {
     auto lock = AcquireLock();
     compact_hints_.erase(id);
     compact_tasks_.erase(id);
-  }
 
-  // remove file.
-  PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
+    PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
+  }
 
   PEDRODB_TRACE("end compacting: {}", id);
 }
@@ -251,63 +253,50 @@ Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
   }
 
   auto lock = AcquireLock();
-  {
-    auto it = indices_.find(key);
+  auto it = indices_.find(key);
 
-    // check valid deletion.
-    if (it == indices_.end() && value.empty()) {
+  // only for insert.
+  if (it == indices_.end()) {
+    // invalid deletion.
+    if (value.empty()) {
+      UpdateUnused(loc, entry.SizeOf());
       return Status::kNotFound;
-    }
-
-    // replace or delete.
-    if (it != indices_.end()) {
-      auto& dir = it->second;
-      // remove cache.
-      // read_cache_->Remove(dir.loc);
-
-      // update compact hints.
-      UpdateUnused(dir.loc.id, dir.entry_size);
-
-      if (value.empty()) {
-        // delete.
-        indices_.erase(it);
-      } else {
-        // replace.
-        dir.loc = loc;
-        dir.entry_size = entry.SizeOf();
-      }
-      return Status::kOk;
     }
 
     // insert.
     auto& dir = indices_[key];
     dir.loc = loc;
     dir.entry_size = entry.SizeOf();
+
+    lock.unlock();
+    if (options.sync) {
+      file_manager_->Sync();
+    }
+    return Status::kOk;
   }
 
+  // replace or delete.
+  auto dir = it->second;
+  UpdateUnused(dir.loc, dir.entry_size);
+
+  if (value.empty()) {
+    // delete.
+    indices_.erase(it);
+  } else {
+    // replace.
+    it->second.loc = loc;
+    it->second.entry_size = entry.SizeOf();
+  }
+
+  lock.unlock();
   if (options.sync) {
     file_manager_->Sync();
   }
-
   return Status::kOk;
 }
 
 Status DBImpl::Flush() {
   return file_manager_->Flush(true);
-}
-
-Status DBImpl::FetchRecord(ReadableFile* file, const record::Location& loc,
-                           size_t size, std::string* value) {
-
-  RecordIterator iterator(file, loc.offset);
-  if (!iterator.Valid()) {
-    return Status::kCorruption;
-  }
-
-  auto entry = iterator.Next();
-  value->assign(entry.value);
-  // read_cache_->Put(loc, entry.value);
-  return Status::kOk;
 }
 
 Status DBImpl::Recovery() {
@@ -335,10 +324,6 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
     dir = it->second;
   }
 
-  //  if (read_cache_->Read(dir.loc, value)) {
-  //    return Status::kOk;
-  //  }
-
   ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
   if (stat != Status::kOk) {
@@ -346,7 +331,15 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
     return stat;
   }
 
-  return FetchRecord(file.get(), dir.loc, dir.entry_size, value);
+  RecordIterator iterator(file.get());
+  iterator.Seek(dir.loc.offset);
+  if (!iterator.Valid()) {
+    return Status::kCorruption;
+  }
+
+  auto entry = iterator.Next();
+  value->assign(entry.value);
+  return Status::kOk;
 }
 
 void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
@@ -363,9 +356,9 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     }
 
     // indices has the newer version data.
-    auto& dir = it->second;
+    auto dir = it->second;
     if (dir.loc > loc) {
-      UpdateUnused(loc.id, entry.len);
+      UpdateUnused(loc, entry.len);
       return;
     }
 
@@ -375,16 +368,16 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     }
 
     // indices has the elder version data.
-    UpdateUnused(dir.loc.id, dir.entry_size);
+    UpdateUnused(dir.loc, dir.entry_size);
 
     // update indices.
-    dir.loc = loc;
-    dir.entry_size = entry.len;
+    it->second.loc = loc;
+    it->second.entry_size = entry.len;
   }
 
   // a tombstone of deletion.
   if (entry.type == record::Type::kDelete) {
-    UpdateUnused(loc.id, entry.len);
+    UpdateUnused(loc, entry.len);
     if (it == indices_.end()) {
       return;
     }
@@ -397,7 +390,7 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
       return;
     }
 
-    UpdateUnused(dir.loc.id, dir.entry_size);
+    UpdateUnused(dir.loc, dir.entry_size);
     indices_.erase(it);
   }
 }
@@ -407,42 +400,37 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
   struct EntryIteratorImpl : public EntryIterator {
     std::vector<file_id_t> files_;
     size_t index_{};
-    DBImpl* parent;
+    DBImpl* parent_;
 
-    std::string buffer_;
+    file_id_t current_id_{};
     ReadableFile::Ptr current_file_{};
     std::unique_ptr<RecordIterator> current_iterator_{};
 
     explicit EntryIteratorImpl(DBImpl* parent)
-        : parent(parent), files_(parent->GetFiles()) {}
+        : parent_(parent), files_(parent->GetFiles()) {}
 
     ~EntryIteratorImpl() override = default;
-
+    
+    // TODO using linked hash map to help scan
     bool Valid() override {
       for (;;) {
         if (current_iterator_ == nullptr) {
           if (index_ >= files_.size()) {
             return false;
           }
-          auto file_id = files_[index_++];
-          auto status =
-              parent->file_manager_->AcquireDataFile(file_id, &current_file_);
+          current_id_ = files_[index_++];
+          auto status = parent_->file_manager_->AcquireDataFile(current_id_,
+                                                               &current_file_);
           if (status != Status::kOk) {
             return false;
           }
+          
           current_iterator_ =
               std::make_unique<RecordIterator>(current_file_.get());
         }
-
+        
         while (current_iterator_->Valid()) {
-          auto peek = current_iterator_->Peek();
-          buffer_.assign(peek.key);
-
-          auto lock = parent->AcquireLock();
-          if (parent->indices_.find(buffer_) != parent->indices_.end()) {
-            return true;
-          }
-          current_iterator_->Next();
+          return true;
         }
 
         current_iterator_ = nullptr;

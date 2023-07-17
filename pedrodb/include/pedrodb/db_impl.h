@@ -64,12 +64,9 @@ class DBImpl : public DB {
 
   void Compact(file_id_t id);
 
-  Status FetchRecord(ReadableFile* file, const record::Location& loc,
-                     size_t size, std::string* value);
-
   std::vector<file_id_t> GetFiles();
 
-  void UpdateUnused(file_id_t id, size_t unused);
+  void UpdateUnused(record::Location loc, size_t unused);
 
   std::vector<file_id_t> PollCompactTask();
 
