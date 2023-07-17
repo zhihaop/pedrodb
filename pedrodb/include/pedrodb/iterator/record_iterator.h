@@ -41,11 +41,6 @@ class RecordIterator {
 
     FetchBuffer(record::Header::SizeOf());
     if (!header_.UnPack(&buffer_)) {
-      PEDRODB_ERROR("file corrupt, cannot unpack header");
-      return false;
-    }
-
-    if (header_.type == record::Type::kEmpty) {
       return false;
     }
 

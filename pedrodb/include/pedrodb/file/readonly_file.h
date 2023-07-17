@@ -42,10 +42,12 @@ class ReadonlyFile : public ReadableFile, noncopyable {
 
   static Status Open(const std::string& filename,
                      std::shared_ptr<ReadableFile>* file) {
-    File::OpenOption option{.mode = File ::OpenMode::kRead};
+    File::OpenOption option;
+    option.mode = File::OpenMode::kRead;
+    
     auto f = File::Open(filename.c_str(), option);
     if (!f.Valid()) {
-      PEDRODB_ERROR("failed to open active file {}: {}", filename,
+      PEDRODB_ERROR("failed to open file {}: {}", filename,
                     f.GetError());
       return Status::kIOError;
     }

@@ -41,8 +41,8 @@ bool RetrieveInt(Buffer* buffer, Int* value) {
   if (buffer->ReadableBytes() < sizeof(Int)) {
     return false;
   }
-  buffer->Retrieve(reinterpret_cast<char*>(value), sizeof(Int));
-  *value = betoh(*value);
+  *value = betoh(*reinterpret_cast<const Int*>(buffer->ReadIndex()));
+  buffer->Retrieve(sizeof(Int));
   return true;
 }
 
@@ -51,8 +51,7 @@ bool PeekInt(Buffer* buffer, Int* value) {
   if (buffer->ReadableBytes() < sizeof(Int)) {
     return false;
   }
-  memcpy(value, buffer->ReadIndex(), sizeof(Int));
-  *value = betoh(*value);
+  *value = betoh(*reinterpret_cast<const Int*>(buffer->ReadIndex()));
   return true;
 }
 

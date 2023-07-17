@@ -20,20 +20,27 @@ struct Header {
   ~Header() = default;
 
   constexpr static size_t SizeOf() noexcept {
-    return sizeof(uint32_t) +  // crc32
-           sizeof(uint8_t) +   // type
+    return sizeof(uint8_t) +   // type
+           sizeof(uint32_t) +  // crc32
            sizeof(uint8_t) +   // key_size
            sizeof(uint32_t) +  // value_size
            sizeof(uint32_t);   // timestamp
   }
 
-  bool UnPack(ArrayBuffer* buffer) {
+  template <class Buffer>
+  bool UnPack(Buffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
     uint8_t u8_type;
-    RetrieveInt(buffer, &crc32);
+    if (!PeekInt(buffer, &u8_type)) {
+      return false;
+    }
+    if (u8_type == (uint8_t)Type::kEmpty) {
+      return false;
+    }
     RetrieveInt(buffer, &u8_type);
+    RetrieveInt(buffer, &crc32);
     RetrieveInt(buffer, &key_size);
     RetrieveInt(buffer, &value_size);
     RetrieveInt(buffer, &timestamp);
@@ -41,12 +48,13 @@ struct Header {
     return true;
   }
 
-  bool Pack(ArrayBuffer* buffer) const noexcept {
+  template <class Buffer>
+  bool Pack(Buffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
-    AppendInt(buffer, crc32);
     AppendInt(buffer, (uint8_t)type);
+    AppendInt(buffer, crc32);
     AppendInt(buffer, key_size);
     AppendInt(buffer, value_size);
     AppendInt(buffer, timestamp);
@@ -66,7 +74,8 @@ struct Entry {
     return Header::SizeOf() + std::size(key) + std::size(value);
   }
 
-  bool UnPack(ArrayBuffer* buffer) {
+  template <class Buffer>
+  bool UnPack(Buffer* buffer) {
     Header header;
     if (!header.UnPack(buffer)) {
       return false;
@@ -87,7 +96,8 @@ struct Entry {
     return true;
   }
 
-  bool Pack(ArrayBuffer* buffer) const noexcept {
+  template <class Buffer>
+  bool Pack(Buffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }

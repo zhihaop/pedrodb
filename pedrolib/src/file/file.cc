@@ -171,7 +171,6 @@ int64_t File::Size(File& file) {
 }
 
 Error File::Remove(const char* name) {
-  printf("remove %s\n", name);
   if (::remove(name)) {
     return Error{errno};
   }

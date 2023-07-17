@@ -3,7 +3,6 @@
 
 #include "pedrodb/cache/read_cache.h"
 #include "pedrodb/defines.h"
-#include "pedrodb/file/appendonly_file.h"
 #include "pedrodb/file/readonly_file.h"
 #include "pedrodb/file/readwrite_file.h"
 #include "pedrodb/format/index_format.h"
@@ -21,8 +20,8 @@ class FileManager {
   const uint8_t max_open_files_;
 
   // always in use.
+  std::shared_ptr<ArrayBuffer> active_index_log_;
   ReadWriteFile::Ptr active_data_file_;
-  AppendOnlyFile::Ptr active_index_file_;
   file_id_t active_file_id_{};
 
   Executor* io_executor_{};
@@ -61,8 +60,7 @@ class FileManager {
         index_entry.offset = offset;
         index_entry.len = entry.SizeOf();
 
-        active_index_file_->Write(index_entry);
-
+        index_entry.Pack(active_index_log_.get());
         return Status::kOk;
       }
 
@@ -80,6 +78,9 @@ class FileManager {
   Status AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file);
 
   Status RemoveFile(file_id_t id);
+  
+  void SyncActiveDataFile(file_id_t id, const WritableFile::Ptr& file);
+  void CreateIndexFile(file_id_t id, const std::shared_ptr<ArrayBuffer>& log);
 };
 }  // namespace pedrodb
 #endif  // PEDRODB_FILE_MANAGER_H

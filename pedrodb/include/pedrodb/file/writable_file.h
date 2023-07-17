@@ -6,7 +6,7 @@ namespace pedrodb {
 
 struct WritableFile {
   using Ptr = std::shared_ptr<WritableFile>;
-  
+
   WritableFile() = default;
   virtual ~WritableFile() = default;
 

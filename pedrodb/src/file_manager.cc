@@ -23,54 +23,77 @@ Status FileManager::Init() {
   return Recovery(files.back());
 }
 
-void SyncRunner(Executor* executor, file_id_t id,
-                const WritableFile::Ptr& file) {
+void FileManager::SyncActiveDataFile(file_id_t id,
+                                     const WritableFile::Ptr& file) {
   auto err = file->Sync();
   if (err != Error::kOk) {
     PEDRODB_WARN("failed to sync active file to disk");
-    executor->ScheduleAfter(Duration::Seconds(1), [executor, id, file] {
-      SyncRunner(executor, id, file);
+    io_executor_->ScheduleAfter(Duration::Seconds(1), [this, id, file] {
+      SyncActiveDataFile(id, file);
     });
     return;
   }
-  PEDRODB_INFO("sync file {} success", id);
+  PEDRODB_TRACE("sync file {} success", id);
+}
+
+void FileManager::CreateIndexFile(file_id_t id,
+                                  const std::shared_ptr<ArrayBuffer>& log) {
+  auto index_path = metadata_manager_->GetIndexFilePath(id);
+  ReadWriteFile::Ptr file;
+  auto status = ReadWriteFile::Open(index_path, log->ReadableBytes(), &file);
+  if (status != Status::kOk) {
+    io_executor_->ScheduleAfter(Duration::Seconds(1),
+                                [this, id, log] { CreateIndexFile(id, log); });
+    return;
+  }
+
+  file->Append(log->ReadIndex(), log->ReadableBytes());
+  PEDRODB_TRACE("create index file {} success", id);
 }
 
 Status FileManager::CreateFile(file_id_t id) {
-
   if (active_data_file_) {
-    PEDRODB_INFO("flush {} to disk", id);
+    PEDRODB_TRACE("flush {} to disk", id);
     PEDRODB_IGNORE_ERROR(active_data_file_->Flush(true));
-    PEDRODB_IGNORE_ERROR(active_index_file_->Flush(true));
-
+    
     io_executor_->Schedule([=, id = active_file_id_, f = active_data_file_] {
-      SyncRunner(io_executor_, id, f);
+      SyncActiveDataFile(id, f);
     });
-
-    io_executor_->Schedule([=, id = active_file_id_, f = active_index_file_] {
-      SyncRunner(io_executor_, id, f);
-    });
+    
+    auto log = std::move(active_index_log_);
+    if (log != nullptr) {
+      io_executor_->Schedule(
+          [this, id = active_file_id_, log] { CreateIndexFile(id, log); });
+    }
   }
 
   ReadWriteFile::Ptr data_file;
-  AppendOnlyFile::Ptr index_file;
 
   auto data_file_path = metadata_manager_->GetDataFilePath(id);
-  auto index_file_path = metadata_manager_->GetIndexFilePath(id);
 
   auto err = ReadWriteFile::Open(data_file_path, kMaxFileBytes, &data_file);
   if (err != Status::kOk) {
     return err;
   }
 
-  err = AppendOnlyFile::Open(index_file_path, &index_file);
-  if (err != Status::kOk) {
-    return err;
+  // Rebuild index from file.
+  record::EntryView entry;
+  uint32_t offset = 0;
+  active_index_log_ = std::make_shared<ArrayBuffer>();
+  
+  while (entry.UnPack(data_file.get())) {
+    index::EntryView index;
+    index.offset = 0;
+    index.len = entry.SizeOf();
+    index.type = entry.type;
+    index.key = entry.key;
+    
+    offset += index.len;
+    index.UnPack(active_index_log_.get());
   }
 
   metadata_manager_->CreateFile(id);
   active_data_file_ = data_file;
-  active_index_file_ = index_file;
   active_file_id_ = id;
 
   return Status::kOk;

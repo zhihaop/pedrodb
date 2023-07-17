@@ -114,20 +114,31 @@ DBImpl::~DBImpl() {
 
 Status DBImpl::Recovery(file_id_t id) {
   ReadableFile::Ptr file;
-  auto status = file_manager_->AcquireIndexFile(id, &file);
-  if (status != Status::kOk) {
-    return status;
+  if (file_manager_->AcquireIndexFile(id, &file) == Status::kOk) {
+    auto iter = IndexIterator(file.get());
+    while (iter.Valid()) {
+      Recovery(id, iter.Next());
+    }
+    return Status::kOk;
   }
 
-  auto iter = IndexIterator(file.get());
-  while (iter.Valid()) {
-    Recovery(id, iter.Next());
+  if (file_manager_->AcquireDataFile(id, &file) == Status::kOk) {
+    auto iter = RecordIterator(file.get());
+    while (iter.Valid()) {
+      index::EntryView view;
+      view.offset = iter.GetOffset();
+
+      auto next = iter.Next();
+      view.len = next.SizeOf();
+      view.type = next.type;
+      view.key = next.key;
+      Recovery(id, view);
+    }
+    file_manager_->ReleaseDataFile(id);
+    return Status::kOk;
   }
 
-  PEDRODB_INFO("crash recover success: file[{}], record[{}]", id,
-               indices_.size());
-  file_manager_->ReleaseDataFile(id);
-  return Status::kOk;
+  return Status::kIOError;
 }
 
 Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
@@ -176,7 +187,7 @@ void DBImpl::Compact(file_id_t id) {
     return;
   }
 
-  PEDRODB_INFO("start compacting {}", id);
+  PEDRODB_TRACE("start compacting {}", id);
 
   std::vector<Record> batch;
   size_t batch_bytes = 0;
@@ -314,6 +325,7 @@ Status DBImpl::Recovery() {
     if (status != Status::kOk) {
       return status;
     }
+    PEDRODB_INFO("crash recover success: record[{}]", indices_.size());
   }
   return Status::kOk;
 }

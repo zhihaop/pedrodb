@@ -7,10 +7,12 @@
 
 using namespace std::chrono_literals;
 using pedrodb::DB;
+using pedrodb::Duration;
 using pedrodb::Options;
 using pedrodb::ReadOptions;
 using pedrodb::SegmentDB;
 using pedrodb::Status;
+using pedrodb::Timestamp;
 using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
@@ -27,7 +29,7 @@ std::string RandomString(const std::string& prefix, size_t bytes) {
 
 int main() {
   Logger logger("test");
-  pedrodb::logger::SetLevel(Logger::Level::kTrace);
+  pedrodb::logger::SetLevel(Logger::Level::kInfo);
 
   Options options{};
   // options.read_cache_bytes = 0;
@@ -54,13 +56,23 @@ int main() {
   auto mt = std::mt19937(std::random_device()());
   std::vector<int> all(n_puts);
   std::iota(all.begin(), all.end(), 0);
+
+  size_t count = 0;
+  Timestamp now = Timestamp::Now();
+
   // put
   for (int i : all) {
     std::string key = fmt::format("key{}", i);
-    std::string value = RandomString(fmt::format("value{}", i), 4 << 10);
+    std::string value = RandomString(fmt::format("value{}", i), 50);
     auto stat = db->Put(WriteOptions{.sync = false}, key, value);
     if (stat != Status::kOk) {
       logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+    }
+    count++;
+    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
+      logger.Info("put {}/s", count);
+      count = 0;
+      now = Timestamp::Now();
     }
   }
 
@@ -76,6 +88,13 @@ int main() {
 
     if (value.find(fmt::format("value{}", i)) != 0) {
       logger.Fatal("value is not correct: {}", value);
+    }
+    
+    count++;
+    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
+      logger.Info("get {}/s", count);
+      count = 0;
+      now = Timestamp::Now();
     }
   }
   logger.Info("benchmark get random");
@@ -94,6 +113,13 @@ int main() {
 
     if (value.find(fmt::format("value{}", x)) != 0) {
       logger.Fatal("value is not correct: key {} value{}", key, value);
+    }
+    
+    count++;
+    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
+      logger.Info("get random {}/s", count);
+      count = 0;
+      now = Timestamp::Now();
     }
   }
   logger.Info("cache hit: {}\n", db->CacheHitRatio());
