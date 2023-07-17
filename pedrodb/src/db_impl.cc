@@ -1,3 +1,4 @@
+#include <memory>
 #include <utility>
 
 #include "pedrodb/db_impl.h"
@@ -404,77 +405,60 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
 Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
 
   struct EntryIteratorImpl : public EntryIterator {
-    std::unordered_map<file_id_t, std::vector<uint32_t>> offsets;
-    std::vector<file_id_t> files;
-    FileManager* file_manager;
+    std::vector<file_id_t> files_;
+    size_t index_{};
+    DBImpl* parent;
 
-    size_t file_index{};
-    size_t offset_index{};
-    ReadableFile::Ptr file{};
-    std::unique_ptr<RecordIterator> iterator{};
-    std::vector<uint32_t>* offset{};
+    std::string buffer_;
+    ReadableFile::Ptr current_file_{};
+    std::unique_ptr<RecordIterator> current_iterator_{};
 
     explicit EntryIteratorImpl(DBImpl* parent)
-        : file_manager(parent->file_manager_.get()) {}
+        : parent(parent), files_(parent->GetFiles()) {}
 
     ~EntryIteratorImpl() override = default;
 
     bool Valid() override {
       for (;;) {
-        if (offset == nullptr) {
-          if (file_index >= files.size()) {
+        if (current_iterator_ == nullptr) {
+          if (index_ >= files_.size()) {
             return false;
           }
-          auto status = file_manager->AcquireDataFile(files[file_index], &file);
+          auto file_id = files_[index_++];
+          auto status =
+              parent->file_manager_->AcquireDataFile(file_id, &current_file_);
           if (status != Status::kOk) {
             return false;
           }
-          iterator = std::make_unique<RecordIterator>(file.get());
-          offset = &offsets[files[file_index++]];
+          current_iterator_ =
+              std::make_unique<RecordIterator>(current_file_.get());
         }
 
-        if (offset_index >= offset->size()) {
-          offset = nullptr;
-          iterator = nullptr;
-          file = nullptr;
-          continue;
+        while (current_iterator_->Valid()) {
+          auto peek = current_iterator_->Peek();
+          buffer_.assign(peek.key);
+
+          auto lock = parent->AcquireLock();
+          if (parent->indices_.find(buffer_) != parent->indices_.end()) {
+            return true;
+          }
+          current_iterator_->Next();
         }
 
-        if (offset != nullptr) {
-          return true;
-        }
+        current_iterator_ = nullptr;
+        current_file_ = nullptr;
       }
     }
 
-    record::EntryView Next() override {
-      uint32_t off = (*offset)[offset_index++];
-      iterator->Seek(off);
-      iterator->Valid();
-      return iterator->Next();
-    }
+    record::EntryView Next() override { return current_iterator_->Next(); }
 
     void Close() override {
-      offset = nullptr;
-      iterator = nullptr;
-      file = nullptr;
+      current_iterator_ = nullptr;
+      current_file_ = nullptr;
     }
   };
 
-  auto ptr = new EntryIteratorImpl(this);
-  {
-    auto lock = AcquireLock();
-    ptr->files = GetFiles();
-    for (auto& [key, dir] : indices_) {
-      auto& loc = dir.loc;
-      ptr->offsets[loc.id].emplace_back(loc.offset);
-    }
-  }
-
-  for (auto& [id, offset] : ptr->offsets) {
-    std::sort(offset.begin(), offset.end());
-  }
-
-  iterator->reset(ptr);
+  *iterator = std::make_unique<EntryIteratorImpl>(this);
   return Status::kOk;
 }
 

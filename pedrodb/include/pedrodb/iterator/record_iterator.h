@@ -84,6 +84,8 @@ class RecordIterator : public Iterator<record::EntryView> {
 
   [[nodiscard]] uint32_t GetOffset() const noexcept { return index_; }
 
+  record::EntryView Peek() noexcept { return entry_; }
+  
   record::EntryView Next() noexcept override {
     index_ += entry_.SizeOf();
     return entry_;

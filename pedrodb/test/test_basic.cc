@@ -26,7 +26,7 @@ std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size);
 
 void TestPut(DB* db, const std::vector<KeyValue>& data);
-void TestScan(DB* db);
+void TestScan(DB* db, size_t);
 void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n);
 
 int main() {
@@ -50,8 +50,8 @@ int main() {
 
   auto test_data = GenerateData(n_puts, 16, 100);
   TestPut(db.get(), test_data);
-  // TestRandomGet(db.get(), test_data, n_reads);
-  TestScan(db.get());
+  TestRandomGet(db.get(), test_data, n_reads);
+  TestScan(db.get(), 5);
   return 0;
 }
 
@@ -118,14 +118,17 @@ class Reporter {
   }
 };
 
-void TestScan(DB* db) {
-  pedrodb::EntryIterator::Ptr iterator;
-  db->GetIterator(&iterator);
-  
+void TestScan(DB* db, size_t n) {
   Reporter reporter("Scan", &logger);
-  while (iterator->Valid()) {
-    iterator->Next();
-    reporter.Report();
+  
+  for (int i = 0; i < n; ++i) {
+    pedrodb::EntryIterator::Ptr iterator;
+    db->GetIterator(&iterator);
+    
+    while (iterator->Valid()) {
+      iterator->Next();
+      reporter.Report();
+    }
   }
 }
 
