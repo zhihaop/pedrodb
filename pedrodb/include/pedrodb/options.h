@@ -10,6 +10,7 @@ struct Options {
   int8_t max_open_files = 16;
   size_t compaction_threshold_bytes = kMaxFileBytes * 0.75;
   size_t compaction_batch_bytes = 4 << 20;
+  bool compress = true;
   Duration compact_interval = Duration::Seconds(5);
   Duration sync_interval = Duration::Seconds(10);
 

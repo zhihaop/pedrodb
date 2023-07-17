@@ -25,12 +25,12 @@ class ClientCodecContext : public ChannelContext,
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
-
+    std::string value;
     while (true) {
-      Response response;
+      Response resp;
       if (buffer_.ReadableBytes()) {
-        if (response.UnPack(&buffer_)) {
-          response_.emplace(std::move(response));
+        if (resp.UnPack(&buffer_)) {
+          response_.emplace(std::move(resp));
           continue;
         }
 
@@ -46,8 +46,8 @@ class ClientCodecContext : public ChannelContext,
         continue;
       }
 
-      if (response.UnPack(buffer)) {
-        response_.emplace(std::move(response));
+      if (resp.UnPack(buffer)) {
+        response_.emplace(std::move(resp));
         continue;
       }
 

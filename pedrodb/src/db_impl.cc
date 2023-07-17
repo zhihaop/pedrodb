@@ -1,22 +1,24 @@
+
 #include <memory>
 #include <utility>
 
+#include "pedrodb/compress.h"
 #include "pedrodb/db_impl.h"
 
 namespace pedrodb {
 
 Status DBImpl::Get(const ReadOptions& options, std::string_view key,
                    std::string* value) {
-  thread_local std::string buffer;
-  buffer.assign(key);
-  return HandleGet(options, buffer, value);
+  thread_local std::string key_buffer;
+  key_buffer.assign(key);
+  return HandleGet(options, key_buffer, value);
 }
 
 Status DBImpl::Put(const WriteOptions& options, std::string_view key,
                    std::string_view value) {
-  thread_local std::string buffer;
-  buffer.assign(key);
-  return HandlePut(options, buffer, value);
+  thread_local std::string key_buffer;
+  key_buffer.assign(key);
+  return HandlePut(options, key_buffer, value);
 }
 
 Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
@@ -168,7 +170,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     entry.key = r.key;
     entry.value = r.value;
     entry.timestamp = r.timestamp;
-    
+
     hints.unused += entry.SizeOf();
 
     record::Location loc;
@@ -232,11 +234,15 @@ void DBImpl::Compact(file_id_t id) {
 
 Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
                          std::string_view value) {
-  record::EntryView entry;
+  record::Entry<> entry;
   entry.crc32 = 0;
   entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
   entry.key = key;
-  entry.value = value;
+  if (options_.compress) {
+    Compress(value, &entry.value);
+  } else {
+    entry.value = value;
+  }
 
   if (entry.SizeOf() > kMaxFileBytes) {
     PEDRODB_ERROR("key or value is too big");
@@ -338,7 +344,11 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
   }
 
   auto entry = iterator.Next();
-  value->assign(entry.value);
+  if (options_.compress) {
+    Uncompress(entry.value, value);
+  } else {
+    value->assign(entry.value);
+  }
   return Status::kOk;
 }
 
@@ -410,7 +420,7 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
         : parent_(parent), files_(parent->GetFiles()) {}
 
     ~EntryIteratorImpl() override = default;
-    
+
     // TODO using linked hash map to help scan
     bool Valid() override {
       for (;;) {
@@ -420,15 +430,15 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
           }
           current_id_ = files_[index_++];
           auto status = parent_->file_manager_->AcquireDataFile(current_id_,
-                                                               &current_file_);
+                                                                &current_file_);
           if (status != Status::kOk) {
             return false;
           }
-          
+
           current_iterator_ =
               std::make_unique<RecordIterator>(current_file_.get());
         }
-        
+
         while (current_iterator_->Valid()) {
           return true;
         }
@@ -438,6 +448,7 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
       }
     }
 
+    // TODO: fix compression
     record::EntryView Next() override { return current_iterator_->Next(); }
 
     void Close() override {

@@ -17,7 +17,7 @@ void Client::SendRequest(Request<> request, uint32_t id,
     callback(response);
     return;
   }
-
+  
   responses_[id] = std::move(callback);
 
   if (!client_.Write(std::move(request))) {

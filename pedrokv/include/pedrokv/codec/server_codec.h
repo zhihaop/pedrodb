@@ -12,7 +12,7 @@
 namespace pedrokv {
 
 class ServerCodecContext;
-using ResponseSender = std::function<void(const Response<>&)>;
+using ResponseSender = std::function<void(Response<>&)>;
 using ServerMessageCallback = std::function<void(
     const TcpConnectionPtr&, const ResponseSender&, const RequestView&)>;
 
@@ -28,16 +28,16 @@ class ServerCodecContext : public ChannelContext,
       : callback_(std::move(callback)) {}
 
   void HandleMessage(const TcpConnectionPtr& conn, ArrayBuffer* buffer) {
-    ResponseSender sender([&](const Response<>& response) {
+    ResponseSender sender([&](Response<>& response) {
       std::unique_lock lock{mu_};
       response.Pack(&output_);
     });
-
+    
     while (true) {
-      RequestView request;
+      RequestView req;
       if (buffer_.ReadableBytes()) {
-        if (request.UnPack(&buffer_)) {
-          callback_(conn, sender, request);
+        if (req.UnPack(&buffer_)) {
+          callback_(conn, sender, req);
           continue;
         }
 
@@ -53,8 +53,8 @@ class ServerCodecContext : public ChannelContext,
         continue;
       }
 
-      if (request.UnPack(buffer)) {
-        callback_(conn, sender, request);
+      if (req.UnPack(buffer)) {
+        callback_(conn, sender, req);
         continue;
       }
 

@@ -65,6 +65,6 @@ void Server::HandleRequest(const TcpConnectionPtr&,
     response.type = ResponseType::kOk;
   }
 
-  sender(std::move(response));
+  sender(response);
 }
 }  // namespace pedrokv

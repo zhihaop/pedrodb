@@ -49,7 +49,7 @@ int main() {
   size_t n_delete = 0;
   size_t n_reads = 10000000;
 
-  auto test_data = GenerateData(n_puts, 16, 50);
+  auto test_data = GenerateData(n_puts, 16, 100);
   TestPut(db.get(), test_data);
   TestRandomGet(db.get(), test_data, n_reads);
   TestGetAll(db.get(), test_data);

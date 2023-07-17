@@ -86,7 +86,7 @@ class SyncClient {
         options_(std::move(options)),
         channel_(pedronet::Socket::Create(address_.Family(), false)) {}
 
-  void Start() { 
+  void Start() {
     Error error = channel_.Connect(address_);
     if (error != Error::kOk) {
       PEDROKV_ERROR("failed to connect to address {}", address_);
@@ -97,6 +97,7 @@ class SyncClient {
     Response response;
     response.type = ResponseType::kError;
 
+    std::string value;
     std::unique_lock lock{mu_};
     request.Pack(&buffer_);
     while (buffer_.ReadableBytes()) {

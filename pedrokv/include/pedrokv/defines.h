@@ -11,6 +11,7 @@
 #include <pedronet/inetaddress.h>
 #include <pedronet/tcp_connection.h>
 
+#include <pedrodb/compress.h>
 #include <pedronet/eventloopgroup.h>
 
 namespace pedrokv {
