@@ -302,9 +302,9 @@ Error EpollSelector::Wait(Duration timeout, SelectChannels *selected) {
 void EventLoop::Loop() {
   PEDRONET_TRACE("EventLoop::Loop() running");
 
-  // Bind current thread to event loop.
-  auto &current = core::Thread::Current();
-  current.BindEventLoop(this);
+  // Bind offset thread to event loop.
+  auto &offset = core::Thread::Current();
+  offset.BindEventLoop(this);
 	
   SelectChannels selected;
   while (state()) {
@@ -335,7 +335,7 @@ void EventLoop::Loop() {
     running_tasks_.clear();
   }
 
-  current.UnbindEventLoop(this);
+  offset.UnbindEventLoop(this);
 }
 ```
 
@@ -541,7 +541,7 @@ class ArrayBuffer final : public Buffer {
 
   std::vector<char> buf_;
   size_t read_index_{};
-  size_t write_index_{};
+  size_t file_index_{};
 
   ...
 };
@@ -558,10 +558,10 @@ void ArrayBuffer::EnsureWritable(size_t n) {
 
   if (read_index_ + w > n) {
     size_t r = ReadableBytes();
-    std::copy(buf_.data() + read_index_, buf_.data() + write_index_,
+    std::copy(buf_.data() + read_index_, buf_.data() + file_index_,
               buf_.data());
     read_index_ = 0;
-    write_index_ = read_index_ + r;
+    file_index_ = read_index_ + r;
     return;
   }
   size_t delta = n - w;
@@ -576,7 +576,7 @@ void ArrayBuffer::EnsureWritable(size_t n) {
 ssize_t ArrayBuffer::Append(File *source) {
   char buf[65535];
   size_t writable = WritableBytes();
-  std::string_view views[2] = {{buf_.data() + write_index_, writable},
+  std::string_view views[2] = {{buf_.data() + file_index_, writable},
                                {buf, sizeof(buf)}};
 
   const int cnt = (writable < sizeof(buf)) ? 2 : 1;

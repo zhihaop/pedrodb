@@ -4,6 +4,7 @@
 #include <pedrodb/segment_db.h>
 #include <iostream>
 #include <random>
+#include "random.h"
 
 using namespace std::chrono_literals;
 using pedrodb::DB;
@@ -16,26 +17,25 @@ using pedrodb::Timestamp;
 using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
-std::string RandomString(const std::string& prefix, size_t bytes) {
+using KeyValue = std::array<std::string, 2>;
 
-  std::string s = prefix;
-  s.reserve(s.size() + bytes);
-  for (size_t i = 0; i < bytes; ++i) {
-    char ch = i % 26 + 'a';
-    s += ch;
-  }
-  return s;
-}
+Logger logger{"test"};
+std::string RandomString(const std::string& prefix, size_t bytes);
+std::string PaddingString(const std::string& prefix, size_t bytes, char pad);
+std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
+                                   size_t value_size);
+
+void TestPut(DB* db, const std::vector<KeyValue>& data);
+void TestScan(DB* db);
+void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n);
 
 int main() {
-  Logger logger("test");
   pedrodb::logger::SetLevel(Logger::Level::kInfo);
+  logger.SetLevel(Logger::Level::kTrace);
 
   Options options{};
   // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
-
-  logger.SetLevel(Logger::Level::kTrace);
 
   std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
@@ -44,118 +44,125 @@ int main() {
     logger.Fatal("failed to open db");
   }
 
-  db->Compact();
-
   size_t n_puts = 1000000;
   size_t n_delete = 0;
-  size_t n_reads = 10000000;
+  size_t n_reads = 1000000;
 
-  logger.Info("benchmark put");
+  auto test_data = GenerateData(n_puts, 16, 100);
+  TestPut(db.get(), test_data);
+  // TestRandomGet(db.get(), test_data, n_reads);
+  TestScan(db.get());
+  return 0;
+}
 
-  pedrolib::ThreadPoolExecutor executor(1);
-  auto mt = std::mt19937(std::random_device()());
-  std::vector<int> all(n_puts);
-  std::iota(all.begin(), all.end(), 0);
+std::string RandomString(const std::string& prefix, size_t bytes) {
+  std::string s = prefix;
+  s.reserve(bytes);
+  for (size_t i = 0; i < bytes - prefix.size(); ++i) {
+    char ch = i % 26 + 'a';
+    s += ch;
+  }
+  return s;
+}
 
-  size_t count = 0;
-  Timestamp now = Timestamp::Now();
+std::string PaddingString(const std::string& prefix, size_t bytes, char pad) {
+  std::string s = prefix;
+  s.reserve(bytes);
+  for (size_t i = 0; i < bytes - prefix.size(); ++i) {
+    s += pad;
+  }
+  return s;
+}
+
+std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
+                                   size_t value_size) {
+  std::vector<KeyValue> test_data(n);
+  for (int i = 0; i < test_data.size(); ++i) {
+    test_data[i][0] = PaddingString(fmt::format("key{}", i), key_size, 0);
+    test_data[i][1] = RandomString(fmt::format("value{}", i), value_size);
+  }
+  return test_data;
+}
+
+class Reporter {
+  Timestamp start_, last_;
+  size_t last_count_{};
+  size_t count_{};
+
+  Logger* logger_;
+  std::string topic_;
+
+ public:
+  explicit Reporter(std::string topic, Logger* log)
+      : logger_(log), topic_(std::move(topic)) {
+    start_ = last_ = Timestamp::Now();
+
+    logger_->Info("Start reporting {}", topic);
+  }
+
+  ~Reporter() {
+    Duration cost = Timestamp::Now() - start_;
+    logger_->Info("End report {}: count[{}], cost[{}], avg[{}/ops]", topic_,
+                  count_, cost, 1000.0 * count_ / cost.Milliseconds());
+  }
+
+  void Report() {
+    auto now = Timestamp::Now();
+    last_count_++;
+    count_++;
+    if (now - last_ > Duration::Seconds(1)) {
+      logger_->Info("Report {}: {}ops/s", topic_, last_count_);
+      last_ = now;
+      last_count_ = 0;
+    }
+  }
+};
+
+void TestScan(DB* db) {
+  pedrodb::EntryIterator::Ptr iterator;
+  db->GetIterator(&iterator);
+  
+  Reporter reporter("Scan", &logger);
+  while (iterator->Valid()) {
+    iterator->Next();
+    reporter.Report();
+  }
+}
+
+void TestPut(DB* db, const std::vector<KeyValue>& data) {
+  Reporter reporter("Put", &logger);
 
   // put
-  for (int i : all) {
-    std::string key = fmt::format("key{}", i);
-    std::string value = RandomString(fmt::format("value{}", i), 50);
-    auto stat = db->Put(WriteOptions{.sync = false}, key, value);
+  for (const auto& [key, value] : data) {
+    auto stat = db->Put({}, key, value);
     if (stat != Status::kOk) {
       logger.Fatal("failed to write {}, {}: {}", key, value, stat);
     }
-    count++;
-    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
-      logger.Info("put {}/s", count);
-      count = 0;
-      now = Timestamp::Now();
-    }
-  }
 
-  std::shuffle(all.begin(), all.end(), mt);
-  logger.Info("benchmark get all");
-  for (int i : all) {
-    std::string key = fmt::format("key{}", i);
+    reporter.Report();
+  }
+}
+
+void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n) {
+  Reporter reporter("RandomGet", &logger);
+
+  std::random_device mt;
+
+  leveldb::Random random(time(nullptr));
+
+  for (int i = 0; i < n; ++i) {
+    auto x = random.Uniform(data.size());
+
     std::string value;
-    auto stat = db->Get(ReadOptions{}, key, &value);
+    auto stat = db->Get(ReadOptions{}, data[x][0], &value);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}: {}", key, stat);
+      logger.Fatal("failed to read {}: {}", data[x][0], stat);
     }
 
-    if (value.find(fmt::format("value{}", i)) != 0) {
-      logger.Fatal("value is not correct: {}", value);
+    if (value != data[x][1]) {
+      logger.Fatal("value is not correct: key {} value{}", data[x][0], value);
     }
-    
-    count++;
-    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
-      logger.Info("get {}/s", count);
-      count = 0;
-      now = Timestamp::Now();
-    }
+
+    reporter.Report();
   }
-  logger.Info("benchmark get random");
-
-  std::normal_distribution<double> d((double)n_puts / 2.0,
-                                     (double)n_puts / 120.0);
-  // get
-  for (int i = 0; i < n_reads; ++i) {
-    int x = std::clamp((int)d(mt), 0, (int)n_puts - 1);
-    std::string key = fmt::format("key{}", x);
-    std::string value;
-    auto stat = db->Get(ReadOptions{}, key, &value);
-    if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}: {}", key, stat);
-    }
-
-    if (value.find(fmt::format("value{}", x)) != 0) {
-      logger.Fatal("value is not correct: key {} value{}", key, value);
-    }
-    
-    count++;
-    if (Timestamp::Now() - now >= Duration::Seconds(1)) {
-      logger.Info("get random {}/s", count);
-      count = 0;
-      now = Timestamp::Now();
-    }
-  }
-  logger.Info("cache hit: {}\n", db->CacheHitRatio());
-  return 0;
-
-  logger.Info("test delete");
-  // delete
-  for (size_t i = 0; i < n_delete; ++i) {
-    std::string key = fmt::format("key{}", i);
-    if (db->Delete(WriteOptions{}, key) != Status::kOk) {
-      logger.Fatal("failed to delete key {}", key);
-    }
-  }
-
-  // get delete
-  for (size_t i = 0; i < n_delete; ++i) {
-    std::string key = fmt::format("key{}", i);
-    std::string value;
-    if (db->Get(ReadOptions{}, key, &value) != Status::kNotFound) {
-      logger.Fatal("key {} should be deleted");
-    }
-  }
-
-  // get not delete
-  for (size_t i = n_delete; i < n_puts; ++i) {
-    std::string key = fmt::format("key{}", i);
-    std::string value;
-    auto stat = db->Get(ReadOptions{}, key, &value);
-    if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}", key);
-    }
-
-    if (value.find(fmt::format("value{}", i)) != 0) {
-      logger.Fatal("value is not correct: {}", value);
-    }
-  }
-
-  return 0;
 }

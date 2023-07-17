@@ -9,7 +9,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "pedrodb/cache/read_cache.h"
 #include "pedrodb/db.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readwrite_file.h"
@@ -51,7 +50,6 @@ class DBImpl : public DB {
   Options options_;
   uint64_t sync_worker_{};
   uint64_t compact_worker_{};
-  std::unique_ptr<ReadCache> read_cache_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
   std::shared_ptr<pedrolib::Executor> executor_;
@@ -69,10 +67,17 @@ class DBImpl : public DB {
   Status FetchRecord(ReadableFile* file, const record::Location& loc,
                      size_t size, std::string* value);
 
- public:
-  ~DBImpl() override;
+  std::vector<file_id_t> GetFiles();
 
-  explicit DBImpl(const Options& options, const std::string& name);
+  void UpdateUnused(file_id_t id, size_t unused);
+
+  std::vector<file_id_t> PollCompactTask();
+
+  Status CompactBatch(file_id_t id, const std::vector<Record>& records);
+
+  Status Recovery();
+
+  auto AcquireLock() const { return std::unique_lock{mu_}; }
 
   Status HandlePut(const WriteOptions& options, const std::string& key,
                    std::string_view value);
@@ -80,15 +85,14 @@ class DBImpl : public DB {
   Status HandleGet(const ReadOptions& options, const std::string& key,
                    std::string* value);
 
-  auto AcquireLock() const { return std::unique_lock{mu_}; }
+ public:
+  ~DBImpl() override;
 
-  Status Recovery();
+  explicit DBImpl(const Options& options, const std::string& name);
 
-  Status Flush();
+  Status Flush() override;
 
   Status Compact() override;
-
-  double CacheHitRatio() const { return read_cache_->HitRatio(); }
 
   Status Init();
 
@@ -98,15 +102,9 @@ class DBImpl : public DB {
   Status Put(const WriteOptions& options, std::string_view key,
              std::string_view value) override;
 
+  Status GetIterator(EntryIterator::Ptr* iterator) override;
+
   Status Delete(const WriteOptions& options, std::string_view key) override;
-
-  std::vector<file_id_t> GetFiles();
-
-  void UpdateUnused(file_id_t id, size_t unused);
-
-  std::vector<file_id_t> PollCompactTask();
-
-  Status CompactBatch(file_id_t id, const std::vector<Record>& records);
 };
 }  // namespace pedrodb
 

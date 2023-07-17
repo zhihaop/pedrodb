@@ -28,6 +28,7 @@ class ReadWriteFile final : public ReadableFile,
   ~ReadWriteFile() override {
     if (data_ != nullptr) {
       munmap(data_, capacity_);
+      madvise(data_, capacity_, MADV_DONTNEED);
       data_ = nullptr;
     }
   }
@@ -96,7 +97,7 @@ class ReadWriteFile final : public ReadableFile,
       PEDRODB_ERROR("failed to mmap file {}", file.GetError());
       return Status::kIOError;
     }
-    
+
     auto ptr = new ReadWriteFile(capacity);
     f->reset(ptr);
     ptr->file_ = std::move(file);

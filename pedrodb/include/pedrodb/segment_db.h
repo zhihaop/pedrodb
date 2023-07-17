@@ -27,7 +27,11 @@ class SegmentDB : public DB {
 
   Status Delete(const WriteOptions& options, std::string_view key) override;
 
+  Status Flush() override;
+
   Status Compact() override;
+
+  Status GetIterator(EntryIterator::Ptr* ptr) override;
 };
 }  // namespace pedrodb
 

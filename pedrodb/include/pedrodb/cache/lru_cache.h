@@ -24,9 +24,6 @@ struct HashEntry {
 
 template <class Key>
 class Cache {
-  constexpr static size_t kMinimumBuckets = 1024;
-  constexpr static size_t kMaximumBuckets = 1 << 22;
-
   std::vector<HashEntry<Key>*> buckets_;
   const size_t capacity_;
   size_t size_{};
@@ -74,9 +71,7 @@ class Cache {
  public:
   explicit Cache(size_t capacity)
       : capacity_(capacity),
-        buckets_(std::clamp(
-            (size_t)((double)capacity / sizeof(HashEntry<Key>) * 1.25),
-            kMinimumBuckets, kMaximumBuckets)) {
+        buckets_(1) {
 
     lru_.next = &lru_;
     lru_.prev = &lru_;

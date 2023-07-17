@@ -4,7 +4,7 @@
 
 #include <pedrolib/buffer/array_buffer.h>
 #include <pedrolib/buffer/buffer.h>
-
+#include <pedrolib/concurrent/latch.h>
 #include <pedrolib/duration.h>
 #include <pedrolib/file/error.h>
 #include <pedrolib/file/file.h>
@@ -21,6 +21,7 @@ using DefaultExecutor = pedrolib::ThreadPoolExecutor;
 using pedrolib::Duration;
 using pedrolib::Error;
 using pedrolib::File;
+using pedrolib::Latch;
 using pedrolib::Timestamp;
 
 using pedrolib::AppendInt;

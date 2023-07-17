@@ -1,7 +1,6 @@
 #ifndef PEDRODB_FILE_MANAGER_H
 #define PEDRODB_FILE_MANAGER_H
 
-#include "pedrodb/cache/read_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readonly_file.h"
 #include "pedrodb/file/readwrite_file.h"

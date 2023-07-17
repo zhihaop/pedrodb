@@ -55,11 +55,11 @@ Status FileManager::CreateFile(file_id_t id) {
   if (active_data_file_) {
     PEDRODB_TRACE("flush {} to disk", id);
     PEDRODB_IGNORE_ERROR(active_data_file_->Flush(true));
-    
+
     io_executor_->Schedule([=, id = active_file_id_, f = active_data_file_] {
       SyncActiveDataFile(id, f);
     });
-    
+
     auto log = std::move(active_index_log_);
     if (log != nullptr) {
       io_executor_->Schedule(
@@ -80,14 +80,14 @@ Status FileManager::CreateFile(file_id_t id) {
   record::EntryView entry;
   uint32_t offset = 0;
   active_index_log_ = std::make_shared<ArrayBuffer>();
-  
+
   while (entry.UnPack(data_file.get())) {
     index::EntryView index;
     index.offset = 0;
     index.len = entry.SizeOf();
     index.type = entry.type;
     index.key = entry.key;
-    
+
     offset += index.len;
     index.UnPack(active_index_log_.get());
   }
@@ -185,12 +185,6 @@ Status FileManager::Sync() {
 }
 
 Status FileManager::AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file) {
-  std::string filename = metadata_manager_->GetIndexFilePath(id);
-  auto stat = ReadonlyFile::Open(filename, file);
-  if (stat != Status::kOk) {
-    PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
-    return stat;
-  }
-  return Status::kOk;
+  return ReadonlyFile::Open(metadata_manager_->GetIndexFilePath(id), file);
 }
 }  // namespace pedrodb

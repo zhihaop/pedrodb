@@ -51,7 +51,7 @@ Status SegmentDB::Delete(const WriteOptions& options, std::string_view key) {
 }
 
 Status SegmentDB::Compact() {
-  pedrolib::Latch latch(segments_.size());
+  Latch latch(segments_.size());
   for (auto& segment : segments_) {
     executor_->Schedule([&] {
       PEDRODB_IGNORE_ERROR(segment->Compact());
@@ -59,6 +59,68 @@ Status SegmentDB::Compact() {
     });
   }
   latch.Await();
+  return Status::kOk;
+}
+
+Status SegmentDB::Flush() {
+  Latch latch(segments_.size());
+  for (auto& segment : segments_) {
+    executor_->Schedule([&] {
+      PEDRODB_IGNORE_ERROR(segment->Flush());
+      latch.CountDown();
+    });
+  }
+  latch.Await();
+  return Status::kOk;
+}
+
+Status SegmentDB::GetIterator(EntryIterator::Ptr* iterator) {
+  struct IteratorImpl : public EntryIterator {
+    std::vector<std::weak_ptr<DB>> db;
+    size_t db_index{};
+
+    EntryIterator::Ptr current;
+    std::shared_ptr<DB> lock;
+
+    ~IteratorImpl() override = default;
+    bool Valid() override {
+      for (;;) {
+        if (current == nullptr) {
+          if (db_index >= db.size()) {
+            return false;
+          }
+
+          lock = db[db_index++].lock();
+          if (lock == nullptr) {
+            continue;
+          }
+
+          lock->GetIterator(&current);
+        }
+
+        if (current->Valid()) {
+          return true;
+        }
+
+        current = nullptr;
+        lock = nullptr;
+      }
+    }
+
+    record::EntryView Next() override { return current->Next(); }
+    void Close() override {
+      current = nullptr;
+      lock = nullptr;
+    }
+  };
+
+  auto ptr = new IteratorImpl();
+  ptr->db.resize(segments_.size());
+  for (size_t i = 0; i < segments_.size(); ++i) {
+    ptr->db[i] = segments_[i];
+  }
+
+  iterator->reset(ptr);
   return Status::kOk;
 }
 }  // namespace pedrodb

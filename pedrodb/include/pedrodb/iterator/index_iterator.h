@@ -2,10 +2,11 @@
 #define PEDRODB_ITERATOR_INDEX_ITERATOR_H
 #include "pedrodb/defines.h"
 #include "pedrodb/format/index_format.h"
+#include "pedrodb/iterator/iterator.h"
 
 namespace pedrodb {
 
-class IndexIterator {
+class IndexIterator : public Iterator<index::EntryView> {
   ArrayBuffer buffer_;
   index::EntryView entry_;
 
@@ -16,9 +17,11 @@ class IndexIterator {
     buffer_.Append(buffer_.WritableBytes());
   }
 
-  bool Valid() { return entry_.UnPack(&buffer_); }
+  bool Valid() override { return entry_.UnPack(&buffer_); }
 
-  index::EntryView Next() noexcept { return entry_; }
+  index::EntryView Next() noexcept override { return entry_; }
+
+  void Close() override {}
 };
 
 }  // namespace pedrodb

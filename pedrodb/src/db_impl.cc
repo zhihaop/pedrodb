@@ -99,7 +99,6 @@ Status DBImpl::Compact() {
 
 DBImpl::DBImpl(const Options& options, const std::string& name)
     : options_(options) {
-  read_cache_ = std::make_unique<ReadCache>(options_.read_cache_bytes);
   executor_ = options_.executor;
   metadata_manager_ = std::make_unique<MetadataManager>(name);
   file_manager_ = std::make_unique<FileManager>(
@@ -109,7 +108,7 @@ DBImpl::DBImpl(const Options& options, const std::string& name)
 DBImpl::~DBImpl() {
   executor_->ScheduleCancel(sync_worker_);
   executor_->ScheduleCancel(compact_worker_);
-  Flush();
+  file_manager_->Flush(true);
 }
 
 Status DBImpl::Recovery(file_id_t id) {
@@ -166,7 +165,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     entry.timestamp = r.timestamp;
 
     // remove cache.
-    read_cache_->Remove(dir.loc);
+    // read_cache_->Remove(dir.loc);
 
     record::Location loc;
     auto status = file_manager_->WriteActiveFile(entry, &loc);
@@ -263,7 +262,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
     if (it != indices_.end()) {
       auto& dir = it->second;
       // remove cache.
-      read_cache_->Remove(dir.loc);
+      // read_cache_->Remove(dir.loc);
 
       // update compact hints.
       UpdateUnused(dir.loc.id, dir.entry_size);
@@ -299,22 +298,14 @@ Status DBImpl::Flush() {
 Status DBImpl::FetchRecord(ReadableFile* file, const record::Location& loc,
                            size_t size, std::string* value) {
 
-  ArrayBuffer buffer(size);
-  ssize_t r = file->Read(loc.offset, buffer.WriteIndex(), size);
-  if (r != size) {
-    PEDRODB_ERROR("failed to read from file {}, return {} expect {}, {}",
-                  loc.id, r, size, file->GetError());
-    return Status::kIOError;
-  }
-  buffer.Append(size);
-
-  record::EntryView entry;
-  if (!entry.UnPack(&buffer)) {
+  RecordIterator iterator(file, loc.offset);
+  if (!iterator.Valid()) {
     return Status::kCorruption;
   }
 
-  *value = entry.value;
-  read_cache_->Put(loc, *value);
+  auto entry = iterator.Next();
+  value->assign(entry.value);
+  // read_cache_->Put(loc, entry.value);
   return Status::kOk;
 }
 
@@ -343,9 +334,9 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
     dir = it->second;
   }
 
-  if (read_cache_->Read(dir.loc, value)) {
-    return Status::kOk;
-  }
+  //  if (read_cache_->Read(dir.loc, value)) {
+  //    return Status::kOk;
+  //  }
 
   ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
@@ -408,6 +399,83 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     UpdateUnused(dir.loc.id, dir.entry_size);
     indices_.erase(it);
   }
+}
+
+Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
+
+  struct EntryIteratorImpl : public EntryIterator {
+    std::unordered_map<file_id_t, std::vector<uint32_t>> offsets;
+    std::vector<file_id_t> files;
+    FileManager* file_manager;
+
+    size_t file_index{};
+    size_t offset_index{};
+    ReadableFile::Ptr file{};
+    std::unique_ptr<RecordIterator> iterator{};
+    std::vector<uint32_t>* offset{};
+
+    explicit EntryIteratorImpl(DBImpl* parent)
+        : file_manager(parent->file_manager_.get()) {}
+
+    ~EntryIteratorImpl() override = default;
+
+    bool Valid() override {
+      for (;;) {
+        if (offset == nullptr) {
+          if (file_index >= files.size()) {
+            return false;
+          }
+          auto status = file_manager->AcquireDataFile(files[file_index], &file);
+          if (status != Status::kOk) {
+            return false;
+          }
+          iterator = std::make_unique<RecordIterator>(file.get());
+          offset = &offsets[files[file_index++]];
+        }
+
+        if (offset_index >= offset->size()) {
+          offset = nullptr;
+          iterator = nullptr;
+          file = nullptr;
+          continue;
+        }
+
+        if (offset != nullptr) {
+          return true;
+        }
+      }
+    }
+
+    record::EntryView Next() override {
+      uint32_t off = (*offset)[offset_index++];
+      iterator->Seek(off);
+      iterator->Valid();
+      return iterator->Next();
+    }
+
+    void Close() override {
+      offset = nullptr;
+      iterator = nullptr;
+      file = nullptr;
+    }
+  };
+
+  auto ptr = new EntryIteratorImpl(this);
+  {
+    auto lock = AcquireLock();
+    ptr->files = GetFiles();
+    for (auto& [key, dir] : indices_) {
+      auto& loc = dir.loc;
+      ptr->offsets[loc.id].emplace_back(loc.offset);
+    }
+  }
+
+  for (auto& [id, offset] : ptr->offsets) {
+    std::sort(offset.begin(), offset.end());
+  }
+
+  iterator->reset(ptr);
+  return Status::kOk;
 }
 
 Record::Record(uint32_t h, std::string key, std::string value,
