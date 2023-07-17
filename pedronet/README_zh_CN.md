@@ -415,7 +415,7 @@ class EventLoopGroup : public Executor {
 
   size_t next() noexcept;
 
-  void HandleJoin();
+  void join();
 
 public:
   explicit EventLoopGroup(size_t threads)
@@ -441,7 +441,7 @@ public:
     return group;
   }
 
-  ~EventLoopGroup() override { HandleJoin(); }
+  ~EventLoopGroup() override { join(); }
 
   EventLoop &Next() { return loops_[next()]; }
 

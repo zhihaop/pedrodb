@@ -23,28 +23,33 @@ Status FileManager::Init() {
   return Recovery(files.back());
 }
 
-void SyncRunner(Executor* executor, file_id_t id, WritableFileGuard file) {
+void SyncRunner(Executor* executor, file_id_t id,
+                const WritableFileGuard& file) {
   auto err = file->Sync();
   if (err != Error::kOk) {
     PEDRODB_WARN("failed to sync active file to disk");
     executor->ScheduleAfter(Duration::Seconds(1), [executor, id, file] {
       SyncRunner(executor, id, file);
     });
+    return;
   }
-  PEDRODB_INFO("flush file {} success", id);
+  PEDRODB_INFO("sync file {} success", id);
 }
 
 Status FileManager::CreateFile(file_id_t id) {
 
   if (active_data_file_) {
+    PEDRODB_INFO("flush {} to disk", id);
     PEDRODB_IGNORE_ERROR(active_data_file_->Flush(true));
     PEDRODB_IGNORE_ERROR(active_index_file_->Flush(true));
-    
-    io_executor_->Schedule(
-        [=] { SyncRunner(io_executor_, active_file_id_, active_data_file_); });
 
-    io_executor_->Schedule(
-        [=] { SyncRunner(io_executor_, active_file_id_, active_index_file_); });
+    io_executor_->Schedule([=, id = active_file_id_, f = active_data_file_] {
+      SyncRunner(io_executor_, id, f);
+    });
+
+    io_executor_->Schedule([=, id = active_file_id_, f = active_index_file_] {
+      SyncRunner(io_executor_, id, f);
+    });
   }
 
   WritableFileGuard data_file;

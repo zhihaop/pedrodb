@@ -98,13 +98,13 @@ class ThreadPoolExecutor : public Executor {
     return id;
   }
 
-  void HandleClose() {
+  void close() {
     callbacks_.clear();
     shutdown_.store(true, std::memory_order_release);
     non_empty_.notify_all();
   }
 
-  void HandleJoin() {
+  void join() {
     for (auto& thread : workers_) {
       if (thread.joinable()) {
         thread.join();
@@ -123,8 +123,8 @@ class ThreadPoolExecutor : public Executor {
   }
 
   ~ThreadPoolExecutor() override {
-    HandleClose();
-    HandleJoin();
+    close();
+    join();
   }
 
   size_t Size() const noexcept { return workers_.size(); }
@@ -137,6 +137,7 @@ class ThreadPoolExecutor : public Executor {
       non_empty_.notify_all();
     }
   }
+  
   uint64_t ScheduleAfter(Duration delay, Callback cb) override {
     std::unique_lock<std::mutex> lock(mu_);
     bool wakeup = queue_.empty();
@@ -146,6 +147,7 @@ class ThreadPoolExecutor : public Executor {
     }
     return id;
   }
+  
   uint64_t ScheduleEvery(Duration delay, Duration interval,
                          Callback cb) override {
     std::unique_lock<std::mutex> lock(mu_);
@@ -156,6 +158,7 @@ class ThreadPoolExecutor : public Executor {
     }
     return id;
   }
+  
   void ScheduleCancel(uint64_t id) override {
     std::unique_lock<std::mutex> lock(mu_);
     callbacks_.erase(id);
@@ -163,10 +166,10 @@ class ThreadPoolExecutor : public Executor {
 
   void Close() override {
     std::unique_lock<std::mutex> lock(mu_);
-    HandleClose();
+    close();
   }
 
-  void Join() override { HandleJoin(); }
+  void Join() override { join(); }
 };
 }  // namespace pedrolib
 

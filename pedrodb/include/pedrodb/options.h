@@ -14,7 +14,7 @@ struct Options {
   Duration compact_interval = Duration::Seconds(5);
   Duration sync_interval = Duration::Seconds(10);
 
-  std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>()};
+  std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>(1)};
 };
 
 struct ReadOptions {};
