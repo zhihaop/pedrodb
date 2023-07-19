@@ -62,11 +62,6 @@ struct Header {
   }
 };
 
-template <class Key>
-static uint64_t Hash(const Key& key) noexcept {
-  return std::hash<Key>()(key);
-}
-
 template <typename Key = std::string, typename Value = std::string>
 struct Entry {
   uint32_t checksum{};
@@ -78,7 +73,11 @@ struct Entry {
   [[nodiscard]] bool Validate() const noexcept {
     return checksum == Checksum(key, value);
   }
-
+ 
+  static uint64_t Hash(const Key& key) noexcept {
+    return std::hash<Key>()(key);
+  }
+  
   static uint32_t Checksum(const Key& key, const Value& value) noexcept {
     return static_cast<uint32_t>((Hash(value) >> 32) ^ Hash(key));
   }

@@ -33,11 +33,7 @@ class MetadataManager {
 
   std::vector<file_id_t> GetFiles() const noexcept {
     auto lock = AcquireLock();
-    auto files = std::vector<file_id_t>{files_.begin(), files_.end()};
-    lock.unlock();
-
-    std::sort(files.begin(), files.end());
-    return files;
+    return {files_.begin(), files_.end()};
   }
 
   Status CreateFile(file_id_t id);
@@ -45,7 +41,7 @@ class MetadataManager {
   Status DeleteFile(file_id_t id);
 
   std::string GetDataFilePath(file_id_t id) const noexcept;
-  
+
   std::string GetIndexFilePath(file_id_t id) const noexcept;
 };
 

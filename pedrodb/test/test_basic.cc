@@ -2,9 +2,8 @@
 #include <pedrodb/db_impl.h>
 #include <pedrodb/logger/logger.h>
 #include <pedrodb/segment_db.h>
-#include <iostream>
-#include <random>
 #include "random.h"
+#include "reporter.h"
 
 using namespace std::chrono_literals;
 using pedrodb::DB;
@@ -18,23 +17,15 @@ using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
 Logger logger{"test"};
-std::string RandomString(const std::string& prefix, size_t bytes);
-std::string PaddingString(const std::string& prefix, size_t bytes,
-                          char pad = '*');
+std::string PaddingString(std::string_view prefix, size_t n, char pad = '*');
 
 struct KeyValue {
-  size_t index{};
-  uint32_t key_bytes : 8;
-  uint32_t value_bytes : 24;
+  std::string key;
+  std::string value;
 
-  KeyValue() { key_bytes = value_bytes = 0; }
-
-  [[nodiscard]] std::string key() const noexcept {
-    return PaddingString(fmt::format("key{}", index), key_bytes);
-  }
-
-  [[nodiscard]] std::string value() const noexcept {
-    return PaddingString(fmt::format("value{}", index), value_bytes);
+  KeyValue(size_t index, size_t kb, size_t vb) {
+    key = PaddingString(fmt::format("key{}", index), kb);
+    value = PaddingString(fmt::format("value{}", index), vb);
   }
 };
 
@@ -58,36 +49,23 @@ int main() {
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
-  std::cin.get();
 
   size_t n_puts = 1000000;
-  size_t n_reads = 10000000;
+  size_t n_reads = 1000000;
 
-  auto test_data = GenerateData(n_puts, 16, 100);
-  TestPut(db.get(), test_data);
-  TestRandomGet(db.get(), test_data, n_reads);
-  TestGetAll(db.get(), test_data);
+  auto data = GenerateData(n_puts, 16, 100);
+  TestPut(db.get(), data);
+  TestRandomGet(db.get(), data, n_reads);
+  TestGetAll(db.get(), data);
   db->Compact();
   TestScan(db.get(), 5);
-
-  std::cin.get();
   return 0;
 }
 
-std::string RandomString(const std::string& prefix, size_t bytes) {
-  std::string s = prefix;
-  s.reserve(bytes);
-  for (size_t i = 0; i < bytes - prefix.size(); ++i) {
-    char ch = i % 26 + 'a';
-    s += ch;
-  }
-  return s;
-}
-
-std::string PaddingString(const std::string& prefix, size_t bytes, char pad) {
-  std::string s = prefix;
-  s.reserve(bytes);
-  for (size_t i = 0; i < bytes - prefix.size(); ++i) {
+std::string PaddingString(std::string_view prefix, size_t n, char pad) {
+  std::string s{prefix};
+  s.reserve(n);
+  for (size_t i = 0; i < n - prefix.size(); ++i) {
     s += pad;
   }
   return s;
@@ -95,49 +73,13 @@ std::string PaddingString(const std::string& prefix, size_t bytes, char pad) {
 
 std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size) {
-  std::vector<KeyValue> test_data(n);
-  size_t index = 0;
-  for (auto& kv : test_data) {
-    kv.index = index++;
-    kv.key_bytes = key_size;
-    kv.value_bytes = value_size;
+  std::vector<KeyValue> test_data;
+  test_data.reserve(n);
+  for (size_t i = 0; i < n; ++i) {
+    test_data.emplace_back(i, key_size, value_size);
   }
   return test_data;
 }
-
-class Reporter {
-  Timestamp start_, last_;
-  size_t last_count_{};
-  size_t count_{};
-
-  Logger* logger_;
-  std::string topic_;
-
- public:
-  explicit Reporter(std::string topic, Logger* log)
-      : logger_(log), topic_(std::move(topic)) {
-    start_ = last_ = Timestamp::Now();
-
-    logger_->Info("Start reporting {}", topic_);
-  }
-
-  ~Reporter() {
-    Duration cost = Timestamp::Now() - start_;
-    logger_->Info("End report {}: count[{}], cost[{}], avg[{}/ops]", topic_,
-                  count_, cost, 1000.0 * count_ / cost.Milliseconds());
-  }
-
-  void Report() {
-    auto now = Timestamp::Now();
-    last_count_++;
-    count_++;
-    if (now - last_ > Duration::Seconds(1)) {
-      logger_->Info("Report {}: {}ops/s", topic_, last_count_);
-      last_ = now;
-      last_count_ = 0;
-    }
-  }
-};
 
 void TestScan(DB* db, size_t n) {
   Reporter reporter("Scan", &logger);
@@ -157,9 +99,9 @@ void TestPut(DB* db, const std::vector<KeyValue>& data) {
   Reporter reporter("Put", &logger);
 
   for (const auto& kv : data) {
-    auto stat = db->Put({}, kv.key(), kv.value());
+    auto stat = db->Put({}, kv.key, kv.value);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", kv.key(), kv.value(), stat);
+      logger.Fatal("failed to write {}, {}: {}", kv.key, kv.value, stat);
     }
 
     reporter.Report();
@@ -172,12 +114,12 @@ void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
 
   std::string get;
   for (const auto& kv : data) {
-    auto stat = db->Get({}, kv.key(), &get);
+    auto stat = db->Get({}, kv.key, &get);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", kv.key(), kv.value(), stat);
+      logger.Fatal("failed to write {}, {}: {}", kv.key, kv.value, stat);
     }
-    if (get != kv.value()) {
-      logger.Fatal("expected {}, shows {}", kv.value(), get);
+    if (get != kv.value) {
+      logger.Fatal("expected {}, shows {}", kv.value, get);
     }
     reporter.Report();
   }
@@ -186,21 +128,19 @@ void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
 void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n) {
   Reporter reporter("RandomGet", &logger);
 
-  std::random_device mt;
-
   leveldb::Random random(time(nullptr));
 
   for (int i = 0; i < n; ++i) {
-    auto x = random.Uniform(data.size());
+    auto x = random.Uniform((int)data.size());
 
     std::string value;
-    auto stat = db->Get(ReadOptions{}, data[x].key(), &value);
+    auto stat = db->Get(ReadOptions{}, data[x].key, &value);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}: {}", data[x].key(), stat);
+      logger.Fatal("failed to read {}: {}", data[x].key, stat);
     }
 
-    if (value != data[x].value()) {
-      logger.Fatal("value is not correct: key {} value{}", data[x].value(),
+    if (value != data[x].value) {
+      logger.Fatal("value is not correct: key {} value{}", data[x].value,
                    value);
     }
 

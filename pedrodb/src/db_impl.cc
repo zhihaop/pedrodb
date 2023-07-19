@@ -69,10 +69,6 @@ Status DBImpl::Init() {
   return Status::kOk;
 }
 
-std::vector<file_id_t> DBImpl::GetFiles() {
-  return metadata_manager_->GetFiles();
-}
-
 std::vector<file_id_t> DBImpl::PollCompactTask() {
   auto tasks = compact_tasks_;
   compact_tasks_.clear();
@@ -304,7 +300,7 @@ Status DBImpl::Flush() {
 }
 
 Status DBImpl::Recovery() {
-  for (auto file : GetFiles()) {
+  for (auto file : metadata_manager_->GetFiles()) {
     PEDRODB_TRACE("crash recover: file {}", file);
     auto status = Recovery(file);
     if (status != Status::kOk) {
@@ -420,11 +416,10 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
     std::unique_ptr<RecordIterator> current_iterator_{};
 
     explicit EntryIteratorImpl(DBImpl* parent)
-        : parent_(parent), files_(parent->GetFiles()) {}
+        : parent_(parent), files_(parent->metadata_manager_->GetFiles()) {}
 
     ~EntryIteratorImpl() override = default;
-
-    // TODO using linked hash map to help scan
+    
     bool Valid() override {
       for (;;) {
         if (current_iterator_ == nullptr) {
@@ -441,8 +436,23 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
           current_iterator_ =
               std::make_unique<RecordIterator>(current_file_.get());
         }
-
+        
+        auto lock = parent_->AcquireLock();
         while (current_iterator_->Valid()) {
+          uint32_t offset = current_iterator_->GetOffset();
+          auto peek = current_iterator_->Peek();
+          
+          auto it = parent_->indices_.find(peek.key);
+          if (it == parent_->indices_.end()) {
+            current_iterator_->Next();
+            continue;
+          }
+          
+          if (it.value().loc != record::Location(current_id_, offset)) {
+            current_iterator_->Next();
+            continue;
+          }
+          
           return true;
         }
 

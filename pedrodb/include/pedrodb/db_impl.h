@@ -64,8 +64,6 @@ class DBImpl : public DB {
 
   void Compact(file_id_t id);
 
-  std::vector<file_id_t> GetFiles();
-
   void UpdateUnused(record::Location loc, size_t unused);
 
   std::vector<file_id_t> PollCompactTask();

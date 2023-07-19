@@ -509,14 +509,14 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
 ### 实验方法与对比对象
 #### 对比对象
 
-- **LevelDB：**A fast key-value storage library written at Google that provides an ordered mapping from string keys to string values. (version = 1.23)
-- **RocksDB：**A library that provides an embeddable, persistent key-value store for fast storage. （version = 8.3.2）
+- **LevelDB：** A fast key-value storage library written at Google that provides an ordered mapping from string keys to string values. (version = 1.23)
+- **RocksDB：** A library that provides an embeddable, persistent key-value store for fast storage. （version = 8.3.2）
 #### 实验方法
 测试使用 LevelDB 和 RocksDB 官方的 `db-bench` 程序，均使用默认参数，其中 key 大小为 16B，value 大小为 100B。LevelDB，RocksDB 和 PedroDB 均开启 snappy 压缩。随机读取和写入中，数据分布为均匀分布。
 ### 实验结果
 下面是 PedroDB，LevelDB 和 RocksDB 在其中四个子项的测试结果、实验结果的数据单位均是操作每秒 (ops)
 
-- PedroDB 的 Scan 不是顺序扫描，LevelDB 和 RocksDB 的 Scan 具有有序性，因此结果不具有可比性
+- 由于 BitCask 模型不支持 Scan，该子项的分数远低于 LSM-tree 类模型
 - 在随机点查 (Point Get) 项目上，PedroDB 对比 LevelDB 和 RocksDB 具有一定的优势，很大程度基于几点
    - 随机读取的数据均匀分布，BlockCache 无法起到太大作用
    - PedroDB 基于 BitCask 模型，只需一次磁盘访问就可以获取值
@@ -535,8 +535,8 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
       - PedroDB 使用了基于阈值的压实，在达到相应的阈值后，不会立刻压实，而是把压实任务调度到合适时机运行，避免 Compaction 占用写带宽
 
 |  | **PedroDB** | **LevelDB** | **RocksDB** |
-| --- | --- | --- | --- |
-| **Get Random** | 1,258,178 | 566,572 | 431,778 |
-| **Scan** | 29,411,764 | 11,904,762 | 9,090,909 |
-| **Fill Random** | 1,851,851 | 492,853 | 482,858 |
-| **Fill 100k** | 94,339 | 1,471 | 17,857 |
+| --- |-------------| --- | --- |
+| **Get Random** | 1,258,178   | 566,572 | 431,778 |
+| **Scan** | 2,546,689   | 11,904,762 | 9,090,909 |
+| **Fill Random** | 1,851,851   | 492,853 | 482,858 |
+| **Fill 100k** | 94,339      | 1,471 | 17,857 |
