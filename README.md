@@ -534,6 +534,7 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
       - PedroDB 使用了零拷贝技术，编码过程中 Entry 可以直接落盘，不需要写入内存。
       - PedroDB 使用了基于阈值的压实，在达到相应的阈值后，不会立刻压实，而是把压实任务调度到合适时机运行，避免 Compaction 占用写带宽
       - PedroDB 使用了 `google::highwayhash`，能够极大降低数据校验的开销
+
 |  | **PedroDB** | **LevelDB** | **RocksDB** |
 | --- | --- | --- | --- |
 | **Get Random** | 1,258,178 | 566,572 | 431,778 |
