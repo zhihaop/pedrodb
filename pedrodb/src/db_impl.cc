@@ -9,22 +9,16 @@ namespace pedrodb {
 
 Status DBImpl::Get(const ReadOptions& options, std::string_view key,
                    std::string* value) {
-  thread_local std::string key_buffer;
-  key_buffer.assign(key);
-  return HandleGet(options, key_buffer, value);
+  return HandleGet(options, key, value);
 }
 
 Status DBImpl::Put(const WriteOptions& options, std::string_view key,
                    std::string_view value) {
-  thread_local std::string key_buffer;
-  key_buffer.assign(key);
-  return HandlePut(options, key_buffer, value);
+  return HandlePut(options, key, value);
 }
 
 Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
-  thread_local std::string buffer;
-  buffer.assign(key);
-  return HandlePut(options, buffer, {});
+  return HandlePut(options, key, {});
 }
 
 void DBImpl::UpdateUnused(record::Location loc, size_t unused) {
@@ -150,7 +144,6 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
 
   auto& hints = compact_hints_[id];
   hints.state = CompactState::kCompacting;
-
   for (auto& r : records) {
     auto it = indices_.find(r.key);
     if (it == indices_.end()) {
@@ -169,6 +162,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     entry.key = r.key;
     entry.value = r.value;
     entry.timestamp = r.timestamp;
+    entry.checksum = r.checksum;
 
     hints.unused += entry.SizeOf();
 
@@ -235,17 +229,20 @@ void DBImpl::Compact(file_id_t id) {
   PEDRODB_TRACE("end compacting: {}", id);
 }
 
-Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
+Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
                          std::string_view value) {
-  record::Entry<> entry;
+  record::EntryView entry;
   entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
   entry.key = key;
+
+  std::string compressed;
   if (options_.compress) {
-    Compress(value, &entry.value);
+    Compress(value, &compressed);
+    entry.value = compressed;
   } else {
     entry.value = value;
   }
-  entry.checksum = record::Entry<>::Checksum(entry.key, entry.value);
+  entry.checksum = record::EntryView::Checksum(entry.key, entry.value);
 
   if (entry.SizeOf() > kMaxFileBytes) {
     PEDRODB_ERROR("key or value is too big");
@@ -320,7 +317,7 @@ Status DBImpl::Recovery() {
   return Status::kOk;
 }
 
-Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
+Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
                          std::string* value) {
 
   record::Dir dir;
@@ -350,7 +347,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
   if (!entry.Validate()) {
     return Status::kCorruption;
   }
-  
+
   if (options_.compress) {
     Uncompress(entry.value, value);
   } else {
@@ -361,12 +358,11 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
 
 void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
   record::Location loc(id, entry.offset);
-  std::string key(entry.key);
 
-  auto it = indices_.find(key);
+  auto it = indices_.find(entry.key);
   if (entry.type == record::Type::kSet) {
     if (it == indices_.end()) {
-      auto& dir = indices_[key];
+      auto& dir = indices_[entry.key];
       dir.entry_size = entry.len;
       dir.loc = loc;
       return;

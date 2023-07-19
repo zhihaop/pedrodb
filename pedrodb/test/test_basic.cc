@@ -37,13 +37,14 @@ int main() {
   Options options{};
   // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
-
+  
   std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
+  std::cin.get();
 
   size_t n_puts = 1000000;
   size_t n_delete = 0;

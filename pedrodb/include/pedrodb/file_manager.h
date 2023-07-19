@@ -7,6 +7,7 @@
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
+#include <absl/container/flat_hash_map.h>
 
 namespace pedrodb {
 
@@ -15,7 +16,7 @@ class FileManager {
 
   MetadataManager* metadata_manager_;
 
-  std::unordered_map<file_id_t, ReadableFile::Ptr> open_data_files_;
+  absl::flat_hash_map<file_id_t, ReadableFile::Ptr> open_data_files_;
   const uint8_t max_open_files_;
 
   // always in use.

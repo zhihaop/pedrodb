@@ -63,6 +63,21 @@ struct Header {
   }
 };
 
+template <class Key>
+static uint64_t Hash(const Key& key) noexcept {
+  using highwayhash::HHKey;
+  using highwayhash::HHResult64;
+  using highwayhash::HighwayHash;
+
+  HHResult64 kh = 0;
+  HighwayHash<HH_TARGET_AVX2> hash;
+  HH_ALIGNAS(32) const HHKey h{0x03, 0x07, 0x32, 0xdd};
+  if (std::size(key)) {
+    hash(h, std::data(key), std::size(key), &kh);
+  }
+  return kh;
+}
+
 template <typename Key = std::string, typename Value = std::string>
 struct Entry {
   uint32_t checksum{};
@@ -76,20 +91,7 @@ struct Entry {
   }
 
   static uint32_t Checksum(const Key& key, const Value& value) noexcept {
-    using highwayhash::HHKey;
-    using highwayhash::HHResult64;
-    using highwayhash::HighwayHash;
-    
-    HHResult64 kh = 0, vh = 0;
-    HighwayHash<HH_TARGET_AVX2> hash;
-    HH_ALIGNAS(32) const HHKey h{0x03, 0x07, 0x32, 0xdd};
-    if (std::size(key)) {
-      hash(h, std::data(key), std::size(key), &kh);
-    }
-    if (std::size(value)) {
-      hash(h, std::data(value), std::size(value), &vh);
-    }
-    return static_cast<uint32_t>((vh >> 32) ^ kh);
+    return static_cast<uint32_t>((Hash(value) >> 32) ^ Hash(key));
   }
 
   [[nodiscard]] uint32_t SizeOf() const noexcept {
