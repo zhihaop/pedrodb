@@ -1,0 +1,3 @@
+[submodule "pedrodb/3rd/hat-trie"]
+	path = pedrodb/3rd/hat-trie
+	url = git@github.com:Tessil/hat-trie.git

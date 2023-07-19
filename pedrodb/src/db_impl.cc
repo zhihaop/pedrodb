@@ -151,7 +151,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     }
 
     // steal entry.
-    auto& dir = it->second;
+    auto& dir = it.value();
     if (dir.loc != r.location) {
       continue;
     }
@@ -282,16 +282,16 @@ Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
   }
 
   // replace or delete.
-  auto dir = it->second;
+  auto dir = it.value();
   UpdateUnused(dir.loc, dir.entry_size);
 
-  if (value.empty()) {
-    // delete.
-    indices_.erase(it);
-  } else {
-    // replace.
-    it->second.loc = loc;
-    it->second.entry_size = entry.SizeOf();
+  // delete.
+  indices_.erase(it);
+  
+  if (!value.empty()) {
+    dir.loc = loc;
+    dir.entry_size = entry.SizeOf();
+    indices_[key] = dir;
   }
 
   lock.unlock();
@@ -327,7 +327,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
     if (it == indices_.end()) {
       return Status::kNotFound;
     }
-    dir = it->second;
+    dir = it.value();
   }
 
   ReadableFile::Ptr file;
@@ -369,7 +369,7 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     }
 
     // indices has the newer version data.
-    auto dir = it->second;
+    auto dir = it.value();
     if (dir.loc > loc) {
       UpdateUnused(loc, entry.len);
       return;
@@ -384,8 +384,9 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     UpdateUnused(dir.loc, dir.entry_size);
 
     // update indices.
-    it->second.loc = loc;
-    it->second.entry_size = entry.len;
+    dir.loc = loc;
+    dir.entry_size = entry.len;
+    indices_[entry.key] = dir;
   }
 
   // a tombstone of deletion.
@@ -398,7 +399,8 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     // Recover(file_id_t) should be called monotonously,
     // therefore entry.loc is always monotonously increased.
     // should not delete the latest version data.
-    auto& dir = it->second;
+    auto dir = it.value();
+    
     if (dir.loc > loc) {
       return;
     }

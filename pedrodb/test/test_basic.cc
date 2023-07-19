@@ -17,11 +17,27 @@ using pedrodb::Timestamp;
 using pedrodb::WriteOptions;
 using pedrolib::Logger;
 
-using KeyValue = std::array<std::string, 2>;
-
 Logger logger{"test"};
 std::string RandomString(const std::string& prefix, size_t bytes);
-std::string PaddingString(const std::string& prefix, size_t bytes, char pad);
+std::string PaddingString(const std::string& prefix, size_t bytes,
+                          char pad = '*');
+
+struct KeyValue {
+  size_t index{};
+  uint32_t key_bytes : 8;
+  uint32_t value_bytes : 24;
+
+  KeyValue() { key_bytes = value_bytes = 0; }
+
+  [[nodiscard]] std::string key() const noexcept {
+    return PaddingString(fmt::format("key{}", index), key_bytes);
+  }
+
+  [[nodiscard]] std::string value() const noexcept {
+    return PaddingString(fmt::format("value{}", index), value_bytes);
+  }
+};
+
 std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size);
 
@@ -37,7 +53,7 @@ int main() {
   Options options{};
   // options.read_cache_bytes = 0;
   // options.read_cache_bytes = 0;
-  
+
   std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
@@ -47,7 +63,6 @@ int main() {
   std::cin.get();
 
   size_t n_puts = 1000000;
-  size_t n_delete = 0;
   size_t n_reads = 10000000;
 
   auto test_data = GenerateData(n_puts, 16, 100);
@@ -56,6 +71,8 @@ int main() {
   TestGetAll(db.get(), test_data);
   db->Compact();
   TestScan(db.get(), 5);
+
+  std::cin.get();
   return 0;
 }
 
@@ -81,9 +98,11 @@ std::string PaddingString(const std::string& prefix, size_t bytes, char pad) {
 std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size) {
   std::vector<KeyValue> test_data(n);
-  for (int i = 0; i < test_data.size(); ++i) {
-    test_data[i][0] = PaddingString(fmt::format("key{}", i), key_size, 0);
-    test_data[i][1] = RandomString(fmt::format("value{}", i), value_size);
+  size_t index = 0;
+  for (auto& kv : test_data) {
+    kv.index = index++;
+    kv.key_bytes = key_size;
+    kv.value_bytes = value_size;
   }
   return test_data;
 }
@@ -138,11 +157,11 @@ void TestScan(DB* db, size_t n) {
 
 void TestPut(DB* db, const std::vector<KeyValue>& data) {
   Reporter reporter("Put", &logger);
-  
-  for (const auto& [key, value] : data) {
-    auto stat = db->Put({}, key, value);
+
+  for (const auto& kv : data) {
+    auto stat = db->Put({}, kv.key(), kv.value());
     if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+      logger.Fatal("failed to write {}, {}: {}", kv.key(), kv.value(), stat);
     }
 
     reporter.Report();
@@ -154,13 +173,13 @@ void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
   Reporter reporter("GetAll", &logger);
 
   std::string get;
-  for (const auto& [key, value] : data) {
-    auto stat = db->Get({}, key, &get);
+  for (const auto& kv : data) {
+    auto stat = db->Get({}, kv.key(), &get);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", key, value, stat);
+      logger.Fatal("failed to write {}, {}: {}", kv.key(), kv.value(), stat);
     }
-    if (get != value) {
-      logger.Fatal("expected {}, shows {}", value, get);
+    if (get != kv.value()) {
+      logger.Fatal("expected {}, shows {}", kv.value(), get);
     }
     reporter.Report();
   }
@@ -177,13 +196,14 @@ void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n) {
     auto x = random.Uniform(data.size());
 
     std::string value;
-    auto stat = db->Get(ReadOptions{}, data[x][0], &value);
+    auto stat = db->Get(ReadOptions{}, data[x].key(), &value);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to read {}: {}", data[x][0], stat);
+      logger.Fatal("failed to read {}: {}", data[x].key(), stat);
     }
 
-    if (value != data[x][1]) {
-      logger.Fatal("value is not correct: key {} value{}", data[x][0], value);
+    if (value != data[x].value()) {
+      logger.Fatal("value is not correct: key {} value{}", data[x].value(),
+                   value);
     }
 
     reporter.Report();
