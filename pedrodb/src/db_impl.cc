@@ -336,11 +336,13 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
   RecordIterator iterator(file.get());
   iterator.Seek(dir.loc.offset);
   if (!iterator.Valid()) {
+    PEDRODB_ERROR("failed to read from iterator");
     return Status::kCorruption;
   }
 
   auto entry = iterator.Next();
   if (!entry.Validate()) {
+    PEDRODB_ERROR("checksum validation error");
     return Status::kCorruption;
   }
 

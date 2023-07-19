@@ -1,7 +1,6 @@
 #ifndef PEDRODB_FORMAT_RECORD_FORMAT_H
 #define PEDRODB_FORMAT_RECORD_FORMAT_H
 
-#include <highwayhash/highwayhash_target.h>
 #include <utility>
 
 #include "pedrodb/defines.h"
@@ -65,17 +64,7 @@ struct Header {
 
 template <class Key>
 static uint64_t Hash(const Key& key) noexcept {
-  using highwayhash::HHKey;
-  using highwayhash::HHResult64;
-  using highwayhash::HighwayHash;
-
-  HHResult64 kh = 0;
-  HighwayHash<HH_TARGET_AVX2> hash;
-  HH_ALIGNAS(32) const HHKey h{0x03, 0x07, 0x32, 0xdd};
-  if (std::size(key)) {
-    hash(h, std::data(key), std::size(key), &kh);
-  }
-  return kh;
+  return std::hash<Key>()(key);
 }
 
 template <typename Key = std::string, typename Value = std::string>

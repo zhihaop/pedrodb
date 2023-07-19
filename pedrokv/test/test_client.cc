@@ -74,7 +74,7 @@ void TestSyncGet(SyncClient& client, std::vector<int> data) {
   for (int i : data) {
     auto response = client.Get(fmt::format("hello{}", i));
     if (response.type != pedrokv::ResponseType::kOk) {
-      logger.Fatal("error type");
+      logger.Fatal("error type {}", response.data);
     }
     if (response.data.find(fmt::format("world{}", i)) == -1) {
       logger.Fatal("error value");
