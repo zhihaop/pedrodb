@@ -23,14 +23,11 @@
 namespace pedrodb {
 
 struct Record {
-  uint32_t h;
+  uint32_t checksum{};
   std::string key;
   std::string value;
   record::Location location{};
   uint32_t timestamp{};
-
-  Record(uint32_t h, std::string key, std::string value,
-         const record::Location& location, uint32_t timestamp);
 };
 
 enum class CompactState {

@@ -165,7 +165,6 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
 
     // move to active file because this file will be removed.
     record::EntryView entry;
-    entry.crc32 = 0;
     entry.type = record::Type::kSet;
     entry.key = r.key;
     entry.value = r.value;
@@ -204,9 +203,13 @@ void DBImpl::Compact(file_id_t id) {
       continue;
     }
     batch_bytes += next.SizeOf();
-    batch.emplace_back(Hash(next.key), std::string{next.key},
-                       std::string{next.value}, record::Location{id, offset},
-                       (uint32_t)0);
+
+    Record record;
+    record.key.assign(next.key);
+    record.value.assign(next.value);
+    record.location = {id, offset};
+    record.timestamp = next.checksum;
+    batch.emplace_back(std::move(record));
 
     if (batch_bytes >= options_.compaction_batch_bytes) {
       CompactBatch(id, batch);
@@ -235,7 +238,6 @@ void DBImpl::Compact(file_id_t id) {
 Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
                          std::string_view value) {
   record::Entry<> entry;
-  entry.crc32 = 0;
   entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
   entry.key = key;
   if (options_.compress) {
@@ -243,6 +245,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
   } else {
     entry.value = value;
   }
+  entry.checksum = record::Entry<>::Checksum(entry.key, entry.value);
 
   if (entry.SizeOf() > kMaxFileBytes) {
     PEDRODB_ERROR("key or value is too big");
@@ -344,6 +347,10 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
   }
 
   auto entry = iterator.Next();
+  if (!entry.Validate()) {
+    return Status::kCorruption;
+  }
+  
   if (options_.compress) {
     Uncompress(entry.value, value);
   } else {
@@ -460,12 +467,4 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
   *iterator = std::make_unique<EntryIteratorImpl>(this);
   return Status::kOk;
 }
-
-Record::Record(uint32_t h, std::string key, std::string value,
-               const record::Location& location, uint32_t timestamp)
-    : h(h),
-      key(std::move(key)),
-      value(std::move(value)),
-      location(location),
-      timestamp(timestamp) {}
 }  // namespace pedrodb

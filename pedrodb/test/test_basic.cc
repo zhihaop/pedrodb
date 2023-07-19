@@ -146,6 +146,7 @@ void TestPut(DB* db, const std::vector<KeyValue>& data) {
 
     reporter.Report();
   }
+  db->Flush();
 }
 
 void TestGetAll(DB* db, const std::vector<KeyValue>& data) {

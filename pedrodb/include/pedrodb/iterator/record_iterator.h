@@ -58,7 +58,7 @@ class RecordIterator : public Iterator<record::EntryView> {
       return false;
     }
 
-    entry_.crc32 = header.crc32;
+    entry_.checksum = header.checksum;
     entry_.type = header.type;
     entry_.timestamp = header.timestamp;
 
