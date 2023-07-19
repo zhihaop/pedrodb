@@ -51,8 +51,6 @@ int main() {
   logger.SetLevel(Logger::Level::kTrace);
 
   Options options{};
-  // options.read_cache_bytes = 0;
-  // options.read_cache_bytes = 0;
 
   std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);

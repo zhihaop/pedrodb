@@ -2,7 +2,6 @@
 #include <pedrolib/timestamp.h>
 #include <iostream>
 #include <random>
-#include <string_view>
 using pedrolib::File;
 using pedrolib::Timestamp;
 

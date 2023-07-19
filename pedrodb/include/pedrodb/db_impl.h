@@ -33,12 +33,13 @@ struct Record {
 
 enum class CompactState {
   kNop,
+  kQueued,
   kScheduling,
   kCompacting,
 };
 
 struct CompactHint {
-  size_t unused{};
+  size_t free_bytes{};
   CompactState state{CompactState::kNop};
 };
 
@@ -48,13 +49,14 @@ class DBImpl : public DB {
   Options options_;
   uint64_t sync_worker_{};
   uint64_t compact_worker_{};
+  std::shared_ptr<Executor> executor_;
+  
   tsl::htrie_map<char, record::Dir> indices_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
-  std::shared_ptr<pedrolib::Executor> executor_;
   
   // for compaction.
-  std::unordered_set<file_id_t> compact_tasks_;
+  std::vector<file_id_t> compact_tasks_;
   std::unordered_map<file_id_t, CompactHint> compact_hints_;
 
   void Recovery(file_id_t id, index::EntryView entry);

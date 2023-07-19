@@ -14,7 +14,7 @@ class FileManager {
   mutable std::mutex mu_;
 
   MetadataManager* metadata_manager_;
-
+  
   std::unordered_map<file_id_t, ReadableFile::Ptr> open_data_files_;
   const uint8_t max_open_files_;
 

@@ -23,12 +23,11 @@ Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
 
 void DBImpl::UpdateUnused(record::Location loc, size_t unused) {
   auto& hint = compact_hints_[loc.id];
-  hint.unused += unused;
-  if (hint.unused >= options_.compaction_threshold_bytes) {
+  hint.free_bytes += unused;
+  if (hint.free_bytes >= options_.compaction_threshold_bytes) {
     if (hint.state == CompactState::kNop) {
-      if (!compact_tasks_.count(loc.id)) {
-        compact_tasks_.emplace(loc.id);
-      }
+      hint.state = CompactState::kQueued;
+      compact_tasks_.emplace_back(loc.id);
     }
   }
 }
@@ -164,7 +163,7 @@ Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
     entry.timestamp = r.timestamp;
     entry.checksum = r.checksum;
 
-    hints.unused += entry.SizeOf();
+    hints.free_bytes += entry.SizeOf();
 
     record::Location loc;
     auto status = file_manager_->WriteActiveFile(entry, &loc);
@@ -221,7 +220,6 @@ void DBImpl::Compact(file_id_t id) {
   {
     auto lock = AcquireLock();
     compact_hints_.erase(id);
-    compact_tasks_.erase(id);
 
     PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
   }
@@ -287,7 +285,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
 
   // delete.
   indices_.erase(it);
-  
+
   if (!value.empty()) {
     dir.loc = loc;
     dir.entry_size = entry.SizeOf();
@@ -320,15 +318,13 @@ Status DBImpl::Recovery() {
 Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
                          std::string* value) {
 
-  record::Dir dir;
-  {
-    auto lock = AcquireLock();
-    auto it = indices_.find(key);
-    if (it == indices_.end()) {
-      return Status::kNotFound;
-    }
-    dir = it.value();
+  auto lock = AcquireLock();
+  auto it = indices_.find(key);
+  if (it == indices_.end()) {
+    return Status::kNotFound;
   }
+  auto dir = it.value();
+  lock.unlock();
 
   ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
@@ -400,7 +396,7 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
     // therefore entry.loc is always monotonously increased.
     // should not delete the latest version data.
     auto dir = it.value();
-    
+
     if (dir.loc > loc) {
       return;
     }
