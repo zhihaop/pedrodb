@@ -2,6 +2,8 @@
 #include <pedrodb/db_impl.h>
 #include <pedrodb/logger/logger.h>
 #include <pedrodb/segment_db.h>
+#include <random>
+#include <iostream>
 #include "random.h"
 #include "reporter.h"
 
@@ -14,18 +16,22 @@ using pedrodb::SegmentDB;
 using pedrodb::Status;
 using pedrodb::Timestamp;
 using pedrodb::WriteOptions;
+using pedrolib::Executor;
+using pedrolib::Latch;
 using pedrolib::Logger;
 
 Logger logger{"test"};
+std::string RandomString(std::string_view prefix, size_t n);
 std::string PaddingString(std::string_view prefix, size_t n, char pad = '*');
 
 struct KeyValue {
   std::string key;
   std::string value;
 
-  KeyValue(size_t index, size_t kb, size_t vb) {
-    key = PaddingString(fmt::format("key{}", index), kb);
-    value = PaddingString(fmt::format("value{}", index), vb);
+  static KeyValue Create(size_t index, size_t kb, size_t vb) {
+    auto key = RandomString(fmt::format("key{}", index), kb);
+    auto value = RandomString(fmt::format("value{}", index), vb);
+    return {key, value};
   }
 };
 
@@ -49,6 +55,8 @@ int main() {
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
+  
+  std::cin.get();
 
   size_t n_puts = 1000000;
   size_t n_reads = 1000000;
@@ -62,6 +70,18 @@ int main() {
   return 0;
 }
 
+std::string RandomString(std::string_view prefix, size_t n) {
+  std::string s{prefix};
+  s.reserve(n);
+
+  std::uniform_int_distribution<char> dist(0, 127);
+  thread_local std::mt19937_64 dev(std::time(nullptr));
+  for (size_t i = 0; i < n - prefix.size(); ++i) {
+    s += dist(dev);
+  }
+  return s;
+}
+
 std::string PaddingString(std::string_view prefix, size_t n, char pad) {
   std::string s{prefix};
   s.reserve(n);
@@ -73,12 +93,17 @@ std::string PaddingString(std::string_view prefix, size_t n, char pad) {
 
 std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size) {
-  std::vector<KeyValue> test_data;
-  test_data.reserve(n);
+  std::vector<KeyValue> data(n);
+  pedrolib::ThreadPoolExecutor executor(16);
+  Latch latch(n);
   for (size_t i = 0; i < n; ++i) {
-    test_data.emplace_back(i, key_size, value_size);
+    executor.Schedule([=, &data, &latch] {
+      data[i] = KeyValue::Create(i, key_size, value_size);
+      latch.CountDown();
+    });
   }
-  return test_data;
+  latch.Await();
+  return data;
 }
 
 void TestScan(DB* db, size_t n) {
