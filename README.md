@@ -261,7 +261,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, const std::string& key,
     return Status::kCorruption;
   }
   
-  if (options_.compress) {
+  if (options_.compress_value) {
     Uncompress(entry.value, value);
   } else {
     value->assign(entry.value);
@@ -286,7 +286,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
   record::Entry<> entry;
   entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
   entry.key = key;
-  if (options_.compress) {
+  if (options_.compress_value) {
     Compress(value, &entry.value);
   } else {
     entry.value = value;

@@ -8,12 +8,12 @@ namespace pedrodb {
 using pedrolib::htobe;
 
 class RecordIterator : public Iterator<record::EntryView> {
-  ReadableFile* file_;
 
+  size_t index_{};
+  ReadableFile* file_;
+  size_t read_index_{};
   record::EntryView entry_;
 
-  size_t read_index_{};
-  size_t index_{};
   const size_t size_{};
 
   static ArrayBuffer& GetBuffer() {
@@ -22,11 +22,10 @@ class RecordIterator : public Iterator<record::EntryView> {
   }
 
   void fetch(size_t fetch) {
+    auto& buffer = GetBuffer();
     if (read_index_ + fetch >= size_) {
       return;
     }
-
-    auto& buffer = GetBuffer();
 
     buffer.Reset();
     buffer.EnsureWritable(fetch);
@@ -79,13 +78,13 @@ class RecordIterator : public Iterator<record::EntryView> {
   [[nodiscard]] uint32_t GetOffset() const noexcept { return index_; }
 
   record::EntryView Peek() noexcept { return entry_; }
-  
+
   record::EntryView Next() noexcept override {
     index_ += entry_.SizeOf();
     return entry_;
   }
 
-  void Close() override {}
+  void Close() override { GetBuffer().Reset(); }
 };
 }  // namespace pedrodb
 

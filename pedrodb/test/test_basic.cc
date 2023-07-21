@@ -29,7 +29,7 @@ struct KeyValue {
   std::string value;
 
   static KeyValue Create(size_t index, size_t kb, size_t vb) {
-    auto key = RandomString(fmt::format("key{}", index), kb);
+    auto key = PaddingString(fmt::format("key{}", index), kb);
     auto value = RandomString(fmt::format("value{}", index), vb);
     return {key, value};
   }
@@ -138,8 +138,9 @@ void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
   Reporter reporter("GetAll", &logger);
 
   std::string get;
+  ReadOptions options;
   for (const auto& kv : data) {
-    auto stat = db->Get({}, kv.key, &get);
+    auto stat = db->Get(options, kv.key, &get);
     if (stat != Status::kOk) {
       logger.Fatal("failed to write {}, {}: {}", kv.key, kv.value, stat);
     }

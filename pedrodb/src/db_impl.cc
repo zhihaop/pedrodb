@@ -24,7 +24,7 @@ Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
 void DBImpl::UpdateUnused(record::Location loc, size_t unused) {
   auto& hint = compact_hints_[loc.id];
   hint.free_bytes += unused;
-  if (hint.free_bytes >= options_.compaction_threshold_bytes) {
+  if (hint.free_bytes >= options_.compaction.threshold_bytes) {
     if (hint.state == CompactState::kNop) {
       hint.state = CompactState::kQueued;
       compact_tasks_.emplace_back(loc.id);
@@ -56,7 +56,7 @@ Status DBImpl::Init() {
       options_.sync_interval, options_.sync_interval, [this] { Flush(); });
 
   compact_worker_ = executor_->ScheduleEvery(
-      options_.compact_interval, options_.compact_interval, [this] {
+      options_.compaction.interval, options_.compaction.interval, [this] {
         auto lock = AcquireLock();
         auto task = PollCompactTask();
         lock.unlock();
@@ -134,45 +134,6 @@ Status DBImpl::Recovery(file_id_t id) {
   return Status::kIOError;
 }
 
-Status DBImpl::CompactBatch(file_id_t id, const std::vector<Record>& records) {
-  auto lock = AcquireLock();
-
-  auto& hints = compact_hints_[id];
-  hints.state = CompactState::kCompacting;
-  for (auto& r : records) {
-    auto it = indices_.find(r.key);
-    if (it == indices_.end()) {
-      continue;
-    }
-
-    // steal entry.
-    auto& dir = it.value();
-    if (dir.loc != r.location) {
-      continue;
-    }
-
-    // move to active file because this file will be removed.
-    record::EntryView entry;
-    entry.type = record::Type::kSet;
-    entry.key = r.key;
-    entry.value = r.value;
-    entry.timestamp = r.timestamp;
-    entry.checksum = r.checksum;
-
-    hints.free_bytes += entry.SizeOf();
-
-    record::Location loc;
-    auto status = file_manager_->WriteActiveFile(entry, &loc);
-    if (status != Status::kOk) {
-      return status;
-    }
-
-    dir.loc = loc;
-    dir.entry_size = entry.SizeOf();
-  }
-  return Status::kOk;
-}
-
 void DBImpl::Compact(file_id_t id) {
   ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(id, &file);
@@ -181,42 +142,65 @@ void DBImpl::Compact(file_id_t id) {
   }
 
   PEDRODB_TRACE("start compacting {}", id);
+  {
+    auto lock = AcquireLock();
+    auto& hints = compact_hints_[id];
+    hints.state = CompactState::kCompacting;
+  }
 
-  std::vector<Record> batch;
-  size_t batch_bytes = 0;
-
-  for (auto iter = RecordIterator(file.get()); iter.Valid();) {
+  auto iter = RecordIterator(file.get());
+  while (iter.Valid()) {
     uint32_t offset = iter.GetOffset();
     auto next = iter.Next();
     if (next.type != record::Type::kSet) {
       continue;
     }
-    batch_bytes += next.SizeOf();
+    
+    // check if the key is valid.
+    {
+      auto lock = AcquireLock();
+      auto it = indices_.find(next.key);
+      if (it == indices_.end()) {
+        continue;
+      }
 
-    Record record;
-    record.key.assign(next.key);
-    record.value.assign(next.value);
-    record.location = {id, offset};
-    record.timestamp = next.checksum;
-    batch.emplace_back(std::move(record));
-
-    if (batch_bytes >= options_.compaction_batch_bytes) {
-      CompactBatch(id, batch);
-      batch.clear();
-      batch_bytes = 0;
+      // steal entry.
+      auto& dir = it.value();
+      if (dir.loc != record::Location(id, offset)) {
+        continue;
+      }
     }
-  }
 
-  if (batch_bytes > 0) {
-    CompactBatch(id, batch);
-    batch.clear();
+    // move to active file because this file will be removed.
+    record::Location loc;
+    auto status = file_manager_->WriteActiveFile(next, &loc);
+    if (status != Status::kOk) {
+      return;
+    }
+    
+    // update the memory index
+    {
+      auto lock = AcquireLock();
+      auto it = indices_.find(next.key);
+      if (it != indices_.end()) {
+        if (it.value().loc < loc) {
+          record::Dir dir;
+          dir.loc = loc;
+          dir.entry_size = next.SizeOf();
+          indices_[next.key] = dir;
+        } else {
+          compact_hints_[loc.id].free_bytes += next.SizeOf();
+        }
+      } else {
+        // the key has been deleted.
+      }
+    }
   }
 
   // erase compaction_state.
   {
     auto lock = AcquireLock();
     compact_hints_.erase(id);
-
     PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
   }
 
@@ -230,7 +214,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
   entry.key = key;
 
   std::string compressed;
-  if (options_.compress) {
+  if (options_.compress_value) {
     Compress(value, &compressed);
     entry.value = compressed;
   } else {
@@ -342,7 +326,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
     return Status::kCorruption;
   }
 
-  if (options_.compress) {
+  if (options_.compress_value) {
     Uncompress(entry.value, value);
   } else {
     value->assign(entry.value);
@@ -419,7 +403,7 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
         : parent_(parent), files_(parent->metadata_manager_->GetFiles()) {}
 
     ~EntryIteratorImpl() override = default;
-    
+
     bool Valid() override {
       for (;;) {
         if (current_iterator_ == nullptr) {
@@ -430,29 +414,29 @@ Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
           auto status = parent_->file_manager_->AcquireDataFile(current_id_,
                                                                 &current_file_);
           if (status != Status::kOk) {
-            return false;
+            continue;
           }
 
           current_iterator_ =
               std::make_unique<RecordIterator>(current_file_.get());
         }
-        
+
         auto lock = parent_->AcquireLock();
         while (current_iterator_->Valid()) {
           uint32_t offset = current_iterator_->GetOffset();
           auto peek = current_iterator_->Peek();
-          
+
           auto it = parent_->indices_.find(peek.key);
           if (it == parent_->indices_.end()) {
             current_iterator_->Next();
             continue;
           }
-          
+
           if (it.value().loc != record::Location(current_id_, offset)) {
             current_iterator_->Next();
             continue;
           }
-          
+
           return true;
         }
 

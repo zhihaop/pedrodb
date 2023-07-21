@@ -68,8 +68,6 @@ class DBImpl : public DB {
 
   std::vector<file_id_t> PollCompactTask();
 
-  Status CompactBatch(file_id_t id, const std::vector<Record>& records);
-
   Status Recovery();
 
   auto AcquireLock() const { return std::unique_lock{mu_}; }
