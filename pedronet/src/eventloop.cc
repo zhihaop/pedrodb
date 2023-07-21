@@ -121,4 +121,8 @@ void EventLoop::Join() {
   PEDRONET_INFO("Eventloop join exit");
 }
 
+size_t EventLoop::Size() const noexcept {
+  return 1;
+}
+
 }  // namespace pedronet

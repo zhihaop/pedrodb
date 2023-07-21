@@ -36,6 +36,8 @@ class EventLoopGroup : public Executor {
     (executor->Join(), ...);
   }
 
+  [[nodiscard]] size_t Size() const noexcept override;
+
   template <typename Selector = EpollSelector>
   static EventLoopGroupPtr Create(size_t threads) {
     auto group = std::make_shared<EventLoopGroup>(threads);

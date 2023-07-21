@@ -13,6 +13,29 @@ struct ReadableFile {
   [[nodiscard]] virtual Error GetError() const noexcept = 0;
   virtual ssize_t Read(uint64_t offset, char* buf, size_t n) = 0;
 };
+
+class ReadonlyBuffer {
+  const char* data_{};
+  size_t read_index_{};
+  const size_t capacity_{};
+
+ public:
+  ReadonlyBuffer(const char* data, size_t capacity)
+      : data_(data), capacity_(capacity) {}
+  [[nodiscard]] const char* ReadIndex() const noexcept {
+    return data_ + read_index_;
+  }
+
+  void SetReadOffset(size_t offset) noexcept { read_index_ = offset; }
+
+  [[nodiscard]] size_t GetReadOffset() const noexcept { return read_index_; }
+
+  [[nodiscard]] size_t ReadableBytes() const noexcept {
+    return capacity_ - read_index_;
+  }
+
+  void Retrieve(size_t n) noexcept { read_index_ += n; }
+};
 }  // namespace pedrodb
 
 #endif  // PEDRODB_FILE_READABLE_FILE_H

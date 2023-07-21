@@ -27,7 +27,8 @@ struct Entry {
            key_size;
   }
 
-  void Pack(ArrayBuffer* buffer) const {
+  template <class WritableBuffer>
+  void Pack(WritableBuffer* buffer) const {
     buffer->EnsureWritable(SizeOf());
     AppendInt(buffer, (uint8_t)std::size(key));
     AppendInt(buffer, (uint8_t)type);
@@ -36,7 +37,8 @@ struct Entry {
     buffer->Append(std::data(key), std::size(key));
   }
 
-  bool UnPack(ArrayBuffer* buffer) {
+  template <class ReadableBuffer>
+  bool UnPack(ReadableBuffer* buffer) {
     uint8_t key_size;
     if (!PeekInt(buffer, &key_size)) {
       return false;

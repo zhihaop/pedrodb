@@ -1,5 +1,7 @@
 #ifndef PEDRODB_ITERATOR_RECORDITERATOR_H
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
+#include <utility>
+
 #include "pedrodb/file/readonly_file.h"
 #include "pedrodb/format/record_format.h"
 #include "pedrodb/iterator/iterator.h"
@@ -10,7 +12,7 @@ using pedrolib::htobe;
 class RecordIterator : public Iterator<record::EntryView> {
 
   size_t index_{};
-  ReadableFile* file_;
+  ReadableFile::Ptr file_;
   size_t read_index_{};
   record::EntryView entry_;
 
@@ -35,8 +37,8 @@ class RecordIterator : public Iterator<record::EntryView> {
   }
 
  public:
-  explicit RecordIterator(ReadableFile* file)
-      : file_(file), size_(file_->Size()) {}
+  explicit RecordIterator(ReadableFile::Ptr file)
+      : file_(std::move(file)), size_(file_->Size()) {}
 
   bool Valid() noexcept override {
     if (index_ >= size_) {

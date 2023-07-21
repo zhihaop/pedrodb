@@ -8,25 +8,6 @@
 #include <sys/mman.h>
 namespace pedrodb {
 
-class ReadonlyBuffer {
-  const char* data_{};
-  size_t read_index_{};
-  const size_t capacity_{};
-
- public:
-  ReadonlyBuffer(const char* data, size_t capacity)
-      : data_(data), capacity_(capacity) {}
-  [[nodiscard]] const char* ReadIndex() const noexcept {
-    return data_ + read_index_;
-  }
-
-  [[nodiscard]] size_t ReadableBytes() const noexcept {
-    return capacity_ - read_index_;
-  }
-
-  void Retrieve(size_t n) noexcept { read_index_ += n; }
-};
-
 class ReadWriteFile final : public ReadableFile,
                             public WritableFile,
                             noncopyable,

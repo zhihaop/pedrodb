@@ -53,6 +53,8 @@ class EventLoop : public Executor {
     return core::Thread::Current().CheckUnderLoop(this);
   }
 
+  size_t Size() const noexcept override;
+
   void AssertUnderLoop() const;
 
   void Schedule(Callback cb) override;

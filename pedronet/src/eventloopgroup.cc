@@ -42,4 +42,8 @@ void EventLoopGroup::HandleJoin() {
   }
   threads_.clear();
 }
+
+size_t EventLoopGroup::Size() const noexcept {
+  return threads_.size();
+}
 }  // namespace pedronet

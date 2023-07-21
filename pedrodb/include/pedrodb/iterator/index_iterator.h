@@ -4,14 +4,17 @@
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/iterator/iterator.h"
 
+#include <variant>
+
 namespace pedrodb {
 
 class IndexIterator : public Iterator<index::EntryView> {
   ArrayBuffer buffer_;
+  ReadableFile::Ptr file_{};
   index::EntryView entry_;
 
  public:
-  explicit IndexIterator(ReadableFile* file) {
+  explicit IndexIterator(ReadableFile::Ptr file) : file_(file) {
     buffer_.EnsureWritable(file->Size());
     file->Read(0, buffer_.WriteIndex(), buffer_.WritableBytes());
     buffer_.Append(buffer_.WritableBytes());

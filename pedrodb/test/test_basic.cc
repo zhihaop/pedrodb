@@ -2,8 +2,8 @@
 #include <pedrodb/db_impl.h>
 #include <pedrodb/logger/logger.h>
 #include <pedrodb/segment_db.h>
-#include <random>
 #include <iostream>
+#include <random>
 #include "random.h"
 #include "reporter.h"
 
@@ -55,7 +55,7 @@ int main() {
   if (status != Status::kOk) {
     logger.Fatal("failed to open db");
   }
-  
+
   std::cin.get();
 
   size_t n_puts = 1000000;
@@ -65,7 +65,6 @@ int main() {
   TestPut(db.get(), data);
   TestRandomGet(db.get(), data, n_reads);
   TestGetAll(db.get(), data);
-  db->Compact();
   TestScan(db.get(), 5);
   return 0;
 }
@@ -94,15 +93,15 @@ std::string PaddingString(std::string_view prefix, size_t n, char pad) {
 std::vector<KeyValue> GenerateData(size_t n, size_t key_size,
                                    size_t value_size) {
   std::vector<KeyValue> data(n);
-  pedrolib::ThreadPoolExecutor executor(16);
-  Latch latch(n);
-  for (size_t i = 0; i < n; ++i) {
-    executor.Schedule([=, &data, &latch] {
-      data[i] = KeyValue::Create(i, key_size, value_size);
-      latch.CountDown();
-    });
-  }
-  latch.Await();
+  pedrolib::ThreadPoolExecutor executor;
+
+  std::atomic_size_t c{0};
+  pedrolib::for_each(&executor, data.begin(), data.end(),
+                     [key_size, value_size, &c](auto& kv) {
+                       kv = KeyValue::Create(c.fetch_add(1), key_size,
+                                             value_size);
+                     })
+      ->Await();
   return data;
 }
 

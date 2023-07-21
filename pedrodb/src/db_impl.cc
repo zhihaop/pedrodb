@@ -1,6 +1,5 @@
 
 #include <memory>
-#include <utility>
 
 #include "pedrodb/compress.h"
 #include "pedrodb/db_impl.h"
@@ -108,7 +107,7 @@ DBImpl::~DBImpl() {
 Status DBImpl::Recovery(file_id_t id) {
   ReadableFile::Ptr file;
   if (file_manager_->AcquireIndexFile(id, &file) == Status::kOk) {
-    auto iter = IndexIterator(file.get());
+    auto iter = IndexIterator(file);
     while (iter.Valid()) {
       Recovery(id, iter.Next());
     }
@@ -116,7 +115,7 @@ Status DBImpl::Recovery(file_id_t id) {
   }
 
   if (file_manager_->AcquireDataFile(id, &file) == Status::kOk) {
-    auto iter = RecordIterator(file.get());
+    auto iter = RecordIterator(file);
     while (iter.Valid()) {
       index::EntryView view;
       view.offset = iter.GetOffset();
@@ -148,14 +147,14 @@ void DBImpl::Compact(file_id_t id) {
     hints.state = CompactState::kCompacting;
   }
 
-  auto iter = RecordIterator(file.get());
+  auto iter = RecordIterator(file);
   while (iter.Valid()) {
     uint32_t offset = iter.GetOffset();
     auto next = iter.Next();
     if (next.type != record::Type::kSet) {
       continue;
     }
-    
+
     // check if the key is valid.
     {
       auto lock = AcquireLock();
@@ -177,7 +176,7 @@ void DBImpl::Compact(file_id_t id) {
     if (status != Status::kOk) {
       return;
     }
-    
+
     // update the memory index
     {
       auto lock = AcquireLock();
@@ -313,7 +312,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
     return stat;
   }
 
-  RecordIterator iterator(file.get());
+  RecordIterator iterator(file);
   iterator.Seek(dir.loc.offset);
   if (!iterator.Valid()) {
     PEDRODB_ERROR("failed to read from iterator");
@@ -389,69 +388,52 @@ void DBImpl::Recovery(file_id_t id, index::EntryView entry) {
 }
 
 Status DBImpl::GetIterator(EntryIterator::Ptr* iterator) {
-
   struct EntryIteratorImpl : public EntryIterator {
-    std::vector<file_id_t> files_;
-    size_t index_{};
+    tsl::htrie_map<char, record::Dir> indices_;
+    tsl::htrie_map<char, record::Dir>::iterator it_;
+    record::EntryView next_;
     DBImpl* parent_;
-
-    file_id_t current_id_{};
-    ReadableFile::Ptr current_file_{};
-    std::unique_ptr<RecordIterator> current_iterator_{};
+    FileManager* file_manager_;
 
     explicit EntryIteratorImpl(DBImpl* parent)
-        : parent_(parent), files_(parent->metadata_manager_->GetFiles()) {}
+        : parent_(parent), file_manager_(parent_->file_manager_.get()) {
+      auto lock = parent_->AcquireLock();
+      indices_ = parent_->indices_;
+      it_ = indices_.begin();
+    }
 
     ~EntryIteratorImpl() override = default;
 
     bool Valid() override {
       for (;;) {
-        if (current_iterator_ == nullptr) {
-          if (index_ >= files_.size()) {
-            return false;
-          }
-          current_id_ = files_[index_++];
-          auto status = parent_->file_manager_->AcquireDataFile(current_id_,
-                                                                &current_file_);
-          if (status != Status::kOk) {
-            continue;
-          }
-
-          current_iterator_ =
-              std::make_unique<RecordIterator>(current_file_.get());
+        if (it_ == indices_.end()) {
+          return false;
         }
 
-        auto lock = parent_->AcquireLock();
-        while (current_iterator_->Valid()) {
-          uint32_t offset = current_iterator_->GetOffset();
-          auto peek = current_iterator_->Peek();
-
-          auto it = parent_->indices_.find(peek.key);
-          if (it == parent_->indices_.end()) {
-            current_iterator_->Next();
-            continue;
-          }
-
-          if (it.value().loc != record::Location(current_id_, offset)) {
-            current_iterator_->Next();
-            continue;
-          }
-
-          return true;
+        auto dir = (it_++).value();
+        ReadableFile::Ptr file;
+        auto status = file_manager_->AcquireDataFile(dir.loc.id, &file);
+        if (status != Status::kOk) {
+          continue;
         }
 
-        current_iterator_ = nullptr;
-        current_file_ = nullptr;
+        auto iter = RecordIterator(file);
+        if (!iter.Valid()) {
+          continue;
+        }
+
+        next_ = iter.Next();
+        if (!next_.Validate()) {
+          continue;
+        }
+
+        return true;
       }
     }
 
-    // TODO: fix compression
-    record::EntryView Next() override { return current_iterator_->Next(); }
+    record::EntryView Next() override { return next_; }
 
-    void Close() override {
-      current_iterator_ = nullptr;
-      current_file_ = nullptr;
-    }
+    void Close() override {}
   };
 
   *iterator = std::make_unique<EntryIteratorImpl>(this);

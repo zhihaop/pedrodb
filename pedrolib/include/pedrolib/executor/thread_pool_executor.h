@@ -127,7 +127,7 @@ class ThreadPoolExecutor : public Executor {
     join();
   }
 
-  size_t Size() const noexcept { return workers_.size(); }
+  size_t Size() const noexcept override { return workers_.size(); }
 
   void Schedule(Callback cb) override {
     std::unique_lock<std::mutex> lock(mu_);
