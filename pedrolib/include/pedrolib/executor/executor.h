@@ -27,27 +27,24 @@ struct Executor : noncopyable, nonmovable {
 };
 
 template <typename Iterator, typename Task>
-auto for_each(Executor* executor, Iterator begin, Iterator end, Task&& task) {
+void for_each(Executor* executor, Iterator begin, Iterator end, Task&& task) {
   size_t n = std::distance(begin, end);
   size_t p = executor->Size();
   size_t m = n / p;
   size_t t = n % p;
 
-  auto latch = std::make_shared<Latch>(p);
+  Latch latch(p);
   Iterator last = begin;
   for (size_t i = 0; i < p; ++i) {
     Iterator first = last;
-    Iterator next = first + m;
-    if (i < t) {
-      next += 1;
-    }
+    Iterator next = first + m + (i < t);
     last = next;
-    executor->Schedule([=] {
+    executor->Schedule([&, first, next, task] {
       std::for_each(first, next, task);
-      latch->CountDown();
+      latch.CountDown();
     });
   }
-  return latch;
+  latch.Await();
 }
 
 }  // namespace pedrolib

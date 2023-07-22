@@ -6,7 +6,8 @@ pedrokv::Server::Server(pedronet::InetAddress address,
     : address_(std::move(address)), options_(std::move(options)) {
   server_.SetGroup(options_.boss_group, options_.worker_group);
 
-  auto stat = pedrodb::DB::Open(options_.db_options, options_.db_path, &db_);
+  auto stat = pedrodb::SegmentDB::Open(options_.db_options, options_.db_path,
+                                       options_.db_shards, &db_);
   if (stat != pedrodb::Status::kOk) {
     PEDROKV_FATAL("failed to open db {}", options_.db_path);
   }

@@ -9,8 +9,8 @@ namespace pedrokv {
 struct ServerOptions {
   std::shared_ptr<EventLoopGroup> boss_group = EventLoopGroup::Create(1);
   std::shared_ptr<EventLoopGroup> worker_group = EventLoopGroup::Create();
-  std::shared_ptr<EventLoopGroup> io_group = EventLoopGroup::Create(1);
-
+  
+  size_t db_shards = 8;
   pedrodb::Options db_options;
   std::string db_path;
 };

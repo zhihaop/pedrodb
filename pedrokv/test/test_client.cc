@@ -1,215 +1,196 @@
+#include <pedrodb/debug/data.h>
+#include <pedrodb/debug/reporter.h>
 #include <pedrokv/client.h>
 #include <pedrokv/logger/logger.h>
-#include <pedronet/logger/logger.h>
 
 #include <random>
 
+using pedrodb::debug::Generator;
+using pedrodb::debug::KeyValue;
+using pedrodb::debug::KeyValueOptions;
+using pedrodb::debug::Reporter;
+using pedrokv::Client;
 using pedrokv::ClientOptions;
+using pedrokv::ResponseType;
+using pedrokv::SyncClient;
+using pedrolib::Latch;
 using pedrolib::Logger;
+using pedrolib::ThreadPoolExecutor;
 using pedronet::EventLoopGroup;
 using pedronet::InetAddress;
-using pedrokv::SyncClient;
-using pedrokv::Client;
 
 static auto logger = Logger("test");
-auto address = InetAddress::Create("127.0.0.1", 1082);
-auto options = ClientOptions{};
-std::atomic_size_t write_counts;
-std::atomic_size_t read_counts;
 
-struct TestOption {
+struct TestOptions {
+  ClientOptions client;
+  InetAddress address = InetAddress::Create("127.0.0.1", 1082);
+
   bool enable_read = true;
   bool enable_write = false;
-} test_option;
+  KeyValueOptions data{};
+} options;
 
-std::string Repeat(std::string_view s, size_t n) {
-  std::string t;
-  t.reserve(s.size() * n);
-  while (n--) {
-    t += s;
+void TestAsync(int n, int p, int c);
+void TestSync(int n, int p, int c);
+
+int main() {
+  pedrokv::logger::SetLevel(Logger::Level::kInfo);
+
+  logger.SetLevel(Logger::Level::kTrace);
+  options.client.worker_group = EventLoopGroup::Create();
+  options.client.max_inflight = 1024;
+  options.enable_write = true;
+  options.data.key_size = 16;
+  options.data.value_size = 100;
+  options.data.lazy_value = true;
+  options.data.random_value = true;
+
+  int n = 2000000;
+  for (int i = 1; i <= 64; ++i) {
+    TestAsync(n, i, std::min(i, 8));
+    TestSync(n, i, i);
   }
-  return t;
+  return 0;
 }
 
-void TestSyncPut(SyncClient& client, const std::vector<int>& data) {
-  if (!test_option.enable_write) {
-    return;
-  }
-  for (int i : data) {
-    auto response =
-        client.Put(fmt::format("hello{}", i),
-                   fmt::format("world{}{}", i, Repeat("0", 1 << 10)));
-
-    if (response.type != pedrokv::ResponseType::kOk) {
-      logger.Fatal("error");
+void TestSyncPut(Reporter& reporter, SyncClient& client,
+                 const std::vector<KeyValue>& data) {
+  for (auto& kv : data) {
+    auto response = client.Put(kv.key(), kv.value());
+    if (response.type != ResponseType::kOk) {
+      logger.Fatal("error: {}", response.data);
     }
-    write_counts++;
+    reporter.Report();
   }
 }
 
-void TestAsyncPut(Client& client, const std::vector<int>& data) {
-  if (!test_option.enable_write) {
-    return;
-  }
-  pedrolib::Latch latch(data.size());
-  for (int i : data) {
-    client.Put(fmt::format("hello{}", i),
-               fmt::format("world{}{}", i, Repeat("0", 1 << 10)),
-               [&latch](const auto& resp) {
-                 if (resp.type != pedrokv::ResponseType::kOk) {
-                   logger.Fatal("error");
-                 }
-                 write_counts++;
-                 latch.CountDown();
-               });
-  }
-  latch.Await();
-}
-
-void TestSyncGet(SyncClient& client, std::vector<int> data) {
-  if (!test_option.enable_read) {
-    return;
-  }
-  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
-  for (int i : data) {
-    auto response = client.Get(fmt::format("hello{}", i));
-    if (response.type != pedrokv::ResponseType::kOk) {
-      logger.Fatal("error type {}", response.data);
-    }
-    if (response.data.find(fmt::format("world{}", i)) == -1) {
-      logger.Fatal("error value");
-    }
-    read_counts++;
-  }
-}
-
-void TestAsyncGet(Client& client, std::vector<int> data) {
-  if (!test_option.enable_read) {
-    return;
-  }
-  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
-  pedrolib::Latch latch(data.size());
-  for (int i : data) {
-    client.Get(fmt::format("hello{}", i), [i, &latch](auto&& response) {
-      if (response.type != pedrokv::ResponseType::kOk) {
-        logger.Fatal("error type, msg: {}", response.data);
+void TestAsyncPut(Reporter& reporter, Client& client,
+                  const std::vector<KeyValue>& data) {
+  Latch latch(data.size());
+  for (auto& kv : data) {
+    client.Put(kv.key(), kv.value(), [&](const auto& resp) {
+      if (resp.type != ResponseType::kOk) {
+        logger.Fatal("error: {}", resp.data);
       }
-      if (response.data.find(fmt::format("world{}", i)) == -1) {
-        logger.Fatal("error value");
-      }
-      read_counts++;
+      reporter.Report();
       latch.CountDown();
     });
   }
   latch.Await();
 }
 
-using namespace std::chrono_literals;
+void TestSyncGet(Reporter& reporter, SyncClient& client,
+                 std::vector<KeyValue> data) {
+  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
 
-void TestAsync(int n, int m, int c) {
-  std::vector<std::shared_ptr<pedrokv::Client>> clients(c);
-  for (int i = 0; i < c; ++i) {
-    clients[i] = std::make_shared<pedrokv::Client>(address, options);
-    clients[i]->Start();
-  }
-  std::vector<std::vector<int>> data(m);
-  for (int i = 0; i < n;) {
-    for (int j = 0; j < m; ++j, ++i) {
-      data[j].emplace_back(i);
+  for (auto& kv : data) {
+    auto response = client.Get(kv.key());
+    if (response.type != ResponseType::kOk) {
+      logger.Fatal("error: {}", response.data);
     }
-  }
-  
-  logger.Info("test async put start");
-  {
-    std::vector<std::future<void>> ctx;
-    ctx.reserve(m);
-    for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(std::launch::async, [&, j] {
-        TestAsyncPut(*clients[j % clients.size()], data[j]);
-      }));
+    if (kv.value() != response.data) {
+      logger.Fatal("error value");
     }
-  }
-  logger.Info("test async put end");
-
-  logger.Info("test async get start");
-  {
-    std::vector<std::future<void>> ctx;
-    ctx.reserve(m);
-    for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(std::launch::async, [&, j] {
-        TestAsyncGet(*clients[j % clients.size()], data[j]);
-      }));
-    }
-  }
-  logger.Info("test async get end");
-
-  for (auto& client : clients) {
-    client->Close();
-    client.reset();
+    reporter.Report();
   }
 }
 
-void TestSync(int n, int m, int c) {
-  std::vector<std::shared_ptr<SyncClient>> clients(c);
-  for (int i = 0; i < c; ++i) {
-    clients[i] = std::make_shared<SyncClient>(address, options);
-    clients[i]->Start();
+void TestAsyncGet(Reporter& reporter, Client& client,
+                  std::vector<KeyValue> data) {
+  std::shuffle(data.begin(), data.end(), std::mt19937(std::random_device()()));
+  Latch latch(data.size());
+  for (auto& kv : data) {
+    client.Get(kv.key(), [&, value = kv.value()](auto&& response) {
+      if (response.type != pedrokv::ResponseType::kOk) {
+        logger.Fatal("error: {}", response.data);
+      }
+      if (response.data != value) {
+        logger.Fatal("error value");
+      }
+      reporter.Report();
+      latch.CountDown();
+    });
   }
-  std::vector<std::vector<int>> data(m);
-  for (int i = 0; i < n;) {
-    for (int j = 0; j < m; ++j, ++i) {
-      data[j].emplace_back(i);
+  latch.Await();
+}
+
+template <class Client>
+struct Group {
+  Client client;
+  std::vector<KeyValue> data;
+};
+
+template <class Client>
+std::vector<Group<Client>> DispatchGroup(const std::vector<Client>& clients,
+                                         const std::vector<KeyValue>& data,
+                                         size_t g) {
+  size_t n = data.size();
+  size_t m = n / g;
+  size_t t = n % g;
+
+  std::vector<Group<Client>> groups(g);
+  auto it = data.begin();
+  for (int i = 0; i < g; ++i) {
+    groups[i].client = clients[i % clients.size()];
+    groups[i].data.resize(m + (i < t));
+    for (auto& x : groups[i].data) {
+      x = *(it++);
     }
   }
 
-  logger.Info("test sync put start");
-  {
-    std::vector<std::future<void>> ctx;
-    ctx.reserve(m);
-    for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(std::launch::async, [&, j] {
-        TestSyncPut(*clients[j % clients.size()], data[j]);
-      }));
-    }
-  }
-  logger.Info("test sync put end");
+  return groups;
+}
 
-  logger.Info("test sync get start");
-  {
-    std::vector<std::future<void>> ctx;
-    ctx.reserve(m);
-    for (int j = 0; j < m; ++j) {
-      ctx.emplace_back(std::async(std::launch::async, [&, j] {
-        TestSyncGet(*clients[j % clients.size()], data[j]);
-      }));
-    }
-  }
-  logger.Info("test sync get end");
+void TestSync(int n, int p, int c) {
+  using Client = pedrokv::SyncClient;
 
+  std::vector<Client::Ptr> clients(c);
   for (auto& client : clients) {
-    client->Close();
-    client.reset();
+    client = std::make_shared<Client>(options.address, options.client);
+    client->Start();
+  }
+
+  auto groups = DispatchGroup(clients, Generator(n, options.data), p);
+
+  ThreadPoolExecutor executor(p);
+  if (options.enable_write) {
+    Reporter reporter(fmt::format("SyncPut-{}", p), &logger);
+    pedrolib::for_each(&executor, groups.begin(), groups.end(), [&](auto& g) {
+      TestSyncPut(reporter, *g.client, g.data);
+    });
+  }
+
+  if (options.enable_read) {
+    Reporter reporter(fmt::format("SyncGet-{}", p), &logger);
+    pedrolib::for_each(&executor, groups.begin(), groups.end(), [&](auto& g) {
+      TestSyncGet(reporter, *g.client, g.data);
+    });
   }
 }
 
-int main() {
-  pedrokv::logger::SetLevel(Logger::Level::kInfo);
-  // pedronet::logger::SetLevel(Logger::Level::kInfo);
+void TestAsync(int n, int p, int c) {
+  using Client = pedrokv::Client;
 
-  logger.SetLevel(Logger::Level::kTrace);
-  options.worker_group = EventLoopGroup::Create(1);
-  options.max_inflight = 1024;
+  std::vector<Client::Ptr> clients(c);
+  for (auto& client : clients) {
+    client = std::make_shared<Client>(options.address, options.client);
+    client->Start();
+  }
 
-  options.worker_group->ScheduleEvery(1s, 1s, [] {
-    logger.Info("Puts: {}/s, Gets: {}/s", write_counts.exchange(0),
-                read_counts.exchange(0));
-  });
+  auto groups = DispatchGroup(clients, Generator(n, options.data), p);
 
-  test_option.enable_write = true;
-  int n = 2000000;
-  TestAsync(n, 1, 1);
-  TestSync(n, 50, 50);
+  ThreadPoolExecutor executor(p);
+  if (options.enable_write) {
+    Reporter reporter(fmt::format("AsyncPut-{}", p), &logger);
+    pedrolib::for_each(&executor, groups.begin(), groups.end(), [&](auto& g) {
+      TestAsyncPut(reporter, *g.client, g.data);
+    });
+  }
 
-  options.worker_group->Close();
-  return 0;
+  if (options.enable_read) {
+    Reporter reporter(fmt::format("AsyncGet-{}", p), &logger);
+    pedrolib::for_each(&executor, groups.begin(), groups.end(), [&](auto& g) {
+      TestAsyncGet(reporter, *g.client, g.data);
+    });
+  }
 }

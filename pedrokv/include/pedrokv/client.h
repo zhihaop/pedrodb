@@ -34,6 +34,8 @@ class Client : nonmovable, noncopyable {
   void HandleResponse(std::queue<Response<>>& responses);
 
  public:
+  using Ptr = std::shared_ptr<Client>;
+
   Client(InetAddress address, ClientOptions options)
       : client_(std::move(address)), options_(std::move(options)) {
     client_.SetGroup(options_.worker_group);
@@ -81,6 +83,8 @@ class SyncClient {
   mutable std::mutex mu_;
 
  public:
+  using Ptr = std::shared_ptr<SyncClient>;
+  
   SyncClient(InetAddress address, ClientOptions options)
       : address_(std::move(address)),
         options_(std::move(options)),
