@@ -19,11 +19,15 @@ BitCask 是一个面向磁盘的 KeyValue 存储模型，它的特性有：
 
 ### PedroDB
 
-PedroDB 在 BitCask 模型上实现了一套高性能的 KeyValue 存储系统，对比 LevelDB 和 RocksDB，我们在（单点/批量）写入和（单点/随机）读取上具有一定的优势，在
+PedroDB 在 BitCask 模型上实现了一套高性能的 KeyValue 存储系统，它能够达到单机百万的随机写入读取吞吐量。
+
+对比 LevelDB 和 RocksDB，我们在（单点/批量）写入和（单点/随机）读取上具有一定的优势，在
 16B key 和 100B value 的测试下：
 
 - 单点/随机 Get：均匀分布，120wtps
 - 单点/随机 Set：200wtps
+
+更多的性能测试数据在最后一节。
 
 PedroDB 的适用场景：
 
