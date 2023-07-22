@@ -46,7 +46,7 @@ int main() {
   options.data.random_value = true;
 
   int n = 2000000;
-  for (int i = 1; i <= 64; ++i) {
+  for (int i = 1; i <= 64; i *= 2) {
     TestAsync(n, i, std::min(i, 8));
     TestSync(n, i, i);
   }
