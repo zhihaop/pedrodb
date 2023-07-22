@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.1)
 project(pedrodb)
 
-add_subdirectory(deps/pedrolib)
+if (NOT TARGET pedrolib)
+    add_subdirectory(deps/pedrolib)
+endif ()
 file(GLOB_RECURSE PEDRODB_SRCS src/*.cc)
 
 add_library(pedrodb SHARED ${PEDRODB_SRCS})
