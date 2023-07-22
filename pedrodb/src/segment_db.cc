@@ -7,7 +7,7 @@ namespace pedrodb {
 Status SegmentDB::Open(const Options& options, const std::string& path,
                        size_t n, std::shared_ptr<DB>* db) {
   auto impl = std::make_shared<SegmentDB>(n);
-  impl->executor_ = options.executor;
+  impl->executor_ = std::make_shared<DefaultExecutor>();
 
   auto& segments = impl->segments_;
   auto& executor = impl->executor_;
