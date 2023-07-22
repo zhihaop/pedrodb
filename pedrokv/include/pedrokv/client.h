@@ -32,7 +32,8 @@ class Client : nonmovable, noncopyable {
   std::shared_ptr<pedrolib::Latch> close_latch_;
 
   void HandleResponse(std::queue<Response<>>& responses);
-
+  void SendRequest(Request<> request, uint32_t id, ResponseCallback callback);
+  
  public:
   using Ptr = std::shared_ptr<Client>;
 
@@ -70,7 +71,6 @@ class Client : nonmovable, noncopyable {
   }
 
   void Start();
-  void SendRequest(Request<> request, uint32_t id, ResponseCallback callback);
 };
 
 class SyncClient {
