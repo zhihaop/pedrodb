@@ -1,4 +1,4 @@
-# PedroDB: 基于 BitCask 的高性能键值存储组件
+# PedroDB: A fast key-value storage library that provides an unordered mapping from string keys to string values. 
 
 ## 简介
 
