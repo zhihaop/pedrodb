@@ -1,4 +1,4 @@
-# Pedrokv: A fast and reliable key-value storage service using Bitcask Model
+# PedroDB: 基于 BitCask 的高性能键值存储组件
 
 ## 简介
 
