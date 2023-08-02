@@ -125,12 +125,12 @@ if (status != Status::kOk) {
 EntryIterator::Ptr iterator;
 status = db->GetIterator(&iterator);
 if (status != Status::kOk) {
-    std::cerr << failed to get iterator" << std::endl;
+    std::cerr << "failed to get iterator" << std::endl;
 }
 
 while (iterator->Valid()) {
-	auto next = iterator->Next();
-    std::cout << "key is: << next.key << ", value is: " << next.value << std::endl;
+    auto next = iterator->Next();
+    std::cout << "key is: " << next.key << ", value is: " << next.value << std::endl;
 }
 ```
 
