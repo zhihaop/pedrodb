@@ -119,7 +119,7 @@ status = db->Get(options, "hello", &value);
 if (status != Status::kOk) {
     std::cerr << "failed to get key" << std::endl;
 } else {
-    std::cout << "value is: << value << std::endl;
+    std::cout << "value is: " << value << std::endl;
 }
 
 EntryIterator::Ptr iterator;
