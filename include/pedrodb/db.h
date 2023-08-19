@@ -12,8 +12,9 @@ namespace pedrodb {
 using EntryIterator = Iterator<record::EntryView>;
 
 struct DB : pedrolib::noncopyable, pedrolib::nonmovable {
-  static Status Open(const Options& options, const std::string& name,
-                     std::shared_ptr<DB>* db);
+  using Ptr = std::shared_ptr<DB>;
+
+  static Status Open(const Options& options, const std::string& name, Ptr* db);
 
   DB() = default;
   virtual ~DB() = default;

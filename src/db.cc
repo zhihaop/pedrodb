@@ -3,8 +3,7 @@
 #include "pedrodb/logger/logger.h"
 
 namespace pedrodb {
-Status DB::Open(const Options& options, const std::string& name,
-                std::shared_ptr<DB>* db) {
+Status DB::Open(const Options& options, const std::string& name, DB::Ptr* db) {
   PEDRODB_INFO("Open database {}", name);
 
   auto impl = std::make_shared<DBImpl>(options, name);
