@@ -106,7 +106,8 @@ Status FileManager::CreateFile(file_id_t id) {
 
 void FileManager::ReleaseDataFile(file_id_t id) {
   auto lock = AcquireLock();
-  open_data_files_.erase(id);
+  ReadableFile::Ptr file;
+  open_files_.Remove(id, file);
 }
 
 Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
@@ -115,13 +116,11 @@ Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
     *file = active_data_file_;
     return Status::kOk;
   }
-
-  auto it = open_data_files_.find(id);
-  if (it != open_data_files_.end()) {
-    *file = it->second;
+  
+  if (open_files_.Get(id, *file)) {
     return Status::kOk;
   }
-
+  
   lock.unlock();
   std::string filename = metadata_manager_->GetDataFilePath(id);
   auto stat = PosixReadonlyFile::Open(filename, file);
@@ -130,12 +129,8 @@ Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
     return stat;
   }
   lock.lock();
-
-  if (open_data_files_.size() == max_open_files_) {
-    open_data_files_.erase(open_data_files_.begin());
-  }
-  open_data_files_.emplace(id, *file);
-
+  
+  open_files_.Put(id, *file);
   return Status::kOk;
 }
 

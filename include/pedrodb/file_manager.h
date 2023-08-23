@@ -1,6 +1,7 @@
 #ifndef PEDRODB_FILE_MANAGER_H
 #define PEDRODB_FILE_MANAGER_H
 
+#include "pedrodb/cache/simple_lru_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readonly_file.h"
 #include "pedrodb/file/readwrite_file.h"
@@ -14,8 +15,8 @@ class FileManager {
   mutable std::mutex mu_;
 
   MetadataManager* metadata_manager_;
-  
-  std::unordered_map<file_id_t, ReadableFile::Ptr> open_data_files_;
+
+  SimpleLRUCache<file_id_t, ReadableFile::Ptr> open_files_;
   const uint8_t max_open_files_;
 
   // always in use.
@@ -35,6 +36,7 @@ class FileManager {
   FileManager(MetadataManager* metadata, Executor* executor,
               uint8_t max_open_files)
       : max_open_files_(max_open_files),
+        open_files_(max_open_files),
         io_executor_(executor),
         metadata_manager_(metadata) {}
 
@@ -45,8 +47,7 @@ class FileManager {
   Status Flush(bool force);
 
   template <typename Key, typename Value>
-  Status Append(const record::Entry<Key, Value>& entry,
-                         record::Location* loc) {
+  Status Append(const record::Entry<Key, Value>& entry, record::Location* loc) {
     for (auto lock = AcquireLock();;) {
       size_t offset = active_data_file_->Write(entry);
       if (offset != -1) {
@@ -77,7 +78,7 @@ class FileManager {
   Status AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file);
 
   Status RemoveFile(file_id_t id);
-  
+
   void SyncActiveDataFile(file_id_t id, const WritableFile::Ptr& file);
   void CreateIndexFile(file_id_t id, const std::shared_ptr<ArrayBuffer>& log);
 };
