@@ -55,6 +55,8 @@ int main() {
   data_options.value_size = 100;
   data_options.random_value = true;
   data_options.lazy_value = false;
+  
+  db->Compact();
 
   auto data = Generator(n_puts, data_options);
   TestPut(db.get(), data);
