@@ -50,8 +50,9 @@ struct LogEntry {
   static size_t SizeOf() noexcept {
     return sizeof(uint8_t) + sizeof(file_id_t);
   }
-
-  bool UnPack(ArrayBuffer* buffer) {
+  
+  template <class ReadableBuffer>
+  bool UnPack(ReadableBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
@@ -62,8 +63,9 @@ struct LogEntry {
     type = static_cast<LogType>(u8_type);
     return true;
   }
-
-  void Pack(ArrayBuffer* buffer) const {
+  
+  template <class WritableBuffer>
+  void Pack(WritableBuffer* buffer) const {
     AppendInt(buffer, (uint8_t)type);
     AppendInt(buffer, id);
   }

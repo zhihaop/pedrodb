@@ -51,28 +51,46 @@ Status DBImpl::Init() {
 
   PEDRODB_INFO("recovery success");
 
+  std::weak_ptr<DBImpl> weak = shared_from_this();
+
   sync_worker_ = executor_->ScheduleEvery(
       options_.sync_interval, options_.sync_interval,
-      [this, failed_count = 0]() mutable {
-        auto err = file_manager_->Sync();
+      [weak, failed_count = 0]() mutable {
+        auto ptr = weak.lock();
+        if (ptr == nullptr) {
+          return;
+        }
+
+        auto err = ptr->file_manager_->Sync();
         if (err != Status::kOk) {
           failed_count++;
         }
 
-        if (failed_count > this->options_.sync_max_io_error) {
-          readonly_ = true;
+        if (failed_count > ptr->options_.sync_max_io_error) {
+          ptr->readonly_ = true;
           PEDRODB_ERROR("database is readonly because too many io error");
         }
       });
 
   compact_worker_ = executor_->ScheduleEvery(
-      options_.compaction.interval, options_.compaction.interval, [this] {
-        auto lock = AcquireLock();
-        auto task = PollCompactTask();
+      options_.compaction.interval, options_.compaction.interval, [weak] {
+        auto ptr = weak.lock();
+        if (ptr == nullptr) {
+          return;
+        }
+
+        auto lock = ptr->AcquireLock();
+        auto task = ptr->PollCompactTask();
         lock.unlock();
 
-        std::for_each(task.begin(), task.end(), [this](auto task) {
-          executor_->Schedule([this, task] { Compact(task); });
+        std::for_each(task.begin(), task.end(), [weak, ptr](auto task) {
+          ptr->executor_->Schedule([weak, task = std::move(task)] {
+            auto ptr = weak.lock();
+            if (ptr == nullptr) {
+              return;
+            }
+            ptr->Compact(task);
+          });
         });
       });
 
@@ -187,7 +205,7 @@ void DBImpl::Compact(file_id_t id) {
 
     // move to active file because this file will be removed.
     record::Location loc;
-    auto status = file_manager_->WriteActiveFile(next, &loc);
+    auto status = file_manager_->Append(next, &loc);
     if (status != Status::kOk) {
       return;
     }
@@ -249,7 +267,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
   entry.timestamp = timestamp;
 
   record::Location loc{};
-  auto status = file_manager_->WriteActiveFile(entry, &loc);
+  auto status = file_manager_->Append(entry, &loc);
   if (status != Status::kOk) {
     return status;
   }

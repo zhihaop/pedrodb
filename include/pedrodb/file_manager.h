@@ -45,7 +45,7 @@ class FileManager {
   Status Flush(bool force);
 
   template <typename Key, typename Value>
-  Status WriteActiveFile(const record::Entry<Key, Value>& entry,
+  Status Append(const record::Entry<Key, Value>& entry,
                          record::Location* loc) {
     for (auto lock = AcquireLock();;) {
       size_t offset = active_data_file_->Write(entry);

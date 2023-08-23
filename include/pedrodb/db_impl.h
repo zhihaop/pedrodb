@@ -43,7 +43,7 @@ struct CompactHint {
   CompactState state{CompactState::kNop};
 };
 
-class DBImpl : public DB {
+class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
   mutable std::mutex mu_;
 
   Options options_;

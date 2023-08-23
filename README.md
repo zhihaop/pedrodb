@@ -360,7 +360,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, const std::string& key,
   entry.timestamp = timestamp;
 
   record::Location loc{};
-  auto status = file_manager_->WriteActiveFile(entry, &loc);
+  auto status = file_manager_->Append(entry, &loc);
   if (status != Status::kOk) {
     return status;
   }

@@ -27,8 +27,8 @@ struct Header {
            sizeof(uint32_t);   // timestamp
   }
 
-  template <class Buffer>
-  bool UnPack(Buffer* buffer) {
+  template <class ReadableBuffer>
+  bool UnPack(ReadableBuffer* buffer) {
     if (buffer->ReadableBytes() < SizeOf()) {
       return false;
     }
@@ -48,8 +48,8 @@ struct Header {
     return true;
   }
 
-  template <class Buffer>
-  bool Pack(Buffer* buffer) const noexcept {
+  template <class WritableBuffer>
+  bool Pack(WritableBuffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
@@ -73,11 +73,11 @@ struct Entry {
   [[nodiscard]] bool Validate() const noexcept {
     return checksum == Checksum(key, value);
   }
- 
+
   static uint64_t Hash(const Key& key) noexcept {
     return std::hash<Key>()(key);
   }
-  
+
   static uint32_t Checksum(const Key& key, const Value& value) noexcept {
     return static_cast<uint32_t>((Hash(value) >> 32) ^ Hash(key));
   }
@@ -86,8 +86,8 @@ struct Entry {
     return Header::SizeOf() + std::size(key) + std::size(value);
   }
 
-  template <class Buffer>
-  bool UnPack(Buffer* buffer) {
+  template <class ReadableBuffer>
+  bool UnPack(ReadableBuffer* buffer) {
     Header header;
     if (!header.UnPack(buffer)) {
       return false;
@@ -108,8 +108,8 @@ struct Entry {
     return true;
   }
 
-  template <class Buffer>
-  bool Pack(Buffer* buffer) const noexcept {
+  template <class WritableBuffer>
+  bool Pack(WritableBuffer* buffer) const noexcept {
     if (buffer->WritableBytes() < SizeOf()) {
       return false;
     }
