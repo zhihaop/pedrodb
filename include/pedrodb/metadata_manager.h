@@ -10,7 +10,7 @@
 
 namespace pedrodb {
 
-class MetadataManager {
+class MetadataManager : public std::enable_shared_from_this<MetadataManager> {
   mutable std::mutex mu_;
 
   std::string name_;
@@ -26,6 +26,8 @@ class MetadataManager {
   auto AcquireLock() const noexcept { return std::unique_lock{mu_}; }
 
  public:
+  using Ptr = std::shared_ptr<MetadataManager>;
+
   explicit MetadataManager(std::string path) : path_(std::move(path)) {}
   ~MetadataManager() = default;
 

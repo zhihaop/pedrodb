@@ -23,14 +23,6 @@
 
 namespace pedrodb {
 
-struct Record {
-  uint32_t checksum{};
-  std::string key;
-  std::string value;
-  record::Location location{};
-  uint32_t timestamp{};
-};
-
 enum class CompactState {
   kNop,
   kQueued,
@@ -52,8 +44,8 @@ class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
   std::shared_ptr<Executor> executor_;
 
   tsl::htrie_map<char, record::Dir> indices_;
-  std::unique_ptr<FileManager> file_manager_;
-  std::unique_ptr<MetadataManager> metadata_manager_;
+  FileManager::Ptr file_manager_;
+  MetadataManager::Ptr metadata_manager_;
   std::atomic_bool readonly_{false};
 
   // for compaction.

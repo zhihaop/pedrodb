@@ -11,20 +11,19 @@
 
 namespace pedrodb {
 
-class FileManager {
+class FileManager : public std::enable_shared_from_this<FileManager> {
   mutable std::mutex mu_;
 
-  MetadataManager* metadata_manager_;
+  MetadataManager::Ptr metadata_manager_;
 
   SimpleLRUCache<file_id_t, ReadableFile::Ptr> open_files_;
-  const uint8_t max_open_files_;
 
   // always in use.
   std::shared_ptr<ArrayBuffer> active_index_log_;
   ReadWriteFile::Ptr active_data_file_;
   file_id_t active_file_id_{};
 
-  Executor* io_executor_{};
+  std::shared_ptr<Executor> executor_{};
 
   Status CreateFile(file_id_t id);
 
@@ -33,12 +32,13 @@ class FileManager {
   auto AcquireLock() const noexcept { return std::unique_lock(mu_); }
 
  public:
-  FileManager(MetadataManager* metadata, Executor* executor,
-              uint8_t max_open_files)
-      : max_open_files_(max_open_files),
-        open_files_(max_open_files),
-        io_executor_(executor),
-        metadata_manager_(metadata) {}
+  using Ptr = std::shared_ptr<FileManager>;
+
+  FileManager(MetadataManager::Ptr metadata_manager,
+              std::shared_ptr<Executor> executor, uint8_t max_open_files)
+      : open_files_(max_open_files),
+        executor_(std::move(executor)),
+        metadata_manager_(std::move(metadata_manager)) {}
 
   Status Init();
 
@@ -79,7 +79,8 @@ class FileManager {
 
   Status RemoveFile(file_id_t id);
 
-  void SyncActiveDataFile(file_id_t id, const WritableFile::Ptr& file);
+  void SyncFile(file_id_t id, const WritableFile::Ptr& file);
+
   void CreateIndexFile(file_id_t id, const std::shared_ptr<ArrayBuffer>& log);
 };
 }  // namespace pedrodb

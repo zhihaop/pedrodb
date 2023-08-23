@@ -23,14 +23,13 @@ Status FileManager::Init() {
   return Recovery(files.back());
 }
 
-void FileManager::SyncActiveDataFile(file_id_t id,
-                                     const WritableFile::Ptr& file) {
+void FileManager::SyncFile(file_id_t id, const WritableFile::Ptr& file) {
   auto err = file->Sync();
   if (err != Error::kOk) {
     PEDRODB_WARN("failed to sync active file to disk");
-    io_executor_->ScheduleAfter(Duration::Seconds(1), [this, id, file] {
-      SyncActiveDataFile(id, file);
-    });
+    executor_->ScheduleAfter(
+        Duration::Seconds(1),
+        [this, self = shared_from_this(), id, file] { SyncFile(id, file); });
     return;
   }
   PEDRODB_TRACE("sync file {} success", id);
@@ -42,8 +41,10 @@ void FileManager::CreateIndexFile(file_id_t id,
   ReadWriteFile::Ptr file;
   auto status = ReadWriteFile::Open(index_path, log->ReadableBytes(), &file);
   if (status != Status::kOk) {
-    io_executor_->ScheduleAfter(Duration::Seconds(1),
-                                [this, id, log] { CreateIndexFile(id, log); });
+    executor_->ScheduleAfter(Duration::Seconds(1),
+                             [this, self = shared_from_this(), id, log] {
+                               CreateIndexFile(id, log);
+                             });
     return;
   }
 
@@ -56,14 +57,14 @@ Status FileManager::CreateFile(file_id_t id) {
     PEDRODB_TRACE("flush {} to disk", id);
     PEDRODB_IGNORE_ERROR(active_data_file_->Flush(true));
 
-    io_executor_->Schedule([=, id = active_file_id_, f = active_data_file_] {
-      SyncActiveDataFile(id, f);
-    });
+    executor_->Schedule([this, self = shared_from_this(), id = active_file_id_,
+                         f = active_data_file_] { SyncFile(id, f); });
 
     auto log = std::move(active_index_log_);
     if (log != nullptr) {
-      io_executor_->Schedule(
-          [this, id = active_file_id_, log] { CreateIndexFile(id, log); });
+      executor_->Schedule([this, self = shared_from_this(),
+                           id = active_file_id_,
+                           log] { CreateIndexFile(id, log); });
     }
   }
 
@@ -116,11 +117,11 @@ Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
     *file = active_data_file_;
     return Status::kOk;
   }
-  
+
   if (open_files_.Get(id, *file)) {
     return Status::kOk;
   }
-  
+
   lock.unlock();
   std::string filename = metadata_manager_->GetDataFilePath(id);
   auto stat = PosixReadonlyFile::Open(filename, file);
@@ -129,7 +130,7 @@ Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
     return stat;
   }
   lock.lock();
-  
+
   open_files_.Put(id, *file);
   return Status::kOk;
 }

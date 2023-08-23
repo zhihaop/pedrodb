@@ -122,9 +122,9 @@ Status DBImpl::Compact() {
 DBImpl::DBImpl(const Options& options, const std::string& name)
     : options_(options) {
   executor_ = options_.executor;
-  metadata_manager_ = std::make_unique<MetadataManager>(name);
-  file_manager_ = std::make_unique<FileManager>(
-      metadata_manager_.get(), executor_.get(), options.max_open_files);
+  metadata_manager_ = std::make_shared<MetadataManager>(name);
+  file_manager_ = std::make_shared<FileManager>(metadata_manager_, executor_,
+                                                options.max_open_files);
 }
 
 DBImpl::~DBImpl() {
