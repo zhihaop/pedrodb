@@ -7,15 +7,16 @@
 
 namespace pedrodb {
 struct Options {
-  int8_t max_open_files = 16;
+  uint8_t max_open_files{16};
 
   struct {
-    size_t threshold_bytes = kMaxFileBytes * 0.75;
-    Duration interval = Duration::Seconds(5);
+    size_t threshold_bytes{static_cast<size_t>(kMaxFileBytes * 0.75)};
+    Duration interval{Duration::Seconds(5)};
   } compaction{};
-  
-  bool compress_value = true;
-  Duration sync_interval = Duration::Seconds(10);
+
+  bool compress_value{true};
+  Duration sync_interval{Duration::Seconds(10)};
+  int32_t sync_max_io_error{32};
 
   std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>(1)};
 };

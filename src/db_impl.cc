@@ -52,7 +52,18 @@ Status DBImpl::Init() {
   PEDRODB_INFO("recovery success");
 
   sync_worker_ = executor_->ScheduleEvery(
-      options_.sync_interval, options_.sync_interval, [this] { Flush(); });
+      options_.sync_interval, options_.sync_interval,
+      [this, failed_count = 0]() mutable {
+        auto err = file_manager_->Sync();
+        if (err != Status::kOk) {
+          failed_count++;
+        }
+
+        if (failed_count > this->options_.sync_max_io_error) {
+          readonly_ = true;
+          PEDRODB_ERROR("database is readonly because too many io error");
+        }
+      });
 
   compact_worker_ = executor_->ScheduleEvery(
       options_.compaction.interval, options_.compaction.interval, [this] {
@@ -134,6 +145,10 @@ Status DBImpl::Recovery(file_id_t id) {
 }
 
 void DBImpl::Compact(file_id_t id) {
+  if (readonly_) {
+    return;
+  }
+
   ReadableFile::Ptr file;
   auto stat = file_manager_->AcquireDataFile(id, &file);
   if (stat != Status::kOk) {
@@ -208,6 +223,10 @@ void DBImpl::Compact(file_id_t id) {
 
 Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
                          std::string_view value) {
+  if (readonly_) {
+    return Status::kNotSupported;
+  }
+
   record::EntryView entry;
   entry.type = value.empty() ? record::Type::kDelete : record::Type::kSet;
   entry.key = key;

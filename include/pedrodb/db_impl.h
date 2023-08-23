@@ -50,11 +50,12 @@ class DBImpl : public DB {
   uint64_t sync_worker_{};
   uint64_t compact_worker_{};
   std::shared_ptr<Executor> executor_;
-  
+
   tsl::htrie_map<char, record::Dir> indices_;
   std::unique_ptr<FileManager> file_manager_;
   std::unique_ptr<MetadataManager> metadata_manager_;
-  
+  std::atomic_bool readonly_{false};
+
   // for compaction.
   std::vector<file_id_t> compact_tasks_;
   std::unordered_map<file_id_t, CompactHint> compact_hints_;
