@@ -53,7 +53,7 @@ class PosixReadonlyFile : public ReadableFile, noncopyable, nonmovable {
 
 class MappingReadonlyFile : public ReadableFile, noncopyable, nonmovable {
  public:
-  using Ptr = std::shared_ptr<PosixReadonlyFile>;
+  using Ptr = std::shared_ptr<MappingReadonlyFile>;
 
  private:
   mutable File file_{};
