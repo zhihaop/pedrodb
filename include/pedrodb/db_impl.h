@@ -44,7 +44,8 @@ class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
   uint64_t sync_worker_{};
   uint64_t compact_worker_{};
   std::shared_ptr<Executor> executor_;
-
+  
+  file_id_t max_file_{};
   tsl::htrie_map<char, record::Dir> indices_;
   FileManager::Ptr file_manager_;
   MetadataManager::Ptr metadata_manager_;

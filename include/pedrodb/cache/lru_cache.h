@@ -1,118 +1,72 @@
 #ifndef PEDRODB_CACHE_LRU_CACHE_H
 #define PEDRODB_CACHE_LRU_CACHE_H
 
-#include <algorithm>
-#include <string>
-#include <vector>
+#include <cstddef>
+#include <list>
+#include <memory_resource>
+#include <unordered_map>
 
 namespace pedrodb {
 
-template <class Key, class Value, class KeyHash = std::hash<Key>>
+template <typename Key, typename Value>
 class LRUCache {
   struct Entry {
     Entry* prev{};
     Entry* next{};
-    Entry* hash{};
 
     Key key{};
     Value value{};
-
-    static Entry* New() { return new Entry(); }
-    static void Free(Entry* entry) { delete entry; }
-
-    void Erase() {
-      prev->next = next;
-      next->prev = prev;
-
-      prev = next = nullptr;
-    }
-
-    void InsertAfter(Entry* entry) {
-      entry->prev = prev;
-      entry->next = next;
-
-      entry->prev->next = entry;
-      entry->next->prev = entry;
-    }
   };
 
-  static size_t alignExp2(size_t x) noexcept {
-    const size_t one{1};
-    for (int i = 0; i < sizeof(size_t); ++i) {
-      if (x >= (one << i)) {
-        return (one << i);
-      }
-    }
-    return -1;
-  }
+  std::unordered_map<Key, Entry*> keys_;
+  const size_t capacity_;
 
-  size_t locate(const Key& key) const noexcept {
-    // TODO(zhihaop) optimize mod to bitwise and.
-    return hash_(key) % buckets_.size();
-  }
+  Entry lru_;
 
-  Entry** Find(const Key& key) {
-    auto& bucket = buckets_[locate(key)];
+  Entry* New() { return new Entry(); }
 
-    Entry** iter = &bucket;
-    while (*iter != nullptr) {
-      if ((*iter)->key == key) {
-        break;
-      }
-      iter = &(*iter)->hash;
-    }
-    return iter;
-  }
-
-  void Erase(Entry** it) {
-    if (*it == nullptr) {
-      return;
-    }
-
-    *it = (*it)->hash;
-  }
+  void Free(Entry* ptr) { delete ptr; }
 
  public:
   using KeyType = Key;
   using ValueType = Value;
 
-  explicit LRUCache(size_t capacity, double load_factor)
-      : buckets_(alignExp2(capacity / load_factor)), capacity_(capacity) {
-
-    lru_.next = &lru_;
-    lru_.prev = &lru_;
+  explicit LRUCache(const size_t capacity)
+      : capacity_(capacity), keys_(capacity) {
+    lru_.prev = lru_.next = &lru_;
   }
-
-  explicit LRUCache(size_t capacity) : LRUCache(capacity, 0.75) {}
 
   ~LRUCache() {
     auto node = lru_.next;
     while (node != &lru_) {
       auto next = node->next;
-      Entry::Free(node);
+      Free(node);
       node = next;
     }
   }
-
-  [[nodiscard]] size_t Capacity() const noexcept { return capacity_; }
-
-  [[nodiscard]] size_t Size() const noexcept { return size_; }
 
   bool Get(const Key& key, Value& value) {
     if (capacity_ == 0) {
       return false;
     }
 
-    auto it = Find(key);
-    if (*it == nullptr) {
+    auto it = keys_.find(key);
+    if (it == keys_.end()) {
       return false;
     }
 
-    value = (*it)->value;
+    Entry* ptr = it->second;
 
-    auto ptr = *it;
-    ptr->Erase();
-    lru_.prev->InsertAfter(ptr);
+    value = ptr->value;
+
+    ptr->next->prev = ptr->prev;
+    ptr->prev->next = ptr->next;
+
+    ptr->prev = lru_.prev;
+    ptr->next = &lru_;
+
+    ptr->prev->next = ptr;
+    ptr->next->prev = ptr;
     return true;
   }
 
@@ -121,34 +75,37 @@ class LRUCache {
       return false;
     }
 
-    auto it = Find(key);
-    auto ptr = *it;
-    if (ptr == nullptr) {
+    auto it = keys_.find(key);
+    if (it == keys_.end()) {
       return false;
     }
-    Erase(it);
 
-    value = ptr->value;
-    ptr->Erase();
-    Entry::Free(ptr);
+    Entry* ptr = it->second;
+    value = std::move(ptr->value);
+
+    ptr->prev->next = ptr->next;
+    ptr->next->prev = ptr->prev;
+    Free(ptr);
+
+    keys_.erase(it);
     return true;
   }
 
   void Evict() {
-    if (capacity_ == 0) {
+    if (!keys_.empty()) {
       return;
     }
 
-    auto ptr = lru_.next;
+    Entry* ptr = lru_.next;
     if (ptr == &lru_) {
       return;
     }
 
-    Erase(Find(ptr->key));
-    ptr->Erase();
-    Entry::Free(ptr);
+    keys_.erase(keys_.find(ptr->key));
 
-    size_--;
+    ptr->prev->next = ptr->next;
+    ptr->next->prev = ptr->prev;
+    Free(ptr);
   }
 
   void Put(const Key& key, const Value& value) {
@@ -156,35 +113,39 @@ class LRUCache {
       return;
     }
 
-    auto it = Find(key);
-    if (*it != nullptr) {
-      (*it)->Erase();
-      lru_.prev->InsertAfter(*it);
+    auto it = keys_.find(key);
+    if (it != keys_.end()) {
+      auto ptr = it->second;
+      ptr->prev->next = ptr->next;
+      ptr->next->prev = ptr->prev;
 
-      (*it)->value = value;
+      ptr->prev = lru_.prev;
+      ptr->next = &lru_;
+
+      ptr->prev->next = ptr;
+      ptr->next->prev = ptr;
+
+      ptr->value = value;
       return;
     }
 
-    if (size_ + 1 == capacity_) {
+    if (keys_.size() + 1 == capacity_) {
       Evict();
     }
 
-    Entry* ptr = Entry::New();
-    lru_.prev->InsertAfter(ptr);
-    *it = ptr;
+    Entry* ptr = New();
+    ptr->prev = lru_.prev;
+    ptr->next = &lru_;
+
+    ptr->prev->next = ptr;
+    ptr->next->prev = ptr;
 
     ptr->key = key;
     ptr->value = value;
-    size_++;
+    keys_[key] = ptr;
   }
-
- private:
-  std::vector<Entry*> buckets_;
-  const size_t capacity_;
-  size_t size_{};
-
-  Entry lru_;
-  KeyHash hash_;
 };
+
 }  // namespace pedrodb
-#endif  // PEDRODB_CACHE_LRU_CACHE_H
+
+#endif  //PEDRODB_CACHE_LRU_CACHE_H

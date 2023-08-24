@@ -9,7 +9,7 @@ namespace pedrodb {
 
 struct ReadCacheOptions {
   bool enable{true};
-  size_t read_cache_bytes{32 << 10};
+  size_t read_cache_bytes{32 << 20};
   size_t segments{std::thread::hardware_concurrency()};
 };
 

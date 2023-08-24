@@ -3,7 +3,6 @@
 
 #include "pedrodb/cache/lru_cache.h"
 #include "pedrodb/cache/segment_cache.h"
-#include "pedrodb/cache/simple_lru_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readonly_file.h"
 #include "pedrodb/file/readwrite_file.h"
@@ -17,7 +16,6 @@ class FileManager : public std::enable_shared_from_this<FileManager> {
   mutable std::mutex mu_;
 
   MetadataManager::Ptr metadata_manager_;
-
   LRUCache<file_id_t, ReadableFile::Ptr> open_files_;
 
   // always in use.

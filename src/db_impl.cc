@@ -278,6 +278,7 @@ Status DBImpl::HandlePut(const WriteOptions& options, std::string_view key,
 
   auto lock = AcquireLock();
   auto it = indices_.find(key);
+  max_file_ = std::max(max_file_, loc.id);
 
   // only for insert.
   if (it == indices_.end()) {
@@ -326,6 +327,7 @@ Status DBImpl::Flush() {
 Status DBImpl::Recovery() {
   for (auto file : metadata_manager_->GetFiles()) {
     PEDRODB_TRACE("crash recover: file {}", file);
+    max_file_ = std::max(max_file_, file);
     auto status = Recovery(file);
     if (status != Status::kOk) {
       return status;
@@ -337,16 +339,22 @@ Status DBImpl::Recovery() {
 
 Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
                          std::string* value) {
-
+  
   auto lock = AcquireLock();
   auto it = indices_.find(key);
   if (it == indices_.end()) {
     return Status::kNotFound;
   }
   auto dir = it.value();
+  auto max_file = max_file_;
   lock.unlock();
+  
+  bool directly_read = false;
+  directly_read |= !options.use_read_cache;
+  directly_read |= !options_.read_cache.enable;
+  directly_read |= (dir.loc.id == max_file);
 
-  if (!options.use_read_cache || !options_.read_cache.enable) {
+  if (directly_read) {
     ReadableFile::Ptr file;
     auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
     if (stat != Status::kOk) {
@@ -378,6 +386,7 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
   ReadCache::Context ctx(dir.loc, dir.entry_size);
   auto stat = read_cache_.Get(ctx);
   if (stat != Status::kOk) {
+    PEDRODB_ERROR("failed to get from cache");
     return stat;
   }
 

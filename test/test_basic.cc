@@ -38,8 +38,7 @@ int main() {
 
   Options options{};
 
-  std::string path = "/dev/shm"
-      "/test.db";
+  std::string path = "/dev/shm/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
   if (status != Status::kOk) {
@@ -49,7 +48,7 @@ int main() {
   std::cin.get();
 
   size_t n_puts = 1000000;
-  size_t n_reads = 10000000;
+  size_t n_reads = 1000000;
 
   KeyValueOptions data_options;
   data_options.key_size = 16;
@@ -117,7 +116,6 @@ void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n) {
 
   leveldb::Random random(time(nullptr));
   ReadOptions options;
-  options.use_read_cache = false;
   for (int i = 0; i < n; ++i) {
     auto x = random.Uniform((int)data.size());
 

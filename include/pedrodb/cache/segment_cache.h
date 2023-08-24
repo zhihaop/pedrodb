@@ -3,6 +3,7 @@
 
 #include <pedrolib/collection/static_vector.h>
 #include "pedrodb/defines.h"
+#include "pedrodb/status.h"
 
 namespace pedrodb {
 template <class Cache, class Mutex = std::mutex,
@@ -61,6 +62,23 @@ class SegmentCache {
     auto& seg = segments_[locate(key)];
     std::lock_guard guard{seg.mu_};
     seg.cache_.Put(key, value);
+  }
+
+  template <class Supplier>
+  Status GetOrCompute(const KeyType& key, ValueType& value,
+                      Supplier&& supplier) {
+    auto& seg = segments_[locate(key)];
+    std::lock_guard guard{seg.mu_};
+    if (seg.cache_.Get(key, value)) {
+      return Status::kOk;
+    }
+
+    Status status;
+    std::tie(status, value) = supplier();
+    if (status == Status::kOk) {
+      seg.cache_.Put(key, value);
+    }
+    return status;
   }
 };
 }  // namespace pedrodb

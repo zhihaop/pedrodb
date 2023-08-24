@@ -137,15 +137,6 @@ struct Location {
   Location(file_id_t id, uint32_t offset) : id(id), offset(offset) {}
   ~Location() = default;
   
-  uint64_t encode() const noexcept {
-    uint64_t code = id;
-    code <<= 32;
-    code |= offset;
-    return code;
-  }
-  
-  
-
   bool operator<(const Location& other) const noexcept {
     return id != other.id ? id < other.id : offset < other.offset;
   }
