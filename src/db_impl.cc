@@ -21,11 +21,11 @@ Status DBImpl::Delete(const WriteOptions& options, std::string_view key) {
 }
 
 void DBImpl::UpdateUnused(record::Location loc, size_t unused) {
-  auto& hint = compact_hints_[loc.id];
+  auto& hint = file_states_[loc.id];
   hint.free_bytes += unused;
   if (hint.free_bytes >= options_.compaction.threshold_bytes) {
-    if (hint.state == CompactState::kNop) {
-      hint.state = CompactState::kQueued;
+    if (hint.compact_state == CompactState::kNop) {
+      hint.compact_state = CompactState::kQueued;
       compact_tasks_.emplace_back(loc.id);
     }
   }
@@ -101,7 +101,7 @@ std::vector<file_id_t> DBImpl::PollCompactTask() {
   auto tasks = compact_tasks_;
   compact_tasks_.clear();
   for (auto file : tasks) {
-    compact_hints_[file].state = CompactState::kScheduling;
+    file_states_[file].compact_state = CompactState::kScheduling;
   }
   return {tasks.begin(), tasks.end()};
 }
@@ -180,8 +180,8 @@ void DBImpl::Compact(file_id_t id) {
   PEDRODB_TRACE("start compacting {}", id);
   {
     auto lock = AcquireLock();
-    auto& hints = compact_hints_[id];
-    hints.state = CompactState::kCompacting;
+    auto& hints = file_states_[id];
+    hints.compact_state = CompactState::kCompacting;
   }
 
   auto iter = RecordIterator(file);
@@ -225,7 +225,7 @@ void DBImpl::Compact(file_id_t id) {
           dir.entry_size = next.SizeOf();
           indices_[next.key] = dir;
         } else {
-          compact_hints_[loc.id].free_bytes += next.SizeOf();
+          file_states_[loc.id].free_bytes += next.SizeOf();
         }
       } else {
         // the key has been deleted.
@@ -236,7 +236,7 @@ void DBImpl::Compact(file_id_t id) {
   // erase compaction_state.
   {
     auto lock = AcquireLock();
-    compact_hints_.erase(id);
+    file_states_.erase(id);
     PEDRODB_IGNORE_ERROR(file_manager_->RemoveFile(id));
   }
 

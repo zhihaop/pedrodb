@@ -1,11 +1,11 @@
 #ifndef PEDRODB_DEFINES_H
 #define PEDRODB_DEFINES_H
-#include <pedrolib/executor/thread_pool_executor.h>
-
 #include <pedrolib/buffer/array_buffer.h>
 #include <pedrolib/buffer/buffer.h>
 #include <pedrolib/concurrent/latch.h>
+#include <pedrolib/concurrent/spinlock.h>
 #include <pedrolib/duration.h>
+#include <pedrolib/executor/thread_pool_executor.h>
 #include <pedrolib/file/error.h>
 #include <pedrolib/file/file.h>
 #include <pedrolib/noncopyable.h>
@@ -14,8 +14,8 @@
 
 namespace pedrodb {
 using pedrolib::ArrayBuffer;
-
 using pedrolib::Executor;
+using pedrolib::SpinLock;
 using DefaultExecutor = pedrolib::ThreadPoolExecutor;
 
 using pedrolib::Duration;
@@ -32,8 +32,8 @@ using pedrolib::RetrieveInt;
 
 using file_id_t = uint32_t;
 
-// the maximum size of file is 32MB.
-const uint64_t kMaxFileBytes = 128ULL << 20;
+// the maximum size of file is 64MB.
+const uint64_t kMaxFileBytes = 64ULL << 20;
 
 // the erase block size of SSD is 512KB.
 const uint32_t kBlockSize = 512 << 10;

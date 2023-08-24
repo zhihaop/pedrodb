@@ -32,9 +32,9 @@ enum class CompactState {
   kCompacting,
 };
 
-struct CompactHint {
+struct FileState {
   size_t free_bytes{};
-  CompactState state{CompactState::kNop};
+  CompactState compact_state{CompactState::kNop};
 };
 
 class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
@@ -55,7 +55,7 @@ class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
 
   // for compaction.
   std::vector<file_id_t> compact_tasks_;
-  std::unordered_map<file_id_t, CompactHint> compact_hints_;
+  std::unordered_map<file_id_t, FileState> file_states_;
 
   void Recovery(file_id_t id, index::EntryView entry);
   Status Recovery(file_id_t id);
