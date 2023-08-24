@@ -126,7 +126,6 @@ Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
   std::string filename = metadata_manager_->GetDataFilePath(id);
   auto stat = PosixReadonlyFile::Open(filename, file);
   if (stat != Status::kOk) {
-    PEDRODB_ERROR("cannot open file[name={}, id={}]", filename, id);
     return stat;
   }
   lock.lock();

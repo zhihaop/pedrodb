@@ -6,6 +6,13 @@
 #include "pedrodb/defines.h"
 
 namespace pedrodb {
+
+struct ReadCacheOptions {
+  bool enable{true};
+  size_t read_cache_bytes{32 << 10};
+  size_t segments{std::thread::hardware_concurrency()};
+};
+
 struct Options {
   uint8_t max_open_files{16};
 
@@ -18,13 +25,17 @@ struct Options {
   Duration sync_interval{Duration::Seconds(10)};
   int32_t sync_max_io_error{32};
 
+  ReadCacheOptions read_cache{};
+
   std::shared_ptr<Executor> executor{std::make_shared<DefaultExecutor>(1)};
 };
 
-struct ReadOptions {};
+struct ReadOptions {
+  bool use_read_cache{true};
+};
 
 struct WriteOptions {
-  bool sync = false;
+  bool sync{false};
 };
 }  // namespace pedrodb
 

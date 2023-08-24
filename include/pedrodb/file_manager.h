@@ -1,6 +1,8 @@
 #ifndef PEDRODB_FILE_MANAGER_H
 #define PEDRODB_FILE_MANAGER_H
 
+#include "pedrodb/cache/lru_cache.h"
+#include "pedrodb/cache/segment_cache.h"
 #include "pedrodb/cache/simple_lru_cache.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readonly_file.h"
@@ -16,7 +18,7 @@ class FileManager : public std::enable_shared_from_this<FileManager> {
 
   MetadataManager::Ptr metadata_manager_;
 
-  SimpleLRUCache<file_id_t, ReadableFile::Ptr> open_files_;
+  LRUCache<file_id_t, ReadableFile::Ptr> open_files_;
 
   // always in use.
   std::shared_ptr<ArrayBuffer> active_index_log_;

@@ -120,11 +120,15 @@ Status DBImpl::Compact() {
 }
 
 DBImpl::DBImpl(const Options& options, const std::string& name)
-    : options_(options) {
+    : options_(options), read_cache_(options.read_cache) {
   executor_ = options_.executor;
   metadata_manager_ = std::make_shared<MetadataManager>(name);
   file_manager_ = std::make_shared<FileManager>(metadata_manager_, executor_,
                                                 options.max_open_files);
+
+  read_cache_.SetFileOpener([this](file_id_t f, ReadableFile::Ptr* file) {
+    return file_manager_->AcquireDataFile(f, file);
+  });
 }
 
 DBImpl::~DBImpl() {
@@ -342,30 +346,50 @@ Status DBImpl::HandleGet(const ReadOptions& options, std::string_view key,
   auto dir = it.value();
   lock.unlock();
 
-  ReadableFile::Ptr file;
-  auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
+  if (!options.use_read_cache || !options_.read_cache.enable) {
+    ReadableFile::Ptr file;
+    auto stat = file_manager_->AcquireDataFile(dir.loc.id, &file);
+    if (stat != Status::kOk) {
+      PEDRODB_ERROR("cannot get file {}", dir.loc.id);
+      return stat;
+    }
+
+    RecordIterator iterator(file);
+    iterator.Seek(dir.loc.offset);
+    if (!iterator.Valid()) {
+      PEDRODB_ERROR("failed to read from iterator");
+      return Status::kCorruption;
+    }
+
+    auto entry = iterator.Next();
+    if (!entry.Validate()) {
+      PEDRODB_ERROR("checksum validation error");
+      return Status::kCorruption;
+    }
+
+    if (options_.compress_value) {
+      Uncompress(entry.value, value);
+    } else {
+      value->assign(entry.value);
+    }
+    return Status::kOk;
+  }
+
+  ReadCache::Context ctx(dir.loc, dir.entry_size);
+  auto stat = read_cache_.Get(ctx);
   if (stat != Status::kOk) {
-    PEDRODB_ERROR("cannot get file {}", dir.loc.id);
     return stat;
   }
 
-  RecordIterator iterator(file);
-  iterator.Seek(dir.loc.offset);
-  if (!iterator.Valid()) {
-    PEDRODB_ERROR("failed to read from iterator");
-    return Status::kCorruption;
-  }
-
-  auto entry = iterator.Next();
-  if (!entry.Validate()) {
+  if (!ctx.GetEntry().Validate()) {
     PEDRODB_ERROR("checksum validation error");
     return Status::kCorruption;
   }
 
   if (options_.compress_value) {
-    Uncompress(entry.value, value);
+    Uncompress(ctx.GetEntry().value, value);
   } else {
-    value->assign(entry.value);
+    value->assign(ctx.GetEntry().value);
   }
   return Status::kOk;
 }

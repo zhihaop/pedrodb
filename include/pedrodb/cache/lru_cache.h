@@ -1,4 +1,3 @@
-
 #ifndef PEDRODB_CACHE_LRU_CACHE_H
 #define PEDRODB_CACHE_LRU_CACHE_H
 
@@ -6,80 +5,92 @@
 #include <string>
 #include <vector>
 
-namespace pedrodb::lru {
+namespace pedrodb {
 
-template <class Key>
-struct HashEntry {
-  HashEntry* prev{};
-  HashEntry* next{};
-  HashEntry* hash{};
+template <class Key, class Value, class KeyHash = std::hash<Key>>
+class LRUCache {
+  struct Entry {
+    Entry* prev{};
+    Entry* next{};
+    Entry* hash{};
 
-  Key key{};
-  std::string data;
+    Key key{};
+    Value value{};
 
-  static HashEntry* New() { return new HashEntry(); }
+    static Entry* New() { return new Entry(); }
+    static void Free(Entry* entry) { delete entry; }
 
-  static void Free(HashEntry* entry) { delete entry; }
-};
+    void Erase() {
+      prev->next = next;
+      next->prev = prev;
 
-template <class Key>
-class Cache {
-  std::vector<HashEntry<Key>*> buckets_;
-  const size_t capacity_;
-  size_t size_{};
+      prev = next = nullptr;
+    }
 
-  HashEntry<Key> lru_;
+    void InsertAfter(Entry* entry) {
+      entry->prev = prev;
+      entry->next = next;
 
-  /**
-   * Get the iterator of the buckets. (not the lru list).
-   *
-   * @param key the key.
-   * @return the iterator.
-   */
-  HashEntry<Key>** GetIterator(const Key& key) {
-    size_t h = key.Hash();
-    size_t b = h % buckets_.size();
+      entry->prev->next = entry;
+      entry->next->prev = entry;
+    }
+  };
 
-    HashEntry<Key>** node = &buckets_[b];
-    while (*node) {
-      if ((*node)->key == key) {
-        return node;
+  static size_t alignExp2(size_t x) noexcept {
+    const size_t one{1};
+    for (int i = 0; i < sizeof(size_t); ++i) {
+      if (x >= (one << i)) {
+        return (one << i);
       }
-      node = &(*node)->hash;
     }
-    return node;
+    return -1;
   }
 
-  static void RemoveFromList(HashEntry<Key>* entry) noexcept {
-    entry->prev->next = entry->next;
-    entry->next->prev = entry->prev;
-
-    entry->prev = nullptr;
-    entry->next = nullptr;
+  size_t locate(const Key& key) const noexcept {
+    // TODO(zhihaop) optimize mod to bitwise and.
+    return hash_(key) % buckets_.size();
   }
 
-  HashEntry<Key>* RemoveFromBucket(HashEntry<Key>** iter) noexcept {
-    if (*iter != nullptr) {
-      size_ -= (*iter)->data.size();
+  Entry** Find(const Key& key) {
+    auto& bucket = buckets_[locate(key)];
 
-      HashEntry<Key>* entry = *iter;
-      *iter = entry->hash;
+    Entry** iter = &bucket;
+    while (*iter != nullptr) {
+      if ((*iter)->key == key) {
+        break;
+      }
+      iter = &(*iter)->hash;
     }
-    return *iter;
+    return iter;
+  }
+
+  void Erase(Entry** it) {
+    if (*it == nullptr) {
+      return;
+    }
+
+    *it = (*it)->hash;
   }
 
  public:
-  explicit Cache(size_t capacity)
-      : capacity_(capacity),
-        buckets_(1) {
+  using KeyType = Key;
+  using ValueType = Value;
+
+  explicit LRUCache(size_t capacity, double load_factor)
+      : buckets_(alignExp2(capacity / load_factor)), capacity_(capacity) {
 
     lru_.next = &lru_;
     lru_.prev = &lru_;
   }
 
-  ~Cache() {
-    while (size_ > 0) {
-      Evict();
+  explicit LRUCache(size_t capacity) : LRUCache(capacity, 0.75) {}
+
+  ~LRUCache() {
+    auto node = lru_.next;
+    while (node != &lru_) {
+      auto next = node->next;
+      Entry::Free(node);
+      node = next;
     }
   }
 
@@ -87,87 +98,93 @@ class Cache {
 
   [[nodiscard]] size_t Size() const noexcept { return size_; }
 
-  std::string_view Get(const Key& key) noexcept {
-    auto iter = GetIterator(key);
-    if (*iter == nullptr) {
-      return {};
-    }
-
-    HashEntry<Key>* entry = *iter;
-
-    // detach from lru_ list.
-    RemoveFromList(entry);
-
-    // insert to lru_ end.
-    entry->next = &lru_;
-    entry->prev = lru_.prev;
-    entry->prev->next = entry;
-    entry->next->prev = entry;
-    return {entry->data};
-  }
-
-  void Evict() noexcept {
-    HashEntry<Key>* first = lru_.next;
-    if (first == &lru_) {
-      return;
-    }
-
-    // remove from the lru_ head.
-    RemoveFromList(first);
-
-    // remove from the buckets.
-    auto iter = GetIterator(first->key);
-    RemoveFromBucket(iter);
-
-    HashEntry<Key>::Free(first);
-  }
-
-  bool Put(const Key& key, std::string_view value) noexcept {
-    if (value.empty() || value.size() > capacity_) {
+  bool Get(const Key& key, Value& value) {
+    if (capacity_ == 0) {
       return false;
     }
 
-    auto iter = GetIterator(key);
-    HashEntry<Key>* entry = *iter;
-    if (entry != nullptr) {
+    auto it = Find(key);
+    if (*it == nullptr) {
       return false;
     }
 
-    // create the hash entry, and insert to the buckets_.
-    entry = HashEntry<Key>::New();
-    *iter = entry;
+    value = (*it)->value;
 
-    entry->key = key;
-    entry->data = value;
-    size_ += value.size();
-
-    // insert to the back of lru_.
-    entry->prev = lru_.prev;
-    entry->next = &lru_;
-    entry->prev->next = entry;
-    entry->next->prev = entry;
-
-    EvictFull();
+    auto ptr = *it;
+    ptr->Erase();
+    lru_.prev->InsertAfter(ptr);
     return true;
   }
 
-  void EvictFull() {
-    while (size_ > capacity_) {
-      Evict();
+  bool Remove(const Key& key, Value& value) {
+    if (capacity_ == 0) {
+      return false;
     }
+
+    auto it = Find(key);
+    auto ptr = *it;
+    if (ptr == nullptr) {
+      return false;
+    }
+    Erase(it);
+
+    value = ptr->value;
+    ptr->Erase();
+    Entry::Free(ptr);
+    return true;
   }
 
-  void Remove(const Key& key) noexcept {
-    auto iter = GetIterator(key);
-    if (*iter == nullptr) {
+  void Evict() {
+    if (capacity_ == 0) {
       return;
     }
 
-    HashEntry<Key>* entry = *iter;
-    RemoveFromList(entry);
-    RemoveFromBucket(iter);
-    HashEntry<Key>::Free(entry);
+    auto ptr = lru_.next;
+    if (ptr == &lru_) {
+      return;
+    }
+
+    Erase(Find(ptr->key));
+    ptr->Erase();
+    Entry::Free(ptr);
+
+    size_--;
   }
+
+  void Put(const Key& key, const Value& value) {
+    if (capacity_ == 0) {
+      return;
+    }
+
+    auto it = Find(key);
+    if (*it != nullptr) {
+      (*it)->Erase();
+      lru_.prev->InsertAfter(*it);
+
+      (*it)->value = value;
+      return;
+    }
+
+    if (size_ + 1 == capacity_) {
+      Evict();
+    }
+
+    Entry* ptr = Entry::New();
+    lru_.prev->InsertAfter(ptr);
+    *it = ptr;
+
+    ptr->key = key;
+    ptr->value = value;
+    size_++;
+  }
+
+ private:
+  std::vector<Entry*> buckets_;
+  const size_t capacity_;
+  size_t size_{};
+
+  Entry lru_;
+  KeyHash hash_;
 };
-}  // namespace pedrodb::lru
+}  // namespace pedrodb
 #endif  // PEDRODB_CACHE_LRU_CACHE_H

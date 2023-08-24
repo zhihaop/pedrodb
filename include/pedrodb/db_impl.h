@@ -10,6 +10,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <pedrolib/concurrent/spinlock.h>
+#include "pedrodb/cache/read_cache.h"
 #include "pedrodb/db.h"
 #include "pedrodb/defines.h"
 #include "pedrodb/file/readwrite_file.h"
@@ -36,7 +38,7 @@ struct CompactHint {
 };
 
 class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
-  mutable std::mutex mu_;
+  mutable pedrolib::SpinLock mu_;
 
   Options options_;
   uint64_t sync_worker_{};
@@ -47,6 +49,8 @@ class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
   FileManager::Ptr file_manager_;
   MetadataManager::Ptr metadata_manager_;
   std::atomic_bool readonly_{false};
+
+  ReadCache read_cache_;
 
   // for compaction.
   std::vector<file_id_t> compact_tasks_;

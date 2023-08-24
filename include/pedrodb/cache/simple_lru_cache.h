@@ -1,9 +1,9 @@
 #ifndef PEDRODB_CACHE_SIMPLE_LRU_CACHE_H
 #define PEDRODB_CACHE_SIMPLE_LRU_CACHE_H
 
+#include <cstddef>
 #include <list>
 #include <unordered_map>
-#include <cstddef>
 
 namespace pedrodb {
 
@@ -16,6 +16,9 @@ class SimpleLRUCache {
   const size_t capacity_;
 
  public:
+  using KeyType = K;
+  using ValueType = V;
+  
   explicit SimpleLRUCache(const size_t capacity) : capacity_(capacity) {}
 
   bool Get(const K& key, V& value) {

@@ -38,7 +38,8 @@ int main() {
 
   Options options{};
 
-  std::string path = "/tmp/test.db";
+  std::string path = "/dev/shm"
+      "/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
   if (status != Status::kOk) {
@@ -48,14 +49,14 @@ int main() {
   std::cin.get();
 
   size_t n_puts = 1000000;
-  size_t n_reads = 1000000;
+  size_t n_reads = 10000000;
 
   KeyValueOptions data_options;
   data_options.key_size = 16;
   data_options.value_size = 100;
   data_options.random_value = true;
   data_options.lazy_value = false;
-  
+
   db->Compact();
 
   auto data = Generator(n_puts, data_options);
@@ -102,7 +103,7 @@ void TestGetAll(DB* db, const std::vector<KeyValue>& data) {
   for (const auto& kv : data) {
     auto stat = db->Get(options, kv.key(), &get);
     if (stat != Status::kOk) {
-      logger.Fatal("failed to write {}, {}: {}", kv.key(), kv.value(), stat);
+      logger.Fatal("failed to Get {}, {}: {}", kv.key(), kv.value(), stat);
     }
     if (get != kv.value()) {
       logger.Fatal("expected {}, shows {}", kv.value(), get);
@@ -115,12 +116,13 @@ void TestRandomGet(DB* db, const std::vector<KeyValue>& data, size_t n) {
   Reporter reporter("RandomGet", &logger);
 
   leveldb::Random random(time(nullptr));
-
+  ReadOptions options;
+  options.use_read_cache = false;
   for (int i = 0; i < n; ++i) {
     auto x = random.Uniform((int)data.size());
 
     std::string value;
-    auto stat = db->Get(ReadOptions{}, data[x].key(), &value);
+    auto stat = db->Get(options, data[x].key(), &value);
     if (stat != Status::kOk) {
       logger.Fatal("failed to read {}: {}", data[x].key(), stat);
     }
