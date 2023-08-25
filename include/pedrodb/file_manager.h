@@ -4,8 +4,10 @@
 #include "pedrodb/cache/lru_cache.h"
 #include "pedrodb/cache/segment_cache.h"
 #include "pedrodb/defines.h"
-#include "pedrodb/file/readonly_file.h"
-#include "pedrodb/file/readwrite_file.h"
+#include "pedrodb/file/mapping_readonly_file.h"
+#include "pedrodb/file/mapping_readwrite_file.h"
+#include "pedrodb/file/posix_readonly_file.h"
+#include "pedrodb/file/posix_readwrite_file.h"
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/logger/logger.h"
 #include "pedrodb/metadata_manager.h"
@@ -13,7 +15,7 @@
 namespace pedrodb {
 
 class FileManager : public std::enable_shared_from_this<FileManager> {
-  mutable std::mutex mu_;
+  mutable SpinLock mu_;
 
   MetadataManager::Ptr metadata_manager_;
   LRUCache<file_id_t, ReadableFile::Ptr> open_files_;
@@ -48,23 +50,39 @@ class FileManager : public std::enable_shared_from_this<FileManager> {
 
   template <typename Key, typename Value>
   Status Append(const record::Entry<Key, Value>& entry, record::Location* loc) {
-    for (auto lock = AcquireLock();;) {
-      size_t offset = active_data_file_->Write(entry);
-      if (offset != -1) {
-        loc->offset = offset;
-        loc->id = active_file_id_;
+    for (;;) {
+      auto lock = AcquireLock();
+      auto file_id = active_file_id_;
+      auto data_file = active_data_file_;
+      auto index_log = active_index_log_;
+      lock.unlock();
+      
+      auto flock = data_file->GetLock();
+      WritableBuffer buffer = data_file->Allocate(entry.SizeOf());
+      if (buffer.GetOffset() != -1) {
+        entry.Pack(&buffer);
+        data_file->Flush(false);
+
+        loc->offset = buffer.GetOffset();
+        loc->id = file_id;
 
         index::Entry<Key> index_entry;
         index_entry.type = entry.type;
         index_entry.key = entry.key;
-        index_entry.offset = offset;
+        index_entry.offset = buffer.GetOffset();
         index_entry.len = entry.SizeOf();
 
-        index_entry.Pack(active_index_log_.get());
+        index_entry.Pack(index_log.get());
         return Status::kOk;
       }
-
-      auto status = CreateFile(active_file_id_ + 1);
+      flock.unlock();
+      
+      lock.lock();
+      if (file_id != active_file_id_) {
+        continue;
+      }
+      
+      auto status = CreateFile(file_id + 1);
       if (status != Status::kOk) {
         return status;
       }
@@ -79,7 +97,7 @@ class FileManager : public std::enable_shared_from_this<FileManager> {
 
   Status RemoveFile(file_id_t id);
 
-  void SyncFile(file_id_t id, const WritableFile::Ptr& file);
+  void SyncFile(file_id_t id, const ReadWriteFile::Ptr& file);
 
   void CreateIndexFile(file_id_t id, const std::shared_ptr<ArrayBuffer>& log);
 };

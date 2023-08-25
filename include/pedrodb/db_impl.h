@@ -14,7 +14,7 @@
 #include "pedrodb/cache/read_cache.h"
 #include "pedrodb/db.h"
 #include "pedrodb/defines.h"
-#include "pedrodb/file/readwrite_file.h"
+#include "pedrodb/file/mapping_readwrite_file.h"
 #include "pedrodb/file_manager.h"
 #include "pedrodb/format/index_format.h"
 #include "pedrodb/format/record_format.h"

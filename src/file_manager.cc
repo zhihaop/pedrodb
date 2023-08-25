@@ -23,7 +23,7 @@ Status FileManager::Init() {
   return Recovery(files.back());
 }
 
-void FileManager::SyncFile(file_id_t id, const WritableFile::Ptr& file) {
+void FileManager::SyncFile(file_id_t id, const ReadWriteFile::Ptr& file) {
   auto err = file->Sync();
   if (err != Error::kOk) {
     PEDRODB_WARN("failed to sync active file to disk");
@@ -38,17 +38,19 @@ void FileManager::SyncFile(file_id_t id, const WritableFile::Ptr& file) {
 void FileManager::CreateIndexFile(file_id_t id,
                                   const std::shared_ptr<ArrayBuffer>& log) {
   auto index_path = metadata_manager_->GetIndexFilePath(id);
-  ReadWriteFile::Ptr file;
-  auto status = ReadWriteFile::Open(index_path, log->ReadableBytes(), &file);
-  if (status != Status::kOk) {
+  auto file = std::make_shared<MappingReadWriteFile>();
+  auto err = file->Open(index_path, log->ReadableBytes());
+  if (err != Status::kOk) {
     executor_->ScheduleAfter(Duration::Seconds(1),
                              [this, self = shared_from_this(), id, log] {
                                CreateIndexFile(id, log);
                              });
     return;
   }
+  
+  file->Allocate(log->ReadableBytes())
+      .Append(log->ReadIndex(), log->ReadableBytes());
 
-  file->Append(log->ReadIndex(), log->ReadableBytes());
   PEDRODB_TRACE("create index file {} success", id);
 }
 
@@ -68,10 +70,8 @@ Status FileManager::CreateFile(file_id_t id) {
     }
   }
 
-  ReadWriteFile::Ptr data_file;
-
-  auto data_file_path = metadata_manager_->GetDataFilePath(id);
-  auto err = ReadWriteFile::Open(data_file_path, kMaxFileBytes, &data_file);
+  auto file = std::make_shared<MappingReadWriteFile>();
+  auto err = file->Open(metadata_manager_->GetDataFilePath(id), kMaxFileBytes);
   if (err != Status::kOk) {
     return err;
   }
@@ -81,7 +81,7 @@ Status FileManager::CreateFile(file_id_t id) {
   uint32_t offset = 0;
   active_index_log_ = std::make_shared<ArrayBuffer>();
 
-  auto buffer = data_file->GetReadonlyBuffer();
+  auto buffer = file->GetReadableBuffer();
   while (entry.UnPack(&buffer)) {
     index::EntryView index;
     index.offset = offset;
@@ -95,11 +95,11 @@ Status FileManager::CreateFile(file_id_t id) {
 
   if (offset != 0) {
     PEDRODB_WARN("last offset {}", offset);
-    data_file->SetWriteIndex(offset);
+    file->SetWriteOffset(offset);
   }
 
   metadata_manager_->CreateFile(id);
-  active_data_file_ = data_file;
+  active_data_file_ = file;
   active_file_id_ = id;
 
   return Status::kOk;
@@ -112,25 +112,30 @@ void FileManager::ReleaseDataFile(file_id_t id) {
 }
 
 Status FileManager::AcquireDataFile(file_id_t id, ReadableFile::Ptr* file) {
-  auto lock = AcquireLock();
-  if (id == active_file_id_) {
-    *file = active_data_file_;
-    return Status::kOk;
+  {
+    auto lock = AcquireLock();
+    if (id == active_file_id_) {
+      *file = active_data_file_;
+      return Status::kOk;
+    }
+
+    if (open_files_.Get(id, *file)) {
+      return Status::kOk;
+    }
   }
 
-  if (open_files_.Get(id, *file)) {
-    return Status::kOk;
-  }
-
-  lock.unlock();
-  std::string filename = metadata_manager_->GetDataFilePath(id);
-  auto stat = PosixReadonlyFile::Open(filename, file);
+  auto ptr = std::make_shared<PosixReadonlyFile>();
+  auto stat = ptr->Open(metadata_manager_->GetDataFilePath(id));
   if (stat != Status::kOk) {
     return stat;
   }
-  lock.lock();
 
-  open_files_.Put(id, *file);
+  *file = ptr;
+
+  {
+    auto lock = AcquireLock();
+    open_files_.Put(id, ptr);
+  }
   return Status::kOk;
 }
 
@@ -185,7 +190,12 @@ Status FileManager::Sync() {
 }
 
 Status FileManager::AcquireIndexFile(file_id_t id, ReadableFile::Ptr* file) {
-  return MappingReadonlyFile::Open(metadata_manager_->GetIndexFilePath(id),
-                                   file);
+  auto ptr = std::make_shared<PosixReadonlyFile>();
+  Status status = ptr->Open(metadata_manager_->GetIndexFilePath(id));
+  if (status != Status::kOk) {
+    return status;
+  }
+  *file = ptr;
+  return Status::kOk;
 }
 }  // namespace pedrodb

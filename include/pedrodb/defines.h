@@ -32,8 +32,8 @@ using pedrolib::RetrieveInt;
 
 using file_id_t = uint32_t;
 
-// the maximum size of file is 64MB.
-const uint64_t kMaxFileBytes = 64ULL << 20;
+// the maximum size of file is 128MB.
+const uint64_t kMaxFileBytes = 128ULL << 20;
 
 // the erase block size of SSD is 512KB.
 const uint32_t kBlockSize = 512 << 10;

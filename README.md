@@ -250,18 +250,18 @@ PedroDB 使用索引文件加快数据库**崩溃恢复**的过程，索引文�
 - 通过实现 Buffer 接口，位于内存的 Record 可以零拷贝地写入到 磁盘中
 
 ```cpp
-class ReadWriteFile final : public ReadableFile,
-                            public WritableFile,
+class MappingReadWriteFile final : public ReadableFile,
+                            public ReadWriteFile,
                             noncopyable,
                             nonmovable {
  public:
-  using Ptr = std::shared_ptr<ReadWriteFile>;
+  using Ptr = std::shared_ptr<MappingReadWriteFile>;
 
  private:
   File file_;
   char* data_{};
   size_t write_index_{};
-  const size_t capacity_{};
+  const size_t length_{};
 
   ...
 };
@@ -270,7 +270,7 @@ class ReadWriteFile final : public ReadableFile,
 其中，一些变量的含义为 ：
 
 - `data_` 是 `mmap` 映射的一段内存，大小为 128 MiB，通过 `MAP_SHARED` 模式关联到文件上。
-- `capacity_` 是 文件的大小，一般为 128 MiB。
+- `length_` 是 文件的大小，一般为 128 MiB。
 - `write_index_` 是下一个 `Record` 追加的位置
 
 ### 读取、写入与删除数据

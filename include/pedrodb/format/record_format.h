@@ -74,12 +74,12 @@ struct Entry {
     return checksum == Checksum(key, value);
   }
 
-  static uint64_t Hash(const Key& key) noexcept {
+  static uint32_t Hash(const Key& key) noexcept {
     return std::hash<Key>()(key);
   }
 
   static uint32_t Checksum(const Key& key, const Value& value) noexcept {
-    return static_cast<uint32_t>((Hash(value) >> 32) ^ Hash(key));
+    return Hash(value) ^ Hash(key);
   }
 
   [[nodiscard]] uint32_t SizeOf() const noexcept {

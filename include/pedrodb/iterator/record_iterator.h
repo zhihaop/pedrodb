@@ -2,7 +2,7 @@
 #define PEDRODB_ITERATOR_RECORDITERATOR_H
 #include <utility>
 
-#include "pedrodb/file/readonly_file.h"
+#include "pedrodb/file/posix_readonly_file.h"
 #include "pedrodb/format/record_format.h"
 #include "pedrodb/iterator/iterator.h"
 

@@ -37,7 +37,6 @@ int main() {
   logger.SetLevel(Logger::Level::kTrace);
 
   Options options{};
-  
   std::string path = "/tmp/test.db";
   auto db = std::make_shared<pedrodb::DBImpl>(options, path);
   auto status = db->Init();
@@ -47,12 +46,12 @@ int main() {
 
   std::cin.get();
 
-  size_t n_puts = 10000;
-  size_t n_reads = 10000;
+  size_t n_puts = 1000000;
+  size_t n_reads = 1000000;
 
   KeyValueOptions data_options;
   data_options.key_size = 16;
-  data_options.value_size = 10000;
+  data_options.value_size = 100;
   data_options.random_value = true;
   data_options.lazy_value = false;
 

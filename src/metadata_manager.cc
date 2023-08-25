@@ -4,7 +4,7 @@
 namespace pedrodb {
 
 Status MetadataManager::Recovery() {
-  size_t length = File::Size(file_);
+  size_t length = file_.GetSize();
   ArrayBuffer buffer(length);
   if (buffer.Append(&file_) != length) {
     PEDRODB_FATAL("failed to read file: {}", file_.GetError());
@@ -61,7 +61,7 @@ Status MetadataManager::Init() {
     return Status::kIOError;
   }
 
-  int64_t filesize = File::Size(file_);
+  int64_t filesize = file_.GetSize();
   if (filesize < 0) {
     PEDRODB_ERROR("cannot get filesize[{}]: {}", path_, file_.GetError());
     return Status::kIOError;
