@@ -15,7 +15,7 @@
 namespace pedrodb {
 
 class FileManager : public std::enable_shared_from_this<FileManager> {
-  mutable SpinLock mu_;
+  mutable std::mutex mu_;
 
   MetadataManager::Ptr metadata_manager_;
   LRUCache<file_id_t, ReadableFile::Ptr> open_files_;

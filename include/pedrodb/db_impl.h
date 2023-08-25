@@ -38,7 +38,7 @@ struct FileState {
 };
 
 class DBImpl : public DB, public std::enable_shared_from_this<DBImpl> {
-  mutable pedrolib::SpinLock mu_;
+  mutable SpinLock mu_;
 
   Options options_;
   uint64_t sync_worker_{};
